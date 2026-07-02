@@ -1,0 +1,51 @@
+import { NextRequest, NextResponse } from "next/server";
+import { connectDB } from "@/lib/db";
+import UserModel from "@/models/User";
+import { SESSION_COOKIE, signSession, verifyPassword } from "@/lib/auth";
+import { badRequest } from "@/lib/apiAuth";
+
+export async function POST(req: NextRequest) {
+  const body = await req.json().catch(() => null);
+  const email = body?.email?.toString().trim().toLowerCase();
+  const password = body?.password?.toString();
+
+  if (!email || !password) {
+    return badRequest("Correo y contraseña son requeridos");
+  }
+
+  await connectDB();
+  const user = await UserModel.findOne({ email, activo: true }).lean();
+
+  if (!user) {
+    return NextResponse.json({ error: "Credenciales inválidas" }, { status: 401 });
+  }
+
+  const valid = await verifyPassword(password, user.passwordHash);
+  if (!valid) {
+    return NextResponse.json({ error: "Credenciales inválidas" }, { status: 401 });
+  }
+
+  const token = await signSession({
+    userId: String(user._id),
+    email: user.email,
+    nombre: user.nombre,
+    role: user.role as "matriz" | "sucursal",
+    sucursalId: user.sucursalId ? String(user.sucursalId) : null,
+  });
+
+  const res = NextResponse.json({
+    role: user.role,
+    nombre: user.nombre,
+    sucursalId: user.sucursalId ? String(user.sucursalId) : null,
+  });
+
+  res.cookies.set(SESSION_COOKIE, token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 12,
+  });
+
+  return res;
+}

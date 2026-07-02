@@ -1,0 +1,61 @@
+
+> titos@0.1.0 dev
+> next dev
+
+▲ Next.js 16.2.10 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.1.12:3000
+- Environments: .env.local
+✓ Ready in 401ms
+⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of C:\Users\josec\package-lock.json as the root directory.
+ To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory for more information.
+ Detected additional lockfiles: 
+   * C:\Users\josec\Documents\Github\titos\package-lock.json
+
+
+ GET /matriz/ordenes-compra 200 in 350ms (next.js: 77ms, proxy.ts: 104ms, application-code: 169ms)
+ GET /api/necesidades-compra?estado=pendiente 200 in 1946ms (next.js: 351ms, application-code: 1595ms)
+ GET /api/proveedores 200 in 1992ms (next.js: 381ms, application-code: 1611ms)
+ GET /api/solicitudes-producto 200 in 1666ms (next.js: 52ms, application-code: 1614ms)
+ GET /api/productos 200 in 2.3s (next.js: 420ms, application-code: 1868ms)
+ GET /api/ordenes-compra 200 in 1923ms (next.js: 65ms, application-code: 1858ms)
+ POST /api/auth/login 200 in 148ms (next.js: 29ms, application-code: 120ms)
+ POST /api/auth/login 200 in 109ms (next.js: 3ms, application-code: 106ms)
+ POST /api/auth/login 200 in 111ms (next.js: 2ms, application-code: 109ms)
+ POST /api/auth/login 200 in 118ms (next.js: 2ms, application-code: 116ms)
+ POST /api/auth/login 200 in 111ms (next.js: 2ms, application-code: 109ms)
+  Reload env: .env.local
+ GET /matriz/ordenes-compra 200 in 107ms (next.js: 31ms, proxy.ts: 21ms, application-code: 54ms)
+ GET /matriz/ordenes-compra 200 in 169ms (next.js: 9ms, proxy.ts: 9ms, application-code: 151ms)
+ GET /api/necesidades-compra?estado=pendiente 200 in 379ms (next.js: 73ms, application-code: 306ms)
+ GET /api/proveedores 200 in 381ms (next.js: 139ms, application-code: 243ms)
+ GET /api/productos 200 in 383ms (next.js: 200ms, application-code: 183ms)
+ GET /api/solicitudes-producto 200 in 435ms (next.js: 294ms, application-code: 141ms)
+ GET /api/ordenes-compra 200 in 444ms (next.js: 261ms, application-code: 183ms)
+ GET /matriz/ordenes-compra 200 in 172ms (next.js: 11ms, proxy.ts: 12ms, application-code: 149ms)
+ GET /api/necesidades-compra?estado=pendiente 200 in 111ms (next.js: 9ms, application-code: 102ms)
+ GET /api/proveedores 200 in 115ms (next.js: 18ms, application-code: 97ms)
+ GET /api/productos 200 in 119ms (next.js: 27ms, application-code: 91ms)
+ GET /api/solicitudes-producto 200 in 169ms (next.js: 48ms, application-code: 120ms)
+ GET /api/ordenes-compra 200 in 173ms (next.js: 38ms, application-code: 135ms)
+ GET /matriz/ordenes-compra 200 in 139ms (next.js: 7ms, proxy.ts: 6ms, application-code: 126ms)
+ GET /api/necesidades-compra?estado=pendiente 200 in 160ms (next.js: 10ms, application-code: 149ms)
+ GET /api/proveedores 200 in 162ms (next.js: 23ms, application-code: 139ms)
+ GET /api/productos 200 in 166ms (next.js: 32ms, application-code: 134ms)
+ GET /api/ordenes-compra 200 in 224ms (next.js: 43ms, application-code: 182ms)
+ GET /api/solicitudes-producto 200 in 228ms (next.js: 71ms, application-code: 157ms)
+ GET /matriz/ordenes-compra 200 in 151ms (next.js: 7ms, proxy.ts: 7ms, application-code: 137ms)
+ GET /api/necesidades-compra?estado=pendiente 200 in 111ms (next.js: 20ms, application-code: 91ms)
+ GET /api/productos 200 in 116ms (next.js: 39ms, application-code: 78ms)
+ GET /api/proveedores 200 in 129ms (next.js: 9ms, application-code: 119ms)
+ GET /api/ordenes-compra 200 in 168ms (next.js: 48ms, application-code: 120ms)
+ GET /api/solicitudes-producto 200 in 180ms (next.js: 57ms, application-code: 123ms)
+ GET /matriz/ordenes-compra 200 in 129ms (next.js: 8ms, proxy.ts: 8ms, application-code: 113ms)
+ GET /api/proveedores 200 in 103ms (next.js: 19ms, application-code: 84ms)
+ GET /api/necesidades-compra?estado=pendiente 200 in 108ms (next.js: 9ms, application-code: 100ms)
+ GET /api/productos 200 in 109ms (next.js: 30ms, application-code: 79ms)
+ GET /api/solicitudes-producto 200 in 157ms (next.js: 47ms, application-code: 110ms)
+ GET /api/ordenes-compra 200 in 169ms (next.js: 42ms, application-code: 127ms)
+[?25h
