@@ -2,9 +2,14 @@ import Link from "next/link";
 import { getSession } from "@/lib/getSession";
 import { connectDB } from "@/lib/db";
 import Pedido from "@/models/Pedido";
-import { Card, PageHeader, EstadoBadge, EmptyState } from "@/components/ui";
+import { Card, PageHeader, EstadoBadge, EmptyState, formatMoney } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
+
+function montoLinea(item: { cantidadSurtida?: number | null; cantidadAsignada?: number | null; cantidadPedida: number; precioVenta?: number }) {
+  const cantidad = item.cantidadSurtida ?? item.cantidadAsignada ?? item.cantidadPedida;
+  return cantidad * (item.precioVenta ?? 0);
+}
 
 export default async function MisPedidosPage() {
   const session = await getSession();
@@ -30,7 +35,12 @@ export default async function MisPedidosPage() {
                     corte {p.corte} · {p.items.length} productos
                   </p>
                 </div>
-                <EstadoBadge estado={p.estado} />
+                <div className="flex items-center gap-3">
+                  <span className="font-medium text-titos-green-900">
+                    {formatMoney(p.items.reduce((sum: number, i: (typeof p.items)[number]) => sum + montoLinea(i), 0))}
+                  </span>
+                  <EstadoBadge estado={p.estado} />
+                </div>
               </li>
             ))}
           </ul>

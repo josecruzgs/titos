@@ -23,6 +23,10 @@ export function notFound(message = "No encontrado") {
   return NextResponse.json({ error: message }, { status: 404 });
 }
 
+export function conflict(message: string) {
+  return NextResponse.json({ error: message }, { status: 409 });
+}
+
 export function generateFolio(prefix: string) {
   const stamp = Date.now().toString(36).toUpperCase();
   const rand = Math.random().toString(36).slice(2, 6).toUpperCase();

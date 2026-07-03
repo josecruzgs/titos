@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LayoutDashboard } from "lucide-react";
 import { connectDB } from "@/lib/db";
 import Pedido from "@/models/Pedido";
 import Producto from "@/models/Producto";
@@ -7,6 +8,7 @@ import OrdenCompra from "@/models/OrdenCompra";
 import SolicitudProductoNuevo from "@/models/SolicitudProductoNuevo";
 import "@/models/Sucursal"; // necesario para que populate("sucursalId") funcione
 import { Card, PageHeader, Button, EmptyState } from "@/components/ui";
+import { VentasChart } from "@/components/matriz/VentasChart";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +32,7 @@ export default async function MatrizDashboard() {
       <PageHeader
         title="Dashboard"
         description="Resumen operativo del almacén central"
+        icon={LayoutDashboard}
         action={
           <Link href="/matriz/pedidos">
             <Button>Ir a pedidos de sucursales</Button>
@@ -38,26 +41,40 @@ export default async function MatrizDashboard() {
       />
 
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        <Card>
-          <p className="text-sm text-black/50">Pedidos por nivelar</p>
-          <p className="mt-1 text-3xl font-bold text-titos-green-700">{pedidosPendientes.length}</p>
-        </Card>
-        <Card>
-          <p className="text-sm text-black/50">Nivelados, listos para surtir</p>
-          <p className="mt-1 text-3xl font-bold text-titos-orange-600">{pedidosNivelados.length}</p>
-        </Card>
-        <Card>
-          <p className="text-sm text-black/50">Necesidades por ordenar</p>
-          <p className="mt-1 text-3xl font-bold text-titos-green-700">{necesidadesPendientes}</p>
-        </Card>
-        <Card>
-          <p className="text-sm text-black/50">Órdenes de compra en curso</p>
-          <p className="mt-1 text-3xl font-bold text-titos-green-700">{ocEnCurso}</p>
-        </Card>
-        <Card>
-          <p className="text-sm text-black/50">Solicitudes de producto nuevo</p>
-          <p className="mt-1 text-3xl font-bold text-titos-orange-600">{solicitudesPendientes}</p>
-        </Card>
+        <Link href="/matriz/pedidos?tab=pendiente">
+          <Card className="h-full transition-shadow hover:shadow-md">
+            <p className="text-sm text-black/50">Pedidos por nivelar</p>
+            <p className="mt-1 text-3xl font-bold text-titos-green-700">{pedidosPendientes.length}</p>
+          </Card>
+        </Link>
+        <Link href="/matriz/pedidos?tab=nivelado">
+          <Card className="h-full transition-shadow hover:shadow-md">
+            <p className="text-sm text-black/50">Nivelados, listos para surtir</p>
+            <p className="mt-1 text-3xl font-bold text-titos-orange-600">{pedidosNivelados.length}</p>
+          </Card>
+        </Link>
+        <Link href="/matriz/ordenes-compra?tab=por-ordenar">
+          <Card className="h-full transition-shadow hover:shadow-md">
+            <p className="text-sm text-black/50">Necesidades por ordenar</p>
+            <p className="mt-1 text-3xl font-bold text-titos-green-700">{necesidadesPendientes}</p>
+          </Card>
+        </Link>
+        <Link href="/matriz/ordenes-compra?tab=ordenes">
+          <Card className="h-full transition-shadow hover:shadow-md">
+            <p className="text-sm text-black/50">Órdenes de compra en curso</p>
+            <p className="mt-1 text-3xl font-bold text-titos-green-700">{ocEnCurso}</p>
+          </Card>
+        </Link>
+        <Link href="/matriz/ordenes-compra?tab=solicitudes">
+          <Card className="h-full transition-shadow hover:shadow-md">
+            <p className="text-sm text-black/50">Solicitudes de producto nuevo</p>
+            <p className="mt-1 text-3xl font-bold text-titos-orange-600">{solicitudesPendientes}</p>
+          </Card>
+        </Link>
+      </div>
+
+      <div className="mb-6">
+        <VentasChart />
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

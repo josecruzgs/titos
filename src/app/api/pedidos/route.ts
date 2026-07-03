@@ -4,6 +4,7 @@ import Pedido from "@/models/Pedido";
 import Producto from "@/models/Producto";
 import SolicitudProductoNuevo from "@/models/SolicitudProductoNuevo";
 import "@/models/Sucursal"; // necesario para que populate("sucursalId") funcione
+import "@/models/Empleado"; // necesario para que populate("repartidorId") funcione
 import { requireSession, unauthorized, forbidden, badRequest, generateFolio, todayCorte } from "@/lib/apiAuth";
 
 export async function GET(req: NextRequest) {
@@ -23,7 +24,11 @@ export async function GET(req: NextRequest) {
     if (estado) filter.estado = estado;
   }
 
-  const pedidos = await Pedido.find(filter).sort({ createdAt: -1 }).populate("sucursalId", "nombre").lean();
+  const pedidos = await Pedido.find(filter)
+    .sort({ createdAt: -1 })
+    .populate("sucursalId", "nombre whatsapp")
+    .populate("repartidorId", "nombre whatsapp puesto")
+    .lean();
   return NextResponse.json(pedidos);
 }
 
@@ -64,8 +69,10 @@ export async function POST(req: NextRequest) {
       pedidoItems.push({
         productoId: producto._id,
         nombreProducto: producto.nombre,
+        categoria: producto.categoria,
         unidad: producto.unidad,
         requierePesaje: producto.requierePesaje,
+        precioVenta: producto.precioVenta ?? 0,
         cantidadPedida: cantidad,
       });
     }

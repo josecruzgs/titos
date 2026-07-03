@@ -4,6 +4,7 @@ const SucursalSchema = new Schema(
   {
     nombre: { type: String, required: true },
     direccion: { type: String, default: "" },
+    whatsapp: { type: String, default: "" },
     activo: { type: Boolean, default: true },
   },
   { timestamps: true }

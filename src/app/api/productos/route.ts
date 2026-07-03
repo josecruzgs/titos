@@ -29,7 +29,8 @@ export async function POST(req: NextRequest) {
     categoria: body.categoria,
     unidad: body.unidad,
     requierePesaje: Boolean(body.requierePesaje),
-    precio: Number(body.precio) || 0,
+    precioCompra: Number(body.precioCompra) || 0,
+    precioVenta: Number(body.precioVenta) || 0,
     existenciaMatriz: Number(body.existenciaMatriz) || 0,
     stockMinimo: Number(body.stockMinimo) || 0,
   });

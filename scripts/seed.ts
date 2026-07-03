@@ -15,6 +15,7 @@ import Proveedor from "../src/models/Proveedor";
 import NecesidadCompra from "../src/models/NecesidadCompra";
 import OrdenCompra from "../src/models/OrdenCompra";
 import MovimientoInventario from "../src/models/MovimientoInventario";
+import Empleado from "../src/models/Empleado";
 
 const PASSWORD = "titos123";
 
@@ -33,6 +34,7 @@ async function seed() {
     NecesidadCompra.deleteMany({}),
     OrdenCompra.deleteMany({}),
     MovimientoInventario.deleteMany({}),
+    Empleado.deleteMany({}),
   ]);
 
   const passwordHash = await hashPassword(PASSWORD);
@@ -47,9 +49,9 @@ async function seed() {
 
   console.log("Creando sucursales...");
   const [centro, norte, sur] = await Promise.all([
-    Sucursal.create({ nombre: "Titos Centro", direccion: "Av. Juárez 100, Centro" }),
-    Sucursal.create({ nombre: "Titos Norte", direccion: "Blvd. Norte 250" }),
-    Sucursal.create({ nombre: "Titos Sur", direccion: "Calz. del Sur 88" }),
+    Sucursal.create({ nombre: "Titos Centro", direccion: "Av. Juárez 100, Centro", whatsapp: "5215511110001" }),
+    Sucursal.create({ nombre: "Titos Norte", direccion: "Blvd. Norte 250", whatsapp: "5215511110002" }),
+    Sucursal.create({ nombre: "Titos Sur", direccion: "Calz. del Sur 88", whatsapp: "5215511110003" }),
   ]);
 
   await Promise.all([
@@ -78,51 +80,57 @@ async function seed() {
 
   console.log("Creando proveedores...");
   await Promise.all([
-    Proveedor.create({ nombre: "Distribuidora Central", contacto: "Laura Méndez", telefono: "55-1234-5678", email: "ventas@distribuidoracentral.com" }),
-    Proveedor.create({ nombre: "Abarrotes del Valle", contacto: "Raúl Ibarra", telefono: "55-8765-4321", email: "pedidos@abarrotesdelvalle.com" }),
+    Proveedor.create({ nombre: "Distribuidora Central", contacto: "Laura Méndez", whatsapp: "5215522220001", email: "ventas@distribuidoracentral.com" }),
+    Proveedor.create({ nombre: "Abarrotes del Valle", contacto: "Raúl Ibarra", whatsapp: "5215522220002", email: "pedidos@abarrotesdelvalle.com" }),
+  ]);
+
+  console.log("Creando personal de matriz...");
+  await Promise.all([
+    Empleado.create({ nombre: "Jorge Ramírez", puesto: "Repartidor", whatsapp: "5215533330001" }),
+    Empleado.create({ nombre: "Sofía Torres", puesto: "Recepción de compras", whatsapp: "5215533330002" }),
   ]);
 
   console.log("Creando catálogo de productos...");
   const productosData = [
     // Abarrotes
-    { sku: "ABA-001", nombre: "Jabón en barra Zote", categoria: "limpieza", unidad: "pieza", existenciaMatriz: 10, stockMinimo: 20, precio: 18 },
-    { sku: "ABA-002", nombre: "Arroz 1kg", categoria: "abarrotes", unidad: "pieza", existenciaMatriz: 120, stockMinimo: 30, precio: 24 },
-    { sku: "ABA-003", nombre: "Frijol 1kg", categoria: "abarrotes", unidad: "pieza", existenciaMatriz: 95, stockMinimo: 30, precio: 32 },
-    { sku: "ABA-004", nombre: "Aceite vegetal 1L", categoria: "abarrotes", unidad: "pieza", existenciaMatriz: 80, stockMinimo: 20, precio: 45 },
-    { sku: "ABA-005", nombre: "Azúcar 1kg", categoria: "abarrotes", unidad: "pieza", existenciaMatriz: 110, stockMinimo: 25, precio: 22 },
-    { sku: "ABA-006", nombre: "Sal 1kg", categoria: "abarrotes", unidad: "pieza", existenciaMatriz: 60, stockMinimo: 15, precio: 12 },
-    { sku: "ABA-007", nombre: "Café soluble 200g", categoria: "abarrotes", unidad: "pieza", existenciaMatriz: 40, stockMinimo: 10, precio: 68 },
-    { sku: "ABA-008", nombre: "Pasta para sopa 200g", categoria: "abarrotes", unidad: "pieza", existenciaMatriz: 70, stockMinimo: 15, precio: 15 },
+    { sku: "ABA-001", nombre: "Jabón en barra Zote", categoria: "limpieza", unidad: "pieza", existenciaMatriz: 10, stockMinimo: 20, precioCompra: 18, precioVenta: 25 },
+    { sku: "ABA-002", nombre: "Arroz 1kg", categoria: "abarrotes", unidad: "pieza", existenciaMatriz: 120, stockMinimo: 30, precioCompra: 24, precioVenta: 32 },
+    { sku: "ABA-003", nombre: "Frijol 1kg", categoria: "abarrotes", unidad: "pieza", existenciaMatriz: 95, stockMinimo: 30, precioCompra: 32, precioVenta: 42 },
+    { sku: "ABA-004", nombre: "Aceite vegetal 1L", categoria: "abarrotes", unidad: "pieza", existenciaMatriz: 80, stockMinimo: 20, precioCompra: 45, precioVenta: 58 },
+    { sku: "ABA-005", nombre: "Azúcar 1kg", categoria: "abarrotes", unidad: "pieza", existenciaMatriz: 110, stockMinimo: 25, precioCompra: 22, precioVenta: 29 },
+    { sku: "ABA-006", nombre: "Sal 1kg", categoria: "abarrotes", unidad: "pieza", existenciaMatriz: 60, stockMinimo: 15, precioCompra: 12, precioVenta: 16 },
+    { sku: "ABA-007", nombre: "Café soluble 200g", categoria: "abarrotes", unidad: "pieza", existenciaMatriz: 40, stockMinimo: 10, precioCompra: 68, precioVenta: 89 },
+    { sku: "ABA-008", nombre: "Pasta para sopa 200g", categoria: "abarrotes", unidad: "pieza", existenciaMatriz: 70, stockMinimo: 15, precioCompra: 15, precioVenta: 20 },
     // Limpieza
-    { sku: "LIM-001", nombre: "Detergente en polvo 1kg", categoria: "limpieza", unidad: "pieza", existenciaMatriz: 55, stockMinimo: 15, precio: 38 },
-    { sku: "LIM-002", nombre: "Cloro 1L", categoria: "limpieza", unidad: "pieza", existenciaMatriz: 65, stockMinimo: 15, precio: 20 },
-    { sku: "LIM-003", nombre: "Papel higiénico 4 rollos", categoria: "limpieza", unidad: "pieza", existenciaMatriz: 90, stockMinimo: 20, precio: 42 },
-    { sku: "LIM-004", nombre: "Servilletas paquete", categoria: "limpieza", unidad: "pieza", existenciaMatriz: 75, stockMinimo: 15, precio: 18 },
+    { sku: "LIM-001", nombre: "Detergente en polvo 1kg", categoria: "limpieza", unidad: "pieza", existenciaMatriz: 55, stockMinimo: 15, precioCompra: 38, precioVenta: 49 },
+    { sku: "LIM-002", nombre: "Cloro 1L", categoria: "limpieza", unidad: "pieza", existenciaMatriz: 65, stockMinimo: 15, precioCompra: 20, precioVenta: 27 },
+    { sku: "LIM-003", nombre: "Papel higiénico 4 rollos", categoria: "limpieza", unidad: "pieza", existenciaMatriz: 90, stockMinimo: 20, precioCompra: 42, precioVenta: 55 },
+    { sku: "LIM-004", nombre: "Servilletas paquete", categoria: "limpieza", unidad: "pieza", existenciaMatriz: 75, stockMinimo: 15, precioCompra: 18, precioVenta: 24 },
     // Frutas y verduras (requieren pesaje)
-    { sku: "FRV-001", nombre: "Jitomate", categoria: "frutas_verduras", unidad: "kg", existenciaMatriz: 180, stockMinimo: 40, requierePesaje: true, precio: 22 },
-    { sku: "FRV-002", nombre: "Cebolla blanca", categoria: "frutas_verduras", unidad: "kg", existenciaMatriz: 150, stockMinimo: 30, requierePesaje: true, precio: 18 },
-    { sku: "FRV-003", nombre: "Papa", categoria: "frutas_verduras", unidad: "kg", existenciaMatriz: 200, stockMinimo: 40, requierePesaje: true, precio: 16 },
-    { sku: "FRV-004", nombre: "Plátano", categoria: "frutas_verduras", unidad: "kg", existenciaMatriz: 15, stockMinimo: 35, requierePesaje: true, precio: 14 },
-    { sku: "FRV-005", nombre: "Manzana", categoria: "frutas_verduras", unidad: "kg", existenciaMatriz: 90, stockMinimo: 25, requierePesaje: true, precio: 32 },
-    { sku: "FRV-006", nombre: "Limón", categoria: "frutas_verduras", unidad: "kg", existenciaMatriz: 70, stockMinimo: 20, requierePesaje: true, precio: 20 },
-    { sku: "FRV-007", nombre: "Aguacate", categoria: "frutas_verduras", unidad: "kg", existenciaMatriz: 60, stockMinimo: 20, requierePesaje: true, precio: 45 },
+    { sku: "FRV-001", nombre: "Jitomate", categoria: "frutas_verduras", unidad: "kg", existenciaMatriz: 180, stockMinimo: 40, requierePesaje: true, precioCompra: 22, precioVenta: 29 },
+    { sku: "FRV-002", nombre: "Cebolla blanca", categoria: "frutas_verduras", unidad: "kg", existenciaMatriz: 150, stockMinimo: 30, requierePesaje: true, precioCompra: 18, precioVenta: 24 },
+    { sku: "FRV-003", nombre: "Papa", categoria: "frutas_verduras", unidad: "kg", existenciaMatriz: 200, stockMinimo: 40, requierePesaje: true, precioCompra: 16, precioVenta: 21 },
+    { sku: "FRV-004", nombre: "Plátano", categoria: "frutas_verduras", unidad: "kg", existenciaMatriz: 15, stockMinimo: 35, requierePesaje: true, precioCompra: 14, precioVenta: 19 },
+    { sku: "FRV-005", nombre: "Manzana", categoria: "frutas_verduras", unidad: "kg", existenciaMatriz: 90, stockMinimo: 25, requierePesaje: true, precioCompra: 32, precioVenta: 42 },
+    { sku: "FRV-006", nombre: "Limón", categoria: "frutas_verduras", unidad: "kg", existenciaMatriz: 70, stockMinimo: 20, requierePesaje: true, precioCompra: 20, precioVenta: 26 },
+    { sku: "FRV-007", nombre: "Aguacate", categoria: "frutas_verduras", unidad: "kg", existenciaMatriz: 60, stockMinimo: 20, requierePesaje: true, precioCompra: 45, precioVenta: 59 },
     // Carnicería (requieren pesaje)
-    { sku: "CAR-001", nombre: "Bistec de res", categoria: "carniceria", unidad: "kg", existenciaMatriz: 45, stockMinimo: 15, requierePesaje: true, precio: 165 },
-    { sku: "CAR-002", nombre: "Pechuga de pollo", categoria: "carniceria", unidad: "kg", existenciaMatriz: 55, stockMinimo: 20, requierePesaje: true, precio: 89 },
-    { sku: "CAR-003", nombre: "Chuleta de cerdo", categoria: "carniceria", unidad: "kg", existenciaMatriz: 35, stockMinimo: 15, requierePesaje: true, precio: 98 },
-    { sku: "CAR-004", nombre: "Chorizo", categoria: "carniceria", unidad: "kg", existenciaMatriz: 25, stockMinimo: 10, requierePesaje: true, precio: 110 },
+    { sku: "CAR-001", nombre: "Bistec de res", categoria: "carniceria", unidad: "kg", existenciaMatriz: 45, stockMinimo: 15, requierePesaje: true, precioCompra: 165, precioVenta: 210 },
+    { sku: "CAR-002", nombre: "Pechuga de pollo", categoria: "carniceria", unidad: "kg", existenciaMatriz: 55, stockMinimo: 20, requierePesaje: true, precioCompra: 89, precioVenta: 115 },
+    { sku: "CAR-003", nombre: "Chuleta de cerdo", categoria: "carniceria", unidad: "kg", existenciaMatriz: 35, stockMinimo: 15, requierePesaje: true, precioCompra: 98, precioVenta: 125 },
+    { sku: "CAR-004", nombre: "Chorizo", categoria: "carniceria", unidad: "kg", existenciaMatriz: 25, stockMinimo: 10, requierePesaje: true, precioCompra: 110, precioVenta: 140 },
     // Lácteos
-    { sku: "LAC-001", nombre: "Leche entera 1L", categoria: "lacteos", unidad: "pieza", existenciaMatriz: 140, stockMinimo: 30, precio: 26 },
-    { sku: "LAC-002", nombre: "Queso panela 400g", categoria: "lacteos", unidad: "pieza", existenciaMatriz: 50, stockMinimo: 15, precio: 58 },
-    { sku: "LAC-003", nombre: "Yogurt natural 1L", categoria: "lacteos", unidad: "pieza", existenciaMatriz: 45, stockMinimo: 15, precio: 34 },
-    { sku: "LAC-004", nombre: "Crema ácida 200g", categoria: "lacteos", unidad: "pieza", existenciaMatriz: 38, stockMinimo: 10, precio: 28 },
+    { sku: "LAC-001", nombre: "Leche entera 1L", categoria: "lacteos", unidad: "pieza", existenciaMatriz: 140, stockMinimo: 30, precioCompra: 26, precioVenta: 34 },
+    { sku: "LAC-002", nombre: "Queso panela 400g", categoria: "lacteos", unidad: "pieza", existenciaMatriz: 50, stockMinimo: 15, precioCompra: 58, precioVenta: 75 },
+    { sku: "LAC-003", nombre: "Yogurt natural 1L", categoria: "lacteos", unidad: "pieza", existenciaMatriz: 45, stockMinimo: 15, precioCompra: 34, precioVenta: 44 },
+    { sku: "LAC-004", nombre: "Crema ácida 200g", categoria: "lacteos", unidad: "pieza", existenciaMatriz: 38, stockMinimo: 10, precioCompra: 28, precioVenta: 36 },
     // Panadería
-    { sku: "PAN-001", nombre: "Pan blanco de caja", categoria: "panaderia", unidad: "pieza", existenciaMatriz: 60, stockMinimo: 15, precio: 36 },
-    { sku: "PAN-002", nombre: "Bolillo (docena)", categoria: "panaderia", unidad: "pieza", existenciaMatriz: 40, stockMinimo: 10, precio: 24 },
+    { sku: "PAN-001", nombre: "Pan blanco de caja", categoria: "panaderia", unidad: "pieza", existenciaMatriz: 60, stockMinimo: 15, precioCompra: 36, precioVenta: 47 },
+    { sku: "PAN-002", nombre: "Bolillo (docena)", categoria: "panaderia", unidad: "pieza", existenciaMatriz: 40, stockMinimo: 10, precioCompra: 24, precioVenta: 32 },
     // Bebidas
-    { sku: "BEB-001", nombre: "Refresco de cola 2L", categoria: "bebidas", unidad: "pieza", existenciaMatriz: 100, stockMinimo: 25, precio: 32 },
-    { sku: "BEB-002", nombre: "Agua embotellada 1L", categoria: "bebidas", unidad: "pieza", existenciaMatriz: 130, stockMinimo: 30, precio: 14 },
-    { sku: "BEB-003", nombre: "Jugo de naranja 1L", categoria: "bebidas", unidad: "pieza", existenciaMatriz: 50, stockMinimo: 15, precio: 29 },
+    { sku: "BEB-001", nombre: "Refresco de cola 2L", categoria: "bebidas", unidad: "pieza", existenciaMatriz: 100, stockMinimo: 25, precioCompra: 32, precioVenta: 42 },
+    { sku: "BEB-002", nombre: "Agua embotellada 1L", categoria: "bebidas", unidad: "pieza", existenciaMatriz: 130, stockMinimo: 30, precioCompra: 14, precioVenta: 19 },
+    { sku: "BEB-003", nombre: "Jugo de naranja 1L", categoria: "bebidas", unidad: "pieza", existenciaMatriz: 50, stockMinimo: 15, precioCompra: 29, precioVenta: 38 },
   ] as const;
 
   const productos = await Producto.insertMany(
@@ -150,8 +158,10 @@ async function seed() {
       items: items.map((i) => ({
         productoId: i.producto._id,
         nombreProducto: i.producto.nombre,
+        categoria: i.producto.categoria,
         unidad: i.producto.unidad,
         requierePesaje: i.producto.requierePesaje,
+        precioVenta: i.producto.precioVenta,
         cantidadPedida: i.cantidad,
       })),
     });

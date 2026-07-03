@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { X } from "lucide-react";
+import { X, type LucideIcon } from "lucide-react";
 
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
@@ -7,12 +7,29 @@ export function Card({ children, className = "" }: { children: ReactNode; classN
   );
 }
 
-export function PageHeader({ title, description, action }: { title: string; description?: string; action?: ReactNode }) {
+export function PageHeader({
+  title,
+  description,
+  action,
+  icon: Icon,
+}: {
+  title: string;
+  description?: string;
+  action?: ReactNode;
+  icon?: LucideIcon;
+}) {
   return (
     <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h1 className="text-2xl font-bold text-titos-green-900">{title}</h1>
-        {description ? <p className="mt-1 text-sm text-black/60">{description}</p> : null}
+      <div className="flex items-start gap-3">
+        {Icon ? (
+          <span className="mt-0.5 grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-titos-green-100 text-titos-green-700">
+            <Icon className="h-5.5 w-5.5" />
+          </span>
+        ) : null}
+        <div>
+          <h1 className="font-display text-2xl font-bold text-titos-green-900">{title}</h1>
+          {description ? <p className="mt-1 text-sm text-black/60">{description}</p> : null}
+        </div>
       </div>
       {action}
     </div>
@@ -67,38 +84,90 @@ export function Button({
   );
 }
 
-export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
-  return (
+export function Input({
+  icon: Icon,
+  className = "",
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement> & { icon?: LucideIcon }) {
+  const input = (
     <input
       {...props}
-      className={`w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-titos-green-500 focus:ring-2 focus:ring-titos-green-100 ${props.className ?? ""}`}
+      className={`w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-titos-green-500 focus:ring-2 focus:ring-titos-green-100 ${Icon ? "pl-9" : ""} ${className}`}
     />
+  );
+  if (!Icon) return input;
+  return (
+    <div className="relative">
+      <Icon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-black/30" />
+      {input}
+    </div>
   );
 }
 
-export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
+export function Select({
+  icon: Icon,
+  className = "",
+  ...props
+}: React.SelectHTMLAttributes<HTMLSelectElement> & { icon?: LucideIcon }) {
+  const select = (
     <select
       {...props}
-      className={`w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-titos-green-500 focus:ring-2 focus:ring-titos-green-100 ${props.className ?? ""}`}
+      className={`w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-titos-green-500 focus:ring-2 focus:ring-titos-green-100 ${Icon ? "pl-9" : ""} ${className}`}
     />
   );
+  if (!Icon) return select;
+  return (
+    <div className="relative">
+      <Icon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-black/30" />
+      {select}
+    </div>
+  );
+}
+
+export function FormField({
+  label,
+  className = "",
+  children,
+}: {
+  label: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={className}>
+      <label className="mb-1 block text-sm font-medium text-black/70">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+export function FormGrid({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <div className={`grid grid-cols-1 gap-3.5 sm:grid-cols-2 ${className}`}>{children}</div>;
 }
 
 export function formatMoney(value: number) {
   return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(value);
 }
 
+const MODAL_SIZES = {
+  md: "max-w-2xl",
+  lg: "max-w-3xl",
+};
+
 export function Modal({
   open,
   onClose,
   title,
+  icon: Icon,
+  size = "md",
   children,
   footer,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
+  icon?: LucideIcon;
+  size?: keyof typeof MODAL_SIZES;
   children: ReactNode;
   footer?: ReactNode;
 }) {
@@ -107,11 +176,18 @@ export function Modal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div
-        className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl"
+        className={`max-h-[85vh] w-full ${MODAL_SIZES[size]} overflow-y-auto rounded-2xl bg-white p-6 shadow-xl`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-titos-green-900">{title}</h2>
+          <h2 className="flex items-center gap-2.5 font-display text-lg font-bold text-titos-green-900">
+            {Icon ? (
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-titos-green-100 text-titos-green-700">
+                <Icon className="h-4.5 w-4.5" />
+              </span>
+            ) : null}
+            {title}
+          </h2>
           <button onClick={onClose} className="rounded-lg p-1.5 text-black/40 hover:bg-black/5 hover:text-black/60">
             <X className="h-5 w-5" />
           </button>

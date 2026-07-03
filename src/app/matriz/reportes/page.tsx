@@ -1,6 +1,7 @@
 import { connectDB } from "@/lib/db";
 import Pedido from "@/models/Pedido";
 import "@/models/Sucursal"; // necesario para que populate("sucursalId") funcione
+import { BarChart3 } from "lucide-react";
 import { Card, PageHeader, EmptyState } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -52,6 +53,7 @@ export default async function ReportesPage() {
       <PageHeader
         title="Reportes"
         description="Comparativo de lo pedido, lo asignado por el Nivelador, lo surtido y lo recibido"
+        icon={BarChart3}
       />
 
       {filas.length === 0 ? (

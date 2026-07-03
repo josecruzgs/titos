@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Button, Card, Input, Select, EmptyState, Pagination } from "@/components/ui";
+import { Button, Card, Input, Select, EmptyState, Pagination, Modal, FormGrid, FormField } from "@/components/ui";
+import { Package, Barcode, Tag, Scale, DollarSign, Boxes, AlertTriangle } from "lucide-react";
 import { CATEGORIAS } from "@/lib/categorias";
 
 const PAGE_SIZE = 20;
@@ -13,7 +14,8 @@ type Producto = {
   categoria: string;
   unidad: "pieza" | "kg";
   requierePesaje: boolean;
-  precio: number;
+  precioCompra: number;
+  precioVenta: number;
   existenciaMatriz: number;
   stockMinimo: number;
   activo: boolean;
@@ -25,35 +27,18 @@ const emptyForm = {
   categoria: "abarrotes",
   unidad: "pieza" as "pieza" | "kg",
   requierePesaje: false,
-  precio: "",
+  precioCompra: "",
+  precioVenta: "",
   existenciaMatriz: "",
   stockMinimo: "",
 };
 
-export function ProductosManager() {
-  const [productos, setProductos] = useState<Producto[]>([]);
-  const [loading, setLoading] = useState(true);
+function CrearProductoModal({ onClose, onCreado }: { onClose: () => void; onCreado: () => void }) {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [busqueda, setBusqueda] = useState("");
-  const [categoriaFiltro, setCategoriaFiltro] = useState("");
-  const [page, setPage] = useState(1);
 
-  async function cargar() {
-    setLoading(true);
-    const res = await fetch("/api/productos");
-    if (res.ok) setProductos(await res.json());
-    setLoading(false);
-  }
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial de datos al montar
-    cargar();
-  }, []);
-
-  async function handleCrear(e: React.FormEvent) {
-    e.preventDefault();
+  async function crear() {
     setError(null);
     setSaving(true);
 
@@ -71,9 +56,91 @@ export function ProductosManager() {
       return;
     }
 
-    setForm(emptyForm);
-    cargar();
+    onCreado();
   }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Nuevo producto"
+      icon={Package}
+      size="lg"
+      footer={
+        <Button onClick={crear} disabled={saving || !form.sku || !form.nombre}>
+          {saving ? "Guardando..." : "Agregar producto"}
+        </Button>
+      }
+    >
+      <div className="space-y-4">
+        <FormGrid>
+          <FormField label="SKU">
+            <Input icon={Barcode} required value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} />
+          </FormField>
+          <FormField label="Nombre">
+            <Input icon={Package} required value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
+          </FormField>
+          <FormField label="Categoría">
+            <Select icon={Tag} value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })}>
+              {CATEGORIAS.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </Select>
+          </FormField>
+          <FormField label="Unidad">
+            <Select icon={Scale} value={form.unidad} onChange={(e) => setForm({ ...form, unidad: e.target.value as "pieza" | "kg" })}>
+              <option value="pieza">Pieza</option>
+              <option value="kg">Kilogramo</option>
+            </Select>
+          </FormField>
+          <FormField label="Precio de compra (a proveedor)">
+            <Input icon={DollarSign} type="number" step="0.01" value={form.precioCompra} onChange={(e) => setForm({ ...form, precioCompra: e.target.value })} />
+          </FormField>
+          <FormField label="Precio de venta (a sucursales)">
+            <Input icon={DollarSign} type="number" step="0.01" value={form.precioVenta} onChange={(e) => setForm({ ...form, precioVenta: e.target.value })} />
+          </FormField>
+          <FormField label="Existencia inicial">
+            <Input icon={Boxes} type="number" value={form.existenciaMatriz} onChange={(e) => setForm({ ...form, existenciaMatriz: e.target.value })} />
+          </FormField>
+          <FormField label="Stock mínimo (alerta)">
+            <Input icon={AlertTriangle} type="number" value={form.stockMinimo} onChange={(e) => setForm({ ...form, stockMinimo: e.target.value })} />
+          </FormField>
+        </FormGrid>
+        <label className="flex items-center gap-2 text-sm text-black/70">
+          <input
+            type="checkbox"
+            checked={form.requierePesaje}
+            onChange={(e) => setForm({ ...form, requierePesaje: e.target.checked })}
+          />
+          Requiere pesaje (perecedero)
+        </label>
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      </div>
+    </Modal>
+  );
+}
+
+export function ProductosManager() {
+  const [productos, setProductos] = useState<Producto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busqueda, setBusqueda] = useState("");
+  const [categoriaFiltro, setCategoriaFiltro] = useState("");
+  const [page, setPage] = useState(1);
+  const [creando, setCreando] = useState(false);
+
+  async function cargar() {
+    setLoading(true);
+    const res = await fetch("/api/productos");
+    if (res.ok) setProductos(await res.json());
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial de datos al montar
+    cargar();
+  }, []);
 
   async function toggleRequierePesaje(producto: Producto) {
     await fetch(`/api/productos/${producto._id}`, {
@@ -89,6 +156,14 @@ export function ProductosManager() {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ stockMinimo: Number(value) || 0 }),
+    });
+  }
+
+  async function actualizarPrecioVenta(producto: Producto, value: string) {
+    await fetch(`/api/productos/${producto._id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ precioVenta: Number(value) || 0 }),
     });
   }
 
@@ -116,71 +191,8 @@ export function ProductosManager() {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-      <Card className="lg:col-span-1 h-fit">
-        <h2 className="mb-3 font-semibold text-titos-green-900">Nuevo producto</h2>
-        <form onSubmit={handleCrear} className="space-y-3">
-          <Input
-            placeholder="SKU"
-            required
-            value={form.sku}
-            onChange={(e) => setForm({ ...form, sku: e.target.value })}
-          />
-          <Input
-            placeholder="Nombre"
-            required
-            value={form.nombre}
-            onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-          />
-          <Select value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })}>
-            {CATEGORIAS.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </Select>
-          <Select
-            value={form.unidad}
-            onChange={(e) => setForm({ ...form, unidad: e.target.value as "pieza" | "kg" })}
-          >
-            <option value="pieza">Pieza</option>
-            <option value="kg">Kilogramo</option>
-          </Select>
-          <label className="flex items-center gap-2 text-sm text-black/70">
-            <input
-              type="checkbox"
-              checked={form.requierePesaje}
-              onChange={(e) => setForm({ ...form, requierePesaje: e.target.checked })}
-            />
-            Requiere pesaje (perecedero)
-          </label>
-          <Input
-            type="number"
-            step="0.01"
-            placeholder="Precio"
-            value={form.precio}
-            onChange={(e) => setForm({ ...form, precio: e.target.value })}
-          />
-          <Input
-            type="number"
-            placeholder="Existencia inicial"
-            value={form.existenciaMatriz}
-            onChange={(e) => setForm({ ...form, existenciaMatriz: e.target.value })}
-          />
-          <Input
-            type="number"
-            placeholder="Stock mínimo (alerta)"
-            value={form.stockMinimo}
-            onChange={(e) => setForm({ ...form, stockMinimo: e.target.value })}
-          />
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
-          <Button type="submit" disabled={saving} className="w-full justify-center">
-            {saving ? "Guardando..." : "Agregar producto"}
-          </Button>
-        </form>
-      </Card>
-
-      <Card className="lg:col-span-2">
+    <div>
+      <Card>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-semibold text-titos-green-900">Catálogo ({productosFiltrados.length})</h2>
           <div className="flex flex-wrap gap-2">
@@ -190,11 +202,7 @@ export function ProductosManager() {
               onChange={(e) => actualizarBusqueda(e.target.value)}
               className="w-56"
             />
-            <Select
-              value={categoriaFiltro}
-              onChange={(e) => actualizarCategoriaFiltro(e.target.value)}
-              className="w-44"
-            >
+            <Select value={categoriaFiltro} onChange={(e) => actualizarCategoriaFiltro(e.target.value)} className="w-44">
               <option value="">Todas las categorías</option>
               {CATEGORIAS.map((c) => (
                 <option key={c.value} value={c.value}>
@@ -202,6 +210,7 @@ export function ProductosManager() {
                 </option>
               ))}
             </Select>
+            <Button onClick={() => setCreando(true)}>+ Nuevo producto</Button>
           </div>
         </div>
         {loading ? (
@@ -224,6 +233,7 @@ export function ProductosManager() {
                     <th className="py-2 pr-2">Nombre</th>
                     <th className="py-2 pr-2">Categoría</th>
                     <th className="py-2 pr-2">Existencia</th>
+                    <th className="py-2 pr-2">Precio venta</th>
                     <th className="py-2 pr-2">Pesaje</th>
                     <th className="py-2 pr-2">Mínimo</th>
                   </tr>
@@ -239,10 +249,15 @@ export function ProductosManager() {
                       </td>
                       <td className="py-2 pr-2">
                         <input
-                          type="checkbox"
-                          checked={p.requierePesaje}
-                          onChange={() => toggleRequierePesaje(p)}
+                          type="number"
+                          step="0.01"
+                          defaultValue={p.precioVenta}
+                          onBlur={(e) => actualizarPrecioVenta(p, e.target.value)}
+                          className="w-20 rounded border border-black/10 px-1 py-0.5"
                         />
+                      </td>
+                      <td className="py-2 pr-2">
+                        <input type="checkbox" checked={p.requierePesaje} onChange={() => toggleRequierePesaje(p)} />
                       </td>
                       <td className="py-2 pr-2">
                         <input
@@ -267,6 +282,16 @@ export function ProductosManager() {
           </>
         )}
       </Card>
+
+      {creando ? (
+        <CrearProductoModal
+          onClose={() => setCreando(false)}
+          onCreado={() => {
+            setCreando(false);
+            cargar();
+          }}
+        />
+      ) : null}
     </div>
   );
 }

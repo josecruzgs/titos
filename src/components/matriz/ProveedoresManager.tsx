@@ -1,39 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, Card, Input, EmptyState } from "@/components/ui";
+import { Button, Card, Input, EmptyState, Modal, FormGrid, FormField } from "@/components/ui";
+import { Truck, User, MessageCircle, Mail } from "lucide-react";
 
 type Proveedor = {
   _id: string;
   nombre: string;
   contacto: string;
-  telefono: string;
+  whatsapp: string;
   email: string;
+  activo: boolean;
 };
 
-const emptyForm = { nombre: "", contacto: "", telefono: "", email: "" };
+const emptyForm = { nombre: "", contacto: "", whatsapp: "", email: "" };
 
-export function ProveedoresManager() {
-  const [proveedores, setProveedores] = useState<Proveedor[]>([]);
-  const [loading, setLoading] = useState(true);
+function CrearProveedorModal({ onClose, onCreado }: { onClose: () => void; onCreado: () => void }) {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function cargar() {
-    setLoading(true);
-    const res = await fetch("/api/proveedores");
-    if (res.ok) setProveedores(await res.json());
-    setLoading(false);
-  }
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial de datos al montar
-    cargar();
-  }, []);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function crear() {
     setError(null);
     setSaving(true);
 
@@ -51,46 +38,189 @@ export function ProveedoresManager() {
       return;
     }
 
-    setForm(emptyForm);
-    cargar();
+    onCreado();
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-      <Card className="lg:col-span-1 h-fit">
-        <h2 className="mb-3 font-semibold text-titos-green-900">Nuevo proveedor</h2>
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <Input
-            placeholder="Nombre del proveedor"
-            required
-            value={form.nombre}
-            onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-          />
-          <Input
-            placeholder="Persona de contacto"
-            value={form.contacto}
-            onChange={(e) => setForm({ ...form, contacto: e.target.value })}
-          />
-          <Input
-            placeholder="Teléfono"
-            value={form.telefono}
-            onChange={(e) => setForm({ ...form, telefono: e.target.value })}
-          />
-          <Input
-            type="email"
-            placeholder="Correo"
-            value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
-          />
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
-          <Button type="submit" disabled={saving} className="w-full justify-center">
-            {saving ? "Guardando..." : "Agregar proveedor"}
-          </Button>
-        </form>
-      </Card>
+    <Modal
+      open
+      onClose={onClose}
+      title="Nuevo proveedor"
+      icon={Truck}
+      size="lg"
+      footer={
+        <Button onClick={crear} disabled={saving || !form.nombre}>
+          {saving ? "Guardando..." : "Crear proveedor"}
+        </Button>
+      }
+    >
+      <FormGrid>
+        <FormField label="Nombre del proveedor" className="sm:col-span-2">
+          <Input icon={Truck} required value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
+        </FormField>
+        <FormField label="Persona de contacto">
+          <Input icon={User} value={form.contacto} onChange={(e) => setForm({ ...form, contacto: e.target.value })} />
+        </FormField>
+        <FormField label="WhatsApp">
+          <Input icon={MessageCircle} value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} />
+        </FormField>
+        <FormField label="Correo" className="sm:col-span-2">
+          <Input icon={Mail} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+        </FormField>
+      </FormGrid>
+      {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
+    </Modal>
+  );
+}
 
-      <Card className="lg:col-span-2">
-        <h2 className="mb-3 font-semibold text-titos-green-900">Proveedores ({proveedores.length})</h2>
+function ProveedorModal({
+  proveedor,
+  onClose,
+  onGuardado,
+  onEliminado,
+}: {
+  proveedor: Proveedor;
+  onClose: () => void;
+  onGuardado: () => void;
+  onEliminado: () => void;
+}) {
+  const [nombre, setNombre] = useState(proveedor.nombre);
+  const [contacto, setContacto] = useState(proveedor.contacto);
+  const [whatsapp, setWhatsapp] = useState(proveedor.whatsapp);
+  const [email, setEmail] = useState(proveedor.email);
+  const [activo, setActivo] = useState(proveedor.activo);
+  const [saving, setSaving] = useState(false);
+  const [eliminando, setEliminando] = useState(false);
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function guardar() {
+    setError(null);
+    setSaving(true);
+
+    const res = await fetch(`/api/proveedores/${proveedor._id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nombre, contacto, whatsapp, email, activo }),
+    });
+
+    setSaving(false);
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error || "No se pudieron guardar los cambios");
+      return;
+    }
+
+    onGuardado();
+  }
+
+  async function eliminar() {
+    setError(null);
+    setEliminando(true);
+
+    const res = await fetch(`/api/proveedores/${proveedor._id}`, { method: "DELETE" });
+
+    setEliminando(false);
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error || "No se pudo eliminar el proveedor");
+      return;
+    }
+
+    onEliminado();
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={proveedor.nombre}
+      icon={Truck}
+      size="lg"
+      footer={
+        confirmandoEliminar ? (
+          <>
+            <span className="self-center text-sm text-black/60">¿Seguro que quieres eliminar este proveedor?</span>
+            <Button variant="ghost" onClick={() => setConfirmandoEliminar(false)}>
+              Cancelar
+            </Button>
+            <Button variant="danger" onClick={eliminar} disabled={eliminando}>
+              {eliminando ? "Eliminando..." : "Sí, eliminar"}
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button variant="danger" onClick={() => setConfirmandoEliminar(true)}>
+              Eliminar
+            </Button>
+            <Button onClick={guardar} disabled={saving}>
+              {saving ? "Guardando..." : "Guardar cambios"}
+            </Button>
+          </>
+        )
+      }
+    >
+      <div className="space-y-4">
+        <FormGrid>
+          <FormField label="Nombre" className="sm:col-span-2">
+            <Input icon={Truck} value={nombre} onChange={(e) => setNombre(e.target.value)} />
+          </FormField>
+          <FormField label="Persona de contacto">
+            <Input icon={User} value={contacto} onChange={(e) => setContacto(e.target.value)} />
+          </FormField>
+          <FormField label="WhatsApp">
+            <Input icon={MessageCircle} value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />
+          </FormField>
+          <FormField label="Correo" className="sm:col-span-2">
+            <Input icon={Mail} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </FormField>
+        </FormGrid>
+        <label className="flex items-center gap-2 text-sm text-black/70">
+          <input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} />
+          Activo
+        </label>
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      </div>
+    </Modal>
+  );
+}
+
+export function ProveedoresManager() {
+  const [proveedores, setProveedores] = useState<Proveedor[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [proveedorModal, setProveedorModal] = useState<Proveedor | null>(null);
+  const [creando, setCreando] = useState(false);
+
+  async function cargar() {
+    setLoading(true);
+    const res = await fetch("/api/proveedores?todos=1");
+    if (res.ok) setProveedores(await res.json());
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial de datos al montar
+    cargar();
+  }, []);
+
+  async function alternarActivo(proveedor: Proveedor) {
+    const res = await fetch(`/api/proveedores/${proveedor._id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ activo: !proveedor.activo }),
+    });
+    if (res.ok) cargar();
+  }
+
+  return (
+    <div>
+      <Card>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-semibold text-titos-green-900">Proveedores ({proveedores.length})</h2>
+          <Button onClick={() => setCreando(true)}>+ Nuevo proveedor</Button>
+        </div>
         {loading ? (
           <p className="text-sm text-black/50">Cargando...</p>
         ) : proveedores.length === 0 ? (
@@ -102,17 +232,31 @@ export function ProveedoresManager() {
                 <tr className="border-b border-black/10 text-black/50">
                   <th className="py-2 pr-2">Nombre</th>
                   <th className="py-2 pr-2">Contacto</th>
-                  <th className="py-2 pr-2">Teléfono</th>
+                  <th className="py-2 pr-2">WhatsApp</th>
                   <th className="py-2 pr-2">Correo</th>
+                  <th className="py-2 pr-2" />
                 </tr>
               </thead>
               <tbody>
                 {proveedores.map((p) => (
-                  <tr key={p._id} className="border-b border-black/5">
-                    <td className="py-2 pr-2 font-medium">{p.nombre}</td>
+                  <tr key={p._id} className={`border-b border-black/5 ${!p.activo ? "opacity-50" : ""}`}>
+                    <td className="py-2 pr-2 font-medium">
+                      {p.nombre}
+                      {!p.activo ? <span className="ml-1 text-xs text-black/40">(inactivo)</span> : null}
+                    </td>
                     <td className="py-2 pr-2 text-black/60">{p.contacto || "—"}</td>
-                    <td className="py-2 pr-2 text-black/60">{p.telefono || "—"}</td>
+                    <td className="py-2 pr-2 text-black/60">{p.whatsapp || "—"}</td>
                     <td className="py-2 pr-2 text-black/60">{p.email || "—"}</td>
+                    <td className="py-2 pr-2">
+                      <div className="flex flex-wrap justify-end gap-1">
+                        <Button variant="ghost" onClick={() => setProveedorModal(p)}>
+                          Ver / Editar
+                        </Button>
+                        <Button variant="ghost" onClick={() => alternarActivo(p)}>
+                          {p.activo ? "Desactivar" : "Activar"}
+                        </Button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -120,6 +264,31 @@ export function ProveedoresManager() {
           </div>
         )}
       </Card>
+
+      {creando ? (
+        <CrearProveedorModal
+          onClose={() => setCreando(false)}
+          onCreado={() => {
+            setCreando(false);
+            cargar();
+          }}
+        />
+      ) : null}
+
+      {proveedorModal ? (
+        <ProveedorModal
+          proveedor={proveedorModal}
+          onClose={() => setProveedorModal(null)}
+          onGuardado={() => {
+            setProveedorModal(null);
+            cargar();
+          }}
+          onEliminado={() => {
+            setProveedorModal(null);
+            cargar();
+          }}
+        />
+      ) : null}
     </div>
   );
 }

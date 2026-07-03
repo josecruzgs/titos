@@ -4,6 +4,7 @@ import Sucursal from "@/models/Sucursal";
 import UserModel from "@/models/User";
 import { requireSession, unauthorized, forbidden, badRequest } from "@/lib/apiAuth";
 import { hashPassword } from "@/lib/auth";
+import { normalizarWhatsAppMX } from "@/lib/whatsapp";
 
 export async function GET(req: NextRequest) {
   const session = await requireSession(req);
@@ -11,8 +12,22 @@ export async function GET(req: NextRequest) {
   if (session.role !== "matriz") return forbidden();
 
   await connectDB();
-  const sucursales = await Sucursal.find({ activo: true }).sort({ nombre: 1 }).lean();
-  return NextResponse.json(sucursales);
+  const sucursales = await Sucursal.find({}).sort({ nombre: 1 }).lean();
+
+  const usuarios = await UserModel.find({
+    role: "sucursal",
+    sucursalId: { $in: sucursales.map((s) => s._id) },
+  })
+    .select("email nombre sucursalId")
+    .lean();
+  const usuarioPorSucursal = new Map(usuarios.map((u) => [String(u.sucursalId), u]));
+
+  const sucursalesConUsuario = sucursales.map((s) => {
+    const usuario = usuarioPorSucursal.get(String(s._id));
+    return { ...s, usuario: usuario ? { email: usuario.email, nombre: usuario.nombre } : null };
+  });
+
+  return NextResponse.json(sucursalesConUsuario);
 }
 
 export async function POST(req: NextRequest) {
@@ -30,6 +45,7 @@ export async function POST(req: NextRequest) {
   const sucursal = await Sucursal.create({
     nombre: body.nombre,
     direccion: body.direccion || "",
+    whatsapp: body.whatsapp ? normalizarWhatsAppMX(body.whatsapp) : "",
   });
 
   const passwordHash = await hashPassword(body.password);

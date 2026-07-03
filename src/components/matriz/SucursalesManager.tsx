@@ -1,43 +1,34 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, Card, Input, EmptyState } from "@/components/ui";
+import { Button, Card, Input, EmptyState, Modal, FormGrid, FormField } from "@/components/ui";
+import { Store, MapPin, MessageCircle, User, Mail, Lock } from "lucide-react";
 
 type Sucursal = {
   _id: string;
   nombre: string;
   direccion: string;
+  whatsapp: string;
+  activo: boolean;
+  usuario: { email: string; nombre: string } | null;
 };
 
 const emptyForm = {
   nombre: "",
   direccion: "",
+  whatsapp: "",
   usuarioNombre: "",
   email: "",
   password: "",
 };
 
-export function SucursalesManager() {
-  const [sucursales, setSucursales] = useState<Sucursal[]>([]);
+function CrearSucursalModal({ onClose, onCreada }: { onClose: () => void; onCreada: () => void }) {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mensaje, setMensaje] = useState<string | null>(null);
 
-  async function cargar() {
-    const res = await fetch("/api/sucursales");
-    if (res.ok) setSucursales(await res.json());
-  }
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial de datos al montar
-    cargar();
-  }, []);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function crear() {
     setError(null);
-    setMensaje(null);
     setSaving(true);
 
     const res = await fetch("/api/sucursales", {
@@ -54,71 +45,257 @@ export function SucursalesManager() {
       return;
     }
 
-    setMensaje(`Sucursal creada. Usuario de acceso: ${form.email}`);
-    setForm(emptyForm);
-    cargar();
+    onCreada();
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-      <Card className="lg:col-span-1 h-fit">
-        <h2 className="mb-3 font-semibold text-titos-green-900">Nueva sucursal</h2>
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <Input
-            placeholder="Nombre de la sucursal"
-            required
-            value={form.nombre}
-            onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-          />
-          <Input
-            placeholder="Dirección"
-            value={form.direccion}
-            onChange={(e) => setForm({ ...form, direccion: e.target.value })}
-          />
-          <hr className="border-black/10" />
-          <p className="text-xs font-medium uppercase text-black/40">Usuario de acceso de la sucursal</p>
-          <Input
-            placeholder="Nombre del responsable"
-            value={form.usuarioNombre}
-            onChange={(e) => setForm({ ...form, usuarioNombre: e.target.value })}
-          />
-          <Input
-            type="email"
-            placeholder="Correo de acceso"
-            required
-            value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
-          />
-          <Input
-            type="password"
-            placeholder="Contraseña"
-            required
-            value={form.password}
-            onChange={(e) => setForm({ ...form, password: e.target.value })}
-          />
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
-          {mensaje ? <p className="text-sm text-titos-green-700">{mensaje}</p> : null}
-          <Button type="submit" disabled={saving} className="w-full justify-center">
-            {saving ? "Guardando..." : "Crear sucursal"}
-          </Button>
-        </form>
-      </Card>
+    <Modal
+      open
+      onClose={onClose}
+      title="Nueva sucursal"
+      icon={Store}
+      size="lg"
+      footer={
+        <Button onClick={crear} disabled={saving || !form.nombre || !form.email || !form.password}>
+          {saving ? "Guardando..." : "Crear sucursal"}
+        </Button>
+      }
+    >
+      <div className="space-y-4">
+        <FormGrid>
+          <FormField label="Nombre de la sucursal" className="sm:col-span-2">
+            <Input icon={Store} required value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
+          </FormField>
+          <FormField label="Dirección" className="sm:col-span-2">
+            <Input icon={MapPin} value={form.direccion} onChange={(e) => setForm({ ...form, direccion: e.target.value })} />
+          </FormField>
+          <FormField label="WhatsApp (opcional)" className="sm:col-span-2">
+            <Input icon={MessageCircle} value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} />
+          </FormField>
+        </FormGrid>
 
-      <Card className="lg:col-span-2">
-        <h2 className="mb-3 font-semibold text-titos-green-900">Sucursales ({sucursales.length})</h2>
-        {sucursales.length === 0 ? (
+        <div className="rounded-xl border border-black/10 p-4">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-black/40">
+            Usuario de acceso de la sucursal
+          </p>
+          <FormGrid>
+            <FormField label="Nombre del responsable" className="sm:col-span-2">
+              <Input icon={User} value={form.usuarioNombre} onChange={(e) => setForm({ ...form, usuarioNombre: e.target.value })} />
+            </FormField>
+            <FormField label="Correo de acceso">
+              <Input icon={Mail} type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            </FormField>
+            <FormField label="Contraseña">
+              <Input icon={Lock} type="password" required value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+            </FormField>
+          </FormGrid>
+        </div>
+
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      </div>
+    </Modal>
+  );
+}
+
+function SucursalModal({
+  sucursal,
+  onClose,
+  onGuardado,
+}: {
+  sucursal: Sucursal;
+  onClose: () => void;
+  onGuardado: () => void;
+}) {
+  const [nombre, setNombre] = useState(sucursal.nombre);
+  const [direccion, setDireccion] = useState(sucursal.direccion);
+  const [whatsapp, setWhatsapp] = useState(sucursal.whatsapp);
+  const [activo, setActivo] = useState(sucursal.activo);
+  const [email, setEmail] = useState(sucursal.usuario?.email ?? "");
+  const [nuevaPassword, setNuevaPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function guardar() {
+    setError(null);
+    setSaving(true);
+
+    const resSucursal = await fetch(`/api/sucursales/${sucursal._id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nombre, direccion, whatsapp, activo }),
+    });
+
+    if (!resSucursal.ok) {
+      const data = await resSucursal.json().catch(() => ({}));
+      setSaving(false);
+      setError(data.error || "No se pudieron guardar los datos de la sucursal");
+      return;
+    }
+
+    if (sucursal.usuario && (email !== sucursal.usuario.email || nuevaPassword)) {
+      const resUsuario = await fetch(`/api/sucursales/${sucursal._id}/usuario`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password: nuevaPassword || undefined }),
+      });
+
+      setSaving(false);
+
+      if (!resUsuario.ok) {
+        const data = await resUsuario.json().catch(() => ({}));
+        setError(data.error || "No se pudo actualizar el usuario de acceso");
+        return;
+      }
+    } else {
+      setSaving(false);
+    }
+
+    onGuardado();
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={sucursal.nombre}
+      icon={Store}
+      size="lg"
+      footer={
+        <Button onClick={guardar} disabled={saving}>
+          {saving ? "Guardando..." : "Guardar cambios"}
+        </Button>
+      }
+    >
+      <div className="space-y-4">
+        <FormGrid>
+          <FormField label="Nombre" className="sm:col-span-2">
+            <Input icon={Store} value={nombre} onChange={(e) => setNombre(e.target.value)} />
+          </FormField>
+          <FormField label="Dirección" className="sm:col-span-2">
+            <Input icon={MapPin} value={direccion} onChange={(e) => setDireccion(e.target.value)} />
+          </FormField>
+          <FormField label="WhatsApp" className="sm:col-span-2">
+            <Input icon={MessageCircle} value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />
+          </FormField>
+        </FormGrid>
+
+        <label className="flex items-center gap-2 text-sm text-black/70">
+          <input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} />
+          Activa
+        </label>
+
+        <div className="rounded-xl border border-black/10 p-4">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-black/40">Usuario de acceso</p>
+          {sucursal.usuario ? (
+            <FormGrid>
+              <FormField label="Correo">
+                <Input icon={Mail} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              </FormField>
+              <FormField label="Nueva contraseña">
+                <Input
+                  icon={Lock}
+                  type="password"
+                  placeholder="Dejar en blanco para no cambiarla"
+                  value={nuevaPassword}
+                  onChange={(e) => setNuevaPassword(e.target.value)}
+                />
+              </FormField>
+            </FormGrid>
+          ) : (
+            <p className="text-sm text-black/40">Esta sucursal no tiene un usuario de acceso ligado.</p>
+          )}
+        </div>
+
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      </div>
+    </Modal>
+  );
+}
+
+export function SucursalesManager() {
+  const [sucursales, setSucursales] = useState<Sucursal[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sucursalModal, setSucursalModal] = useState<Sucursal | null>(null);
+  const [creando, setCreando] = useState(false);
+
+  async function cargar() {
+    setLoading(true);
+    const res = await fetch("/api/sucursales");
+    if (res.ok) setSucursales(await res.json());
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial de datos al montar
+    cargar();
+  }, []);
+
+  return (
+    <div>
+      <Card>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-semibold text-titos-green-900">Sucursales ({sucursales.length})</h2>
+          <Button onClick={() => setCreando(true)}>+ Nueva sucursal</Button>
+        </div>
+        {loading ? (
+          <p className="text-sm text-black/50">Cargando...</p>
+        ) : sucursales.length === 0 ? (
           <EmptyState message="Todavía no hay sucursales registradas." />
         ) : (
-          <ul className="divide-y divide-black/5">
-            {sucursales.map((s) => (
-              <li key={s._id} className="py-2 text-sm">
-                <p className="font-medium">{s.nombre}</p>
-                {s.direccion ? <p className="text-black/50">{s.direccion}</p> : null}
-              </li>
-            ))}
-          </ul>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-black/10 text-black/50">
+                  <th className="py-2 pr-2">Nombre</th>
+                  <th className="py-2 pr-2">Dirección</th>
+                  <th className="py-2 pr-2">WhatsApp</th>
+                  <th className="py-2 pr-2">Correo</th>
+                  <th className="py-2 pr-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {sucursales.map((s) => (
+                  <tr key={s._id} className={`border-b border-black/5 ${!s.activo ? "opacity-50" : ""}`}>
+                    <td className="py-2 pr-2 font-medium">
+                      {s.nombre}
+                      {!s.activo ? <span className="ml-1 text-xs text-black/40">(inactiva)</span> : null}
+                    </td>
+                    <td className="py-2 pr-2 text-black/60">{s.direccion || "—"}</td>
+                    <td className="py-2 pr-2 text-black/60">{s.whatsapp || "—"}</td>
+                    <td className="py-2 pr-2 text-black/60">{s.usuario?.email || "—"}</td>
+                    <td className="py-2 pr-2">
+                      <Button variant="ghost" onClick={() => setSucursalModal(s)}>
+                        Ver / Editar
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Card>
+
+      {creando ? (
+        <CrearSucursalModal
+          onClose={() => setCreando(false)}
+          onCreada={() => {
+            setCreando(false);
+            cargar();
+          }}
+        />
+      ) : null}
+
+      {sucursalModal ? (
+        <SucursalModal
+          sucursal={sucursalModal}
+          onClose={() => setSucursalModal(null)}
+          onGuardado={() => {
+            setSucursalModal(null);
+            cargar();
+          }}
+        />
+      ) : null}
     </div>
   );
 }

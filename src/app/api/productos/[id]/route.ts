@@ -14,7 +14,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   await connectDB();
 
-  const updatable = ["nombre", "categoria", "unidad", "requierePesaje", "precio", "stockMinimo", "activo"];
+  const updatable = ["nombre", "categoria", "unidad", "requierePesaje", "precioCompra", "precioVenta", "stockMinimo", "activo"];
   const update: Record<string, unknown> = {};
   for (const key of updatable) {
     if (key in body) update[key] = body[key];

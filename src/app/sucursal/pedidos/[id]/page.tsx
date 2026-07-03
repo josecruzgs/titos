@@ -2,10 +2,15 @@ import { notFound, redirect } from "next/navigation";
 import { getSession } from "@/lib/getSession";
 import { connectDB } from "@/lib/db";
 import Pedido from "@/models/Pedido";
-import { Card, PageHeader, EstadoBadge } from "@/components/ui";
+import { Card, PageHeader, EstadoBadge, formatMoney } from "@/components/ui";
 import { RecepcionForm } from "@/components/sucursal/RecepcionForm";
 
 export const dynamic = "force-dynamic";
+
+function montoLinea(item: { cantidadSurtida?: number | null; cantidadAsignada?: number | null; cantidadPedida: number; precioVenta?: number }) {
+  const cantidad = item.cantidadSurtida ?? item.cantidadAsignada ?? item.cantidadPedida;
+  return cantidad * (item.precioVenta ?? 0);
+}
 
 export default async function DetallePedidoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -15,6 +20,8 @@ export default async function DetallePedidoPage({ params }: { params: Promise<{ 
   await connectDB();
   const pedido = await Pedido.findById(id).lean();
   if (!pedido || String(pedido.sucursalId) !== session.sucursalId) notFound();
+
+  const total = pedido.items.reduce((sum: number, i: (typeof pedido.items)[number]) => sum + montoLinea(i), 0);
 
   return (
     <div>
@@ -34,6 +41,8 @@ export default async function DetallePedidoPage({ params }: { params: Promise<{ 
                 <th className="py-2 pr-2">Asignado</th>
                 <th className="py-2 pr-2">Surtido</th>
                 <th className="py-2 pr-2">Recibido</th>
+                <th className="py-2 pr-2">Precio venta</th>
+                <th className="py-2 pr-2">Subtotal</th>
               </tr>
             </thead>
             <tbody>
@@ -55,9 +64,18 @@ export default async function DetallePedidoPage({ params }: { params: Promise<{ 
                     {item.cantidadRecibida ?? "—"}
                     {item.pesoRecibidoKg ? ` (${item.pesoRecibidoKg} kg)` : ""}
                   </td>
+                  <td className="py-2 pr-2">{formatMoney(item.precioVenta ?? 0)}</td>
+                  <td className="py-2 pr-2 font-medium">{formatMoney(montoLinea(item))}</td>
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={5} />
+                <td className="pt-2 text-right text-xs font-semibold uppercase text-black/40">Total</td>
+                <td className="pt-2 font-semibold text-titos-green-900">{formatMoney(total)}</td>
+              </tr>
+            </tfoot>
           </table>
         </div>
 

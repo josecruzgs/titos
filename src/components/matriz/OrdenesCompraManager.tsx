@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button, Card, EstadoBadge, EmptyState, Input, Select, Modal, formatMoney } from "@/components/ui";
 import { ProductoCombobox } from "@/components/ProductoCombobox";
+import { EnviarWhatsAppControl } from "@/components/EnviarWhatsAppControl";
+import { imprimirHTML } from "@/lib/print";
 import { CATEGORIAS } from "@/lib/categorias";
 
 type Necesidad = {
@@ -13,9 +16,11 @@ type Necesidad = {
   motivo: "faltante_pedido" | "producto_nuevo" | "manual";
 };
 
-type Proveedor = { _id: string; nombre: string };
+type Proveedor = { _id: string; nombre: string; whatsapp?: string };
 
-type ProductoOpcion = { _id: string; sku: string; nombre: string; unidad: "pieza" | "kg"; precio: number };
+type Empleado = { _id: string; nombre: string; puesto: string; whatsapp: string };
+
+type ProductoOpcion = { _id: string; sku: string; nombre: string; unidad: "pieza" | "kg"; precioCompra: number };
 
 type OrdenItem = {
   productoId: string;
@@ -32,7 +37,7 @@ type EstadoOrden = "borrador" | "solicitada" | "recibida" | "cancelada";
 type Orden = {
   _id: string;
   folio: string;
-  proveedorId: { _id: string; nombre: string } | string;
+  proveedorId: { _id: string; nombre: string; whatsapp?: string } | string;
   estado: EstadoOrden;
   items: OrdenItem[];
   createdAt: string;
@@ -61,13 +66,64 @@ function nombreProveedor(orden: Orden) {
   return typeof orden.proveedorId === "string" ? orden.proveedorId : orden.proveedorId.nombre;
 }
 
+function whatsappProveedor(orden: Orden) {
+  return typeof orden.proveedorId === "string" ? "" : (orden.proveedorId.whatsapp ?? "");
+}
+
+// Usa la cantidad recibida cuando ya se registró la recepción (puede ser
+// menor o mayor a lo ordenado), para reflejar lo que realmente hay que pagar.
+function montoLinea(item: OrdenItem) {
+  const cantidad = item.cantidadRecibida ?? item.cantidadOrdenada;
+  return cantidad * item.precioUnitario;
+}
+
 function totalOrden(orden: Orden) {
-  return orden.items.reduce((sum, i) => sum + i.cantidadOrdenada * i.precioUnitario, 0);
+  return orden.items.reduce((sum, i) => sum + montoLinea(i), 0);
 }
 
 function fechaRelevante(orden: Orden) {
   const fecha = orden.fechaRecepcion ?? orden.fechaCancelacion ?? orden.fechaSolicitud ?? orden.createdAt;
   return new Date(fecha).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+// Texto corto que acompaña al PDF adjunto por WhatsApp (el detalle completo
+// va en el documento, no en el mensaje).
+function resumenWhatsAppOrden(orden: Orden) {
+  return [
+    `*Orden de compra ${orden.folio}* — ${nombreProveedor(orden)}`,
+    `Fecha: ${fechaRelevante(orden)} · Estado: ${orden.estado}`,
+    `Total: ${formatMoney(totalOrden(orden))}`,
+    "",
+    "Se adjunta el detalle completo en PDF.",
+  ].join("\n");
+}
+
+function htmlImprimibleOrden(orden: Orden) {
+  const filas = orden.items
+    .map(
+      (i) => `
+      <tr>
+        <td>${i.nombreProducto}</td>
+        <td>${i.cantidadOrdenada}</td>
+        <td>${formatMoney(i.precioUnitario)}</td>
+        <td>${formatMoney(montoLinea(i))}</td>
+      </tr>`
+    )
+    .join("");
+
+  return `
+    <h1>Orden de compra ${orden.folio}</h1>
+    <p class="subtitulo">${nombreProveedor(orden)} · estado ${orden.estado}</p>
+    <table>
+      <thead>
+        <tr><th>Producto</th><th>Cantidad</th><th>Precio unit.</th><th>Subtotal</th></tr>
+      </thead>
+      <tbody>${filas}</tbody>
+      <tfoot>
+        <tr><td colspan="2"></td><td>Total</td><td>${formatMoney(totalOrden(orden))}</td></tr>
+      </tfoot>
+    </table>
+  `;
 }
 
 function AgregarNecesidadForm({
@@ -115,7 +171,8 @@ function ConvertirForm({ solicitud, onConvertida }: { solicitud: Solicitud; onCo
   const [sku, setSku] = useState("");
   const [categoria, setCategoria] = useState("abarrotes");
   const [requierePesaje, setRequierePesaje] = useState(solicitud.unidad === "kg");
-  const [precio, setPrecio] = useState("");
+  const [precioCompra, setPrecioCompra] = useState("");
+  const [precioVenta, setPrecioVenta] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -127,7 +184,13 @@ function ConvertirForm({ solicitud, onConvertida }: { solicitud: Solicitud; onCo
     const res = await fetch(`/api/solicitudes-producto/${solicitud._id}/convertir`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sku, categoria, requierePesaje, precio: Number(precio) || 0 }),
+      body: JSON.stringify({
+        sku,
+        categoria,
+        requierePesaje,
+        precioCompra: Number(precioCompra) || 0,
+        precioVenta: Number(precioVenta) || 0,
+      }),
     });
 
     setSaving(false);
@@ -151,7 +214,20 @@ function ConvertirForm({ solicitud, onConvertida }: { solicitud: Solicitud; onCo
           </option>
         ))}
       </Select>
-      <Input type="number" step="0.01" placeholder="Precio" value={precio} onChange={(e) => setPrecio(e.target.value)} />
+      <Input
+        type="number"
+        step="0.01"
+        placeholder="Precio de compra"
+        value={precioCompra}
+        onChange={(e) => setPrecioCompra(e.target.value)}
+      />
+      <Input
+        type="number"
+        step="0.01"
+        placeholder="Precio de venta"
+        value={precioVenta}
+        onChange={(e) => setPrecioVenta(e.target.value)}
+      />
       <label className="col-span-full flex items-center gap-2 text-sm text-black/70">
         <input type="checkbox" checked={requierePesaje} onChange={(e) => setRequierePesaje(e.target.checked)} />
         Requiere pesaje (perecedero)
@@ -169,11 +245,13 @@ function ConvertirForm({ solicitud, onConvertida }: { solicitud: Solicitud; onCo
 function OrdenModal({
   orden,
   productos,
+  empleados,
   onClose,
   onUpdated,
 }: {
   orden: Orden;
   productos: ProductoOpcion[];
+  empleados: Empleado[];
   onClose: () => void;
   onUpdated: (orden: Orden) => void;
 }) {
@@ -188,7 +266,7 @@ function OrdenModal({
   const [error, setError] = useState<string | null>(null);
 
   const editable = orden.estado === "borrador";
-  const total = items.reduce((sum, i) => sum + i.cantidadOrdenada * i.precioUnitario, 0);
+  const total = items.reduce((sum, i) => sum + montoLinea(i), 0);
 
   function actualizarItem(productoId: string, campo: "cantidadOrdenada" | "precioUnitario", value: string) {
     setItems((prev) =>
@@ -213,7 +291,7 @@ function OrdenModal({
         nombreProducto: producto.nombre,
         cantidadRequerida: null,
         cantidadOrdenada: cantidad,
-        precioUnitario: producto.precio ?? 0,
+        precioUnitario: producto.precioCompra ?? 0,
         cantidadRecibida: null,
       },
     ]);
@@ -276,6 +354,9 @@ function OrdenModal({
       title={`${nombreProveedor(orden)} · ${orden.folio}`}
       footer={
         <>
+          <Button variant="ghost" onClick={() => imprimirHTML(`Orden ${orden.folio}`, htmlImprimibleOrden(orden))}>
+            Imprimir
+          </Button>
           {editable ? (
             <>
               <Button variant="ghost" onClick={guardarCambios} disabled={saving || items.length === 0}>
@@ -357,7 +438,12 @@ function OrdenModal({
                     formatMoney(item.precioUnitario)
                   )}
                 </td>
-                <td className="py-1.5 pr-2">{formatMoney(item.cantidadOrdenada * item.precioUnitario)}</td>
+                <td className="py-1.5 pr-2">
+                  {formatMoney(montoLinea(item))}
+                  {item.cantidadRecibida !== null && item.cantidadRecibida !== item.cantidadOrdenada ? (
+                    <span className="ml-1 text-xs text-amber-600">(ajustado)</span>
+                  ) : null}
+                </td>
                 {orden.estado === "solicitada" ? (
                   <td className="py-1.5 pr-2">
                     <Input
@@ -412,6 +498,21 @@ function OrdenModal({
           </Button>
         </div>
       ) : null}
+
+      <div className="mt-4 border-t border-black/5 pt-4">
+        <EnviarWhatsAppControl
+          documento={{ tipo: "orden-compra", id: orden._id }}
+          caption={resumenWhatsAppOrden(orden)}
+          destinatarios={[
+            { id: "proveedor", label: `Proveedor: ${nombreProveedor(orden)}`, whatsapp: whatsappProveedor(orden) },
+            ...empleados.map((e) => ({
+              id: e._id,
+              label: `${e.nombre}${e.puesto ? ` (${e.puesto})` : ""}`,
+              whatsapp: e.whatsapp,
+            })),
+          ]}
+        />
+      </div>
     </Modal>
   );
 }
@@ -423,10 +524,14 @@ const TABS = [
 ] as const;
 
 export function OrdenesCompraManager() {
-  const [tab, setTab] = useState<(typeof TABS)[number]["value"]>("por-ordenar");
+  const searchParams = useSearchParams();
+  const tabInicial = TABS.find((t) => t.value === searchParams.get("tab"))?.value ?? "por-ordenar";
+
+  const [tab, setTab] = useState<(typeof TABS)[number]["value"]>(tabInicial);
   const [necesidades, setNecesidades] = useState<Necesidad[]>([]);
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [productos, setProductos] = useState<ProductoOpcion[]>([]);
+  const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [ordenes, setOrdenes] = useState<Orden[]>([]);
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([]);
   const [loading, setLoading] = useState(true);
@@ -440,18 +545,20 @@ export function OrdenesCompraManager() {
 
   async function cargar() {
     setLoading(true);
-    const [necRes, provRes, prodRes, ordRes, solRes] = await Promise.all([
+    const [necRes, provRes, prodRes, ordRes, solRes, empRes] = await Promise.all([
       fetch("/api/necesidades-compra?estado=pendiente"),
       fetch("/api/proveedores"),
       fetch("/api/productos"),
       fetch("/api/ordenes-compra"),
       fetch("/api/solicitudes-producto"),
+      fetch("/api/empleados"),
     ]);
     if (necRes.ok) setNecesidades(await necRes.json());
     if (provRes.ok) setProveedores(await provRes.json());
     if (prodRes.ok) setProductos(await prodRes.json());
     if (ordRes.ok) setOrdenes(await ordRes.json());
     if (solRes.ok) setSolicitudes(await solRes.json());
+    if (empRes.ok) setEmpleados(await empRes.json());
     setLoading(false);
   }
 
@@ -688,6 +795,7 @@ export function OrdenesCompraManager() {
         <OrdenModal
           orden={ordenModal}
           productos={productos}
+          empleados={empleados}
           onClose={() => {
             setOrdenModal(null);
             cargar();

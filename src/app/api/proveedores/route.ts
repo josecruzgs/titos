@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import Proveedor from "@/models/Proveedor";
 import { requireSession, unauthorized, forbidden, badRequest } from "@/lib/apiAuth";
+import { normalizarWhatsAppMX } from "@/lib/whatsapp";
 
 export async function GET(req: NextRequest) {
   const session = await requireSession(req);
@@ -9,7 +10,9 @@ export async function GET(req: NextRequest) {
   if (session.role !== "matriz") return forbidden();
 
   await connectDB();
-  const proveedores = await Proveedor.find({ activo: true }).sort({ nombre: 1 }).lean();
+  const url = new URL(req.url);
+  const filter = url.searchParams.get("todos") ? {} : { activo: true };
+  const proveedores = await Proveedor.find(filter).sort({ nombre: 1 }).lean();
   return NextResponse.json(proveedores);
 }
 
@@ -27,7 +30,7 @@ export async function POST(req: NextRequest) {
   const proveedor = await Proveedor.create({
     nombre: body.nombre,
     contacto: body.contacto || "",
-    telefono: body.telefono || "",
+    whatsapp: body.whatsapp ? normalizarWhatsAppMX(body.whatsapp) : "",
     email: body.email || "",
   });
 

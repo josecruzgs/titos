@@ -12,6 +12,8 @@ import {
   ClipboardList,
   ShoppingCart,
   Truck,
+  Users,
+  Settings,
   BarChart3,
   PlusCircle,
   LogOut,
@@ -32,7 +34,9 @@ const MATRIZ_NAV: NavItem[] = [
   { href: "/matriz/pedidos", label: "Pedidos", icon: ClipboardList },
   { href: "/matriz/proveedores", label: "Proveedores", icon: Truck },
   { href: "/matriz/ordenes-compra", label: "Órdenes de compra", icon: ShoppingCart },
+  { href: "/matriz/personal", label: "Personal", icon: Users },
   { href: "/matriz/reportes", label: "Reportes", icon: BarChart3 },
+  { href: "/matriz/configuracion", label: "Configuración", icon: Settings },
 ];
 
 const SUCURSAL_NAV: NavItem[] = [
@@ -40,6 +44,7 @@ const SUCURSAL_NAV: NavItem[] = [
   { href: "/sucursal/nuevo-pedido", label: "Nuevo pedido", icon: PlusCircle },
   { href: "/sucursal/pedidos", label: "Mis pedidos", icon: ClipboardList },
   { href: "/sucursal/inventario", label: "Mi inventario", icon: Warehouse },
+  { href: "/sucursal/ajustes", label: "Ajustes", icon: Settings },
 ];
 
 const STORAGE_KEY = "titos-sidebar-collapsed";

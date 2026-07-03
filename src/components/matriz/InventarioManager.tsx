@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Button, Card, Input, Select, EmptyState, Pagination } from "@/components/ui";
+import { Button, Card, Input, Select, EmptyState, Pagination, Modal, FormGrid, FormField } from "@/components/ui";
+import { Warehouse, Hash, Scale } from "lucide-react";
 import { ProductoCombobox } from "@/components/ProductoCombobox";
 import { CATEGORIAS } from "@/lib/categorias";
 
@@ -17,37 +18,28 @@ type Producto = {
   existenciaMatriz: number;
 };
 
-export function InventarioManager() {
-  const [productos, setProductos] = useState<Producto[]>([]);
+function RegistrarEntradaModal({
+  productos,
+  onClose,
+  onRegistrada,
+}: {
+  productos: Producto[];
+  onClose: () => void;
+  onRegistrada: () => void;
+}) {
   const [productoId, setProductoId] = useState("");
   const [cantidad, setCantidad] = useState("");
   const [pesoKg, setPesoKg] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mensaje, setMensaje] = useState<string | null>(null);
-  const [busqueda, setBusqueda] = useState("");
-  const [categoriaFiltro, setCategoriaFiltro] = useState("");
-  const [page, setPage] = useState(1);
-
-  async function cargar() {
-    const res = await fetch("/api/productos");
-    if (res.ok) setProductos(await res.json());
-  }
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial de datos al montar
-    cargar();
-  }, []);
 
   const productoSeleccionado = useMemo(
     () => productos.find((p) => p._id === productoId),
     [productos, productoId]
   );
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function registrar() {
     setError(null);
-    setMensaje(null);
     setSaving(true);
 
     const res = await fetch("/api/inventario/entrada", {
@@ -68,11 +60,58 @@ export function InventarioManager() {
       return;
     }
 
-    setMensaje("Entrada registrada e inventario actualizado.");
-    setCantidad("");
-    setPesoKg("");
-    cargar();
+    onRegistrada();
   }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Registrar entrada de proveedor"
+      icon={Warehouse}
+      size="lg"
+      footer={
+        <Button onClick={registrar} disabled={saving || !productoId || !cantidad}>
+          {saving ? "Guardando..." : "Registrar entrada"}
+        </Button>
+      }
+    >
+      <div className="space-y-4">
+        <FormField label="Producto">
+          <ProductoCombobox productos={productos} value={productoId} onChange={setProductoId} />
+        </FormField>
+        <FormGrid>
+          <FormField label={productoSeleccionado ? `Cantidad en ${productoSeleccionado.unidad}` : "Cantidad"}>
+            <Input icon={Hash} type="number" min="1" required value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
+          </FormField>
+          {productoSeleccionado?.requierePesaje ? (
+            <FormField label="Peso real en kg (báscula)">
+              <Input icon={Scale} type="number" step="0.01" min="0.01" required value={pesoKg} onChange={(e) => setPesoKg(e.target.value)} />
+            </FormField>
+          ) : null}
+        </FormGrid>
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      </div>
+    </Modal>
+  );
+}
+
+export function InventarioManager() {
+  const [productos, setProductos] = useState<Producto[]>([]);
+  const [busqueda, setBusqueda] = useState("");
+  const [categoriaFiltro, setCategoriaFiltro] = useState("");
+  const [page, setPage] = useState(1);
+  const [registrando, setRegistrando] = useState(false);
+
+  async function cargar() {
+    const res = await fetch("/api/productos");
+    if (res.ok) setProductos(await res.json());
+  }
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial de datos al montar
+    cargar();
+  }, []);
 
   const productosFiltrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
@@ -98,39 +137,8 @@ export function InventarioManager() {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-      <Card className="lg:col-span-1 h-fit">
-        <h2 className="mb-3 font-semibold text-titos-green-900">Registrar entrada de proveedor</h2>
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <ProductoCombobox productos={productos} value={productoId} onChange={setProductoId} />
-          <Input
-            type="number"
-            min="1"
-            placeholder={productoSeleccionado ? `Cantidad en ${productoSeleccionado.unidad}` : "Cantidad"}
-            required
-            value={cantidad}
-            onChange={(e) => setCantidad(e.target.value)}
-          />
-          {productoSeleccionado?.requierePesaje ? (
-            <Input
-              type="number"
-              step="0.01"
-              min="0.01"
-              placeholder="Peso real en kg (báscula)"
-              required
-              value={pesoKg}
-              onChange={(e) => setPesoKg(e.target.value)}
-            />
-          ) : null}
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
-          {mensaje ? <p className="text-sm text-titos-green-700">{mensaje}</p> : null}
-          <Button type="submit" disabled={saving || !productoId} className="w-full justify-center">
-            {saving ? "Guardando..." : "Registrar entrada"}
-          </Button>
-        </form>
-      </Card>
-
-      <Card className="lg:col-span-2">
+    <div>
+      <Card>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-semibold text-titos-green-900">Existencia actual en matriz ({productosFiltrados.length})</h2>
           <div className="flex flex-wrap gap-2">
@@ -140,11 +148,7 @@ export function InventarioManager() {
               onChange={(e) => actualizarBusqueda(e.target.value)}
               className="w-56"
             />
-            <Select
-              value={categoriaFiltro}
-              onChange={(e) => actualizarCategoriaFiltro(e.target.value)}
-              className="w-44"
-            >
+            <Select value={categoriaFiltro} onChange={(e) => actualizarCategoriaFiltro(e.target.value)} className="w-44">
               <option value="">Todas las categorías</option>
               {CATEGORIAS.map((c) => (
                 <option key={c.value} value={c.value}>
@@ -152,6 +156,7 @@ export function InventarioManager() {
                 </option>
               ))}
             </Select>
+            <Button onClick={() => setRegistrando(true)}>+ Registrar entrada</Button>
           </div>
         </div>
         {productosFiltrados.length === 0 ? (
@@ -198,6 +203,17 @@ export function InventarioManager() {
           </>
         )}
       </Card>
+
+      {registrando ? (
+        <RegistrarEntradaModal
+          productos={productos}
+          onClose={() => setRegistrando(false)}
+          onRegistrada={() => {
+            setRegistrando(false);
+            cargar();
+          }}
+        />
+      ) : null}
     </div>
   );
 }

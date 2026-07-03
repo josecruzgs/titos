@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const filter: Record<string, unknown> = {};
   if (estado) filter.estado = estado;
 
-  const ordenes = await OrdenCompra.find(filter).sort({ createdAt: -1 }).populate("proveedorId", "nombre").lean();
+  const ordenes = await OrdenCompra.find(filter).sort({ createdAt: -1 }).populate("proveedorId", "nombre whatsapp").lean();
   return NextResponse.json(ordenes);
 }
 
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
       nombreProducto: producto.nombre,
       cantidadRequerida: body?.cantidadRequerida ?? null,
       cantidadOrdenada,
-      precioUnitario: producto.precio ?? 0,
+      precioUnitario: producto.precioCompra ?? 0,
       necesidadId: necesidadId ?? null,
     });
   }
