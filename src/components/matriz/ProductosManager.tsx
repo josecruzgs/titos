@@ -193,24 +193,29 @@ export function ProductosManager() {
   return (
     <div>
       <Card>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="font-semibold text-titos-green-900">Catálogo ({productosFiltrados.length})</h2>
-          <div className="flex flex-wrap gap-2">
-            <Input
-              placeholder="Buscar por nombre o SKU..."
-              value={busqueda}
-              onChange={(e) => actualizarBusqueda(e.target.value)}
-              className="w-56"
-            />
-            <Select value={categoriaFiltro} onChange={(e) => actualizarCategoriaFiltro(e.target.value)} className="w-44">
-              <option value="">Todas las categorías</option>
-              {CATEGORIAS.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </Select>
-            <Button onClick={() => setCreando(true)}>+ Nuevo producto</Button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="w-full sm:w-56">
+              <Input
+                placeholder="Buscar por nombre o SKU..."
+                value={busqueda}
+                onChange={(e) => actualizarBusqueda(e.target.value)}
+              />
+            </div>
+            <div className="w-full sm:w-44">
+              <Select value={categoriaFiltro} onChange={(e) => actualizarCategoriaFiltro(e.target.value)}>
+                <option value="">Todas las categorías</option>
+                {CATEGORIAS.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <Button className="shrink-0" onClick={() => setCreando(true)}>
+              + Nuevo producto
+            </Button>
           </div>
         </div>
         {loading ? (

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import Pedido from "@/models/Pedido";
 import { requireSession, unauthorized, forbidden, badRequest } from "@/lib/apiAuth";
+import { montoLineaPedido } from "@/lib/montoPedido";
 
 const PERIODOS = ["diario", "semanal", "mensual"] as const;
 type Periodo = (typeof PERIODOS)[number];
@@ -56,14 +57,6 @@ function calcularTendencia(valores: number[]) {
   return { direccion, cambioPct, valoresAjustados };
 }
 
-// Usa la cantidad más avanzada que se conozca del ciclo de vida del pedido
-// (surtida > asignada por el Nivelador > pedida), igual que en el módulo de
-// Pedidos, para que la venta reportada coincida con lo realmente facturado.
-function montoLineaItem(item: { cantidadSurtida?: number | null; cantidadAsignada?: number | null; cantidadPedida: number; precioVenta?: number }) {
-  const cantidad = item.cantidadSurtida ?? item.cantidadAsignada ?? item.cantidadPedida;
-  return cantidad * (item.precioVenta ?? 0);
-}
-
 export async function GET(req: NextRequest) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
@@ -91,7 +84,7 @@ export async function GET(req: NextRequest) {
     if (Number.isNaN(fecha.getTime())) continue;
 
     type PedidoItemLean = (typeof pedido.items)[number];
-    const total = pedido.items.reduce((sum: number, item: PedidoItemLean) => sum + montoLineaItem(item), 0);
+    const total = pedido.items.reduce((sum: number, item: PedidoItemLean) => sum + montoLineaPedido(item), 0);
 
     for (let i = 0; i < buckets.length; i++) {
       if (fecha >= buckets[i].inicio && fecha < buckets[i].fin) {

@@ -43,7 +43,6 @@ const SUCURSAL_NAV: NavItem[] = [
   { href: "/sucursal", label: "Dashboard", icon: LayoutDashboard },
   { href: "/sucursal/nuevo-pedido", label: "Nuevo pedido", icon: PlusCircle },
   { href: "/sucursal/pedidos", label: "Mis pedidos", icon: ClipboardList },
-  { href: "/sucursal/inventario", label: "Mi inventario", icon: Warehouse },
   { href: "/sucursal/ajustes", label: "Ajustes", icon: Settings },
 ];
 

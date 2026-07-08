@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Card, Input, Select } from "@/components/ui";
+import { Button, Card, Input, Select, Modal, FormField, EmptyState } from "@/components/ui";
+import { ProductoCombobox } from "@/components/ProductoCombobox";
+import { categoriaLabel } from "@/lib/categorias";
 
 type Producto = {
   _id: string;
@@ -12,7 +14,7 @@ type Producto = {
   unidad: "pieza" | "kg";
 };
 
-type LineaPedido = { productoId: string; nombre: string; unidad: string; cantidad: string };
+type LineaPedido = { productoId: string; nombre: string; categoria: string; unidad: string; cantidad: string };
 
 type SolicitudNueva = {
   nombreSugerido: string;
@@ -23,13 +25,73 @@ type SolicitudNueva = {
 
 const emptySolicitud: SolicitudNueva = { nombreSugerido: "", descripcion: "", unidad: "pieza", cantidadSugerida: "" };
 
+function SolicitudProductoModal({
+  onClose,
+  onAgregar,
+}: {
+  onClose: () => void;
+  onAgregar: (solicitud: SolicitudNueva) => void;
+}) {
+  const [draft, setDraft] = useState<SolicitudNueva>(emptySolicitud);
+
+  function agregar() {
+    if (!draft.nombreSugerido || !draft.cantidadSugerida) return;
+    onAgregar(draft);
+    onClose();
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Solicitar producto nuevo">
+      <p className="mb-4 text-sm text-black/50">
+        Solicita un producto que no está en el catálogo. Matriz lo revisará y generará una orden de compra.
+      </p>
+      <div className="space-y-3.5">
+        <FormField label="Nombre del producto">
+          <Input
+            autoFocus
+            value={draft.nombreSugerido}
+            onChange={(e) => setDraft({ ...draft, nombreSugerido: e.target.value })}
+          />
+        </FormField>
+        <FormField label="Descripción (opcional)">
+          <Input value={draft.descripcion} onChange={(e) => setDraft({ ...draft, descripcion: e.target.value })} />
+        </FormField>
+        <div className="grid grid-cols-2 gap-3">
+          <FormField label="Unidad">
+            <Select
+              value={draft.unidad}
+              onChange={(e) => setDraft({ ...draft, unidad: e.target.value as "pieza" | "kg" })}
+            >
+              <option value="pieza">Pieza</option>
+              <option value="kg">Kilogramo</option>
+            </Select>
+          </FormField>
+          <FormField label="Cantidad sugerida">
+            <Input
+              type="number"
+              min="1"
+              value={draft.cantidadSugerida}
+              onChange={(e) => setDraft({ ...draft, cantidadSugerida: e.target.value })}
+            />
+          </FormField>
+        </div>
+      </div>
+      <div className="mt-5 flex justify-end">
+        <Button variant="secondary" disabled={!draft.nombreSugerido || !draft.cantidadSugerida} onClick={agregar}>
+          Agregar solicitud
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
 export function NuevoPedidoForm() {
   const router = useRouter();
   const [productos, setProductos] = useState<Producto[]>([]);
-  const [busqueda, setBusqueda] = useState("");
+  const [productoSeleccionado, setProductoSeleccionado] = useState("");
   const [lineas, setLineas] = useState<LineaPedido[]>([]);
   const [solicitudes, setSolicitudes] = useState<SolicitudNueva[]>([]);
-  const [solicitudDraft, setSolicitudDraft] = useState<SolicitudNueva>(emptySolicitud);
+  const [modalSolicitudAbierto, setModalSolicitudAbierto] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,18 +101,19 @@ export function NuevoPedidoForm() {
       .then(setProductos);
   }, []);
 
-  const resultados = useMemo(() => {
-    if (!busqueda.trim()) return [];
-    const q = busqueda.toLowerCase();
-    return productos
-      .filter((p) => p.nombre.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q))
-      .filter((p) => !lineas.some((l) => l.productoId === p._id))
-      .slice(0, 8);
-  }, [productos, busqueda, lineas]);
+  const productosDisponibles = useMemo(
+    () => productos.filter((p) => !lineas.some((l) => l.productoId === p._id)),
+    [productos, lineas]
+  );
 
-  function agregarProducto(p: Producto) {
-    setLineas((prev) => [...prev, { productoId: p._id, nombre: p.nombre, unidad: p.unidad, cantidad: "" }]);
-    setBusqueda("");
+  function agregarProducto(productoId: string) {
+    const p = productos.find((x) => x._id === productoId);
+    if (!p) return;
+    setLineas((prev) => [
+      ...prev,
+      { productoId: p._id, nombre: p.nombre, categoria: p.categoria, unidad: p.unidad, cantidad: "" },
+    ]);
+    setProductoSeleccionado("");
   }
 
   function actualizarCantidad(productoId: string, cantidad: string) {
@@ -59,12 +122,6 @@ export function NuevoPedidoForm() {
 
   function quitarLinea(productoId: string) {
     setLineas((prev) => prev.filter((l) => l.productoId !== productoId));
-  }
-
-  function agregarSolicitud() {
-    if (!solicitudDraft.nombreSugerido || !solicitudDraft.cantidadSugerida) return;
-    setSolicitudes((prev) => [...prev, solicitudDraft]);
-    setSolicitudDraft(emptySolicitud);
   }
 
   function quitarSolicitud(idx: number) {
@@ -106,97 +163,76 @@ export function NuevoPedidoForm() {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+    <div className="space-y-6">
       <Card>
-        <h2 className="mb-3 font-semibold text-titos-green-900">Productos existentes en catálogo</h2>
-        <div className="relative">
-          <Input
-            placeholder="Buscar producto por nombre o SKU..."
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-          />
-          {resultados.length > 0 ? (
-            <div className="absolute z-10 mt-1 w-full rounded-lg border border-black/10 bg-white shadow-lg">
-              {resultados.map((p) => (
-                <button
-                  key={p._id}
-                  onClick={() => agregarProducto(p)}
-                  className="block w-full px-3 py-2 text-left text-sm hover:bg-titos-green-100"
-                >
-                  {p.nombre} <span className="text-black/40">({p.sku})</span>
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
+        <h2 className="mb-3 font-semibold text-titos-green-900">Agregar productos del catálogo</h2>
+        <ProductoCombobox productos={productosDisponibles} value={productoSeleccionado} onChange={agregarProducto} />
 
-        <div className="mt-4 space-y-2">
+        <div className="mt-4">
           {lineas.length === 0 ? (
-            <p className="text-sm text-black/40">Aún no has agregado productos.</p>
+            <EmptyState message="Aún no has agregado productos. Búscalos arriba para agregarlos a tu pedido." />
           ) : (
-            lineas.map((l) => (
-              <div key={l.productoId} className="flex items-center gap-2 rounded-lg border border-black/5 p-2">
-                <span className="flex-1 text-sm font-medium">{l.nombre}</span>
-                <Input
-                  type="number"
-                  min="0"
-                  placeholder={`Cantidad (${l.unidad})`}
-                  value={l.cantidad}
-                  onChange={(e) => actualizarCantidad(l.productoId, e.target.value)}
-                  className="w-32"
-                />
-                <button onClick={() => quitarLinea(l.productoId)} className="text-sm text-red-500">
-                  Quitar
-                </button>
-              </div>
-            ))
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-black/10 text-black/50">
+                    <th className="py-2 pr-2">Producto</th>
+                    <th className="py-2 pr-2">Categoría</th>
+                    <th className="py-2 pr-2">Cantidad a pedir</th>
+                    <th className="py-2 pr-2" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {lineas.map((l) => (
+                    <tr key={l.productoId} className="border-b border-black/5">
+                      <td className="py-2 pr-2 font-medium">{l.nombre}</td>
+                      <td className="py-2 pr-2 capitalize text-black/60">{categoriaLabel(l.categoria)}</td>
+                      <td className="py-2 pr-2">
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min="0"
+                            placeholder="0"
+                            value={l.cantidad}
+                            onChange={(e) => actualizarCantidad(l.productoId, e.target.value)}
+                            className="w-24"
+                          />
+                          <span className="text-black/40">{l.unidad}</span>
+                        </div>
+                      </td>
+                      <td className="py-2 pr-2">
+                        <button onClick={() => quitarLinea(l.productoId)} className="text-sm text-red-500">
+                          Quitar
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </Card>
 
-      <Card>
-        <h2 className="mb-3 font-semibold text-titos-green-900">¿No encontraste el producto?</h2>
-        <p className="mb-3 text-sm text-black/50">
-          Solicita un producto que no está en el catálogo. Matriz lo revisará y generará una orden de compra.
-        </p>
-        <div className="space-y-2">
-          <Input
-            placeholder="Nombre del producto"
-            value={solicitudDraft.nombreSugerido}
-            onChange={(e) => setSolicitudDraft({ ...solicitudDraft, nombreSugerido: e.target.value })}
-          />
-          <Input
-            placeholder="Descripción (opcional)"
-            value={solicitudDraft.descripcion}
-            onChange={(e) => setSolicitudDraft({ ...solicitudDraft, descripcion: e.target.value })}
-          />
-          <div className="flex gap-2">
-            <Select
-              value={solicitudDraft.unidad}
-              onChange={(e) => setSolicitudDraft({ ...solicitudDraft, unidad: e.target.value as "pieza" | "kg" })}
-            >
-              <option value="pieza">Pieza</option>
-              <option value="kg">Kilogramo</option>
-            </Select>
-            <Input
-              type="number"
-              min="1"
-              placeholder="Cantidad sugerida"
-              value={solicitudDraft.cantidadSugerida}
-              onChange={(e) => setSolicitudDraft({ ...solicitudDraft, cantidadSugerida: e.target.value })}
-            />
-          </div>
-          <Button type="button" variant="ghost" onClick={agregarSolicitud}>
-            + Agregar solicitud
-          </Button>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-black/10 bg-black/1.5 p-4">
+        <div>
+          <p className="text-sm font-medium text-black/70">¿No encontraste el producto?</p>
+          <p className="text-xs text-black/40">Solicítalo y matriz lo revisará para darlo de alta.</p>
         </div>
+        <Button type="button" variant="ghost" onClick={() => setModalSolicitudAbierto(true)}>
+          + Solicitar producto nuevo
+        </Button>
+      </div>
 
-        {solicitudes.length > 0 ? (
-          <div className="mt-4 space-y-2">
+      {solicitudes.length > 0 ? (
+        <Card>
+          <h2 className="mb-3 font-semibold text-titos-green-900">Solicitudes de producto nuevo</h2>
+          <div className="space-y-2">
             {solicitudes.map((s, i) => (
               <div key={i} className="flex items-center justify-between rounded-lg bg-titos-orange-100 p-2 text-sm">
                 <span>
                   {s.nombreSugerido} — {s.cantidadSugerida} {s.unidad}
+                  {s.descripcion ? ` · ${s.descripcion}` : ""}
                 </span>
                 <button onClick={() => quitarSolicitud(i)} className="text-red-500">
                   Quitar
@@ -204,15 +240,22 @@ export function NuevoPedidoForm() {
               </div>
             ))}
           </div>
-        ) : null}
-      </Card>
+        </Card>
+      ) : null}
 
-      <div className="lg:col-span-2">
+      <div>
         {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
         <Button onClick={enviarPedido} disabled={enviando} className="w-full justify-center sm:w-auto">
           {enviando ? "Enviando..." : "Enviar pedido a la matriz"}
         </Button>
       </div>
+
+      {modalSolicitudAbierto ? (
+        <SolicitudProductoModal
+          onClose={() => setModalSolicitudAbierto(false)}
+          onAgregar={(s) => setSolicitudes((prev) => [...prev, s])}
+        />
+      ) : null}
     </div>
   );
 }

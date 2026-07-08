@@ -152,6 +152,7 @@ export function formatMoney(value: number) {
 const MODAL_SIZES = {
   md: "max-w-2xl",
   lg: "max-w-3xl",
+  xl: "max-w-6xl",
 };
 
 export function Modal({

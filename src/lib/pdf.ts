@@ -1,13 +1,40 @@
-import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { montoLineaPedido } from "@/lib/montoPedido";
 
 const PAGE_WIDTH = 595.28; // A4 portrait, en puntos
 const PAGE_HEIGHT = 841.89;
 const MARGIN = 40;
-const VERDE_TITOS: [number, number, number] = [0.11, 0.35, 0.18];
-const GRIS: [number, number, number] = [0.4, 0.4, 0.4];
+
+const VERDE_OSCURO: [number, number, number] = [0.059, 0.29, 0.125]; // #0f4a20 (titos-green-900)
+const VERDE_CLARO: [number, number, number] = [0.89, 0.953, 0.902]; // #e3f3e6 (titos-green-100)
+const GRIS_TEXTO: [number, number, number] = [0.33, 0.33, 0.35];
+const GRIS_CLARO: [number, number, number] = [0.6, 0.62, 0.6];
+const ZEBRA: [number, number, number] = [0.965, 0.968, 0.965];
+const BLANCO: [number, number, number] = [1, 1, 1];
+const VERDE_TEXTO_CLARO: [number, number, number] = [0.85, 0.92, 0.87];
+
+const HEADER_HEIGHT = 72;
+const FOOTER_HEIGHT = 34;
+const CONTENT_TOP = PAGE_HEIGHT - HEADER_HEIGHT - 24;
+const CONTENT_BOTTOM = MARGIN + FOOTER_HEIGHT;
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(value);
+}
+
+function formatFechaHoraGeneracion(fecha: Date) {
+  const f = fecha.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
+  const h = fecha.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
+  return `Generado el ${f} · ${h}`;
+}
+
+// Se lee una sola vez por instancia del servidor y se reutiliza en cada PDF.
+let logoBytesPromise: Promise<Buffer> | null = null;
+function cargarLogoBytes() {
+  logoBytesPromise ??= readFile(path.join(process.cwd(), "public", "media", "logo.png"));
+  return logoBytesPromise;
 }
 
 type Columna = { header: string; width: number; align?: "left" | "right" };
@@ -28,20 +55,63 @@ export async function generarTablaPDF(opciones: TablaPDFOpciones): Promise<Uint8
   const pdf = await PDFDocument.create();
   const fontRegular = await pdf.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const logoImage = await pdf.embedPng(await cargarLogoBytes());
+  const logoDims = logoImage.scaleToFit(110, 40);
+
+  const generadoEl = formatFechaHoraGeneracion(new Date());
 
   let page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-  let y = PAGE_HEIGHT - MARGIN;
+  let y = CONTENT_TOP;
+
+  function dibujarEncabezadoMarca(pagina: PDFPage, esPrimeraPagina: boolean) {
+    pagina.drawRectangle({ x: 0, y: PAGE_HEIGHT - HEADER_HEIGHT, width: PAGE_WIDTH, height: HEADER_HEIGHT, color: rgb(...VERDE_OSCURO) });
+
+    pagina.drawImage(logoImage, {
+      x: MARGIN,
+      y: PAGE_HEIGHT - HEADER_HEIGHT + (HEADER_HEIGHT - logoDims.height) / 2,
+      width: logoDims.width,
+      height: logoDims.height,
+    });
+
+    const tituloX = MARGIN + logoDims.width + 18;
+    pagina.drawText(opciones.titulo, {
+      x: tituloX,
+      y: PAGE_HEIGHT - HEADER_HEIGHT / 2 - 4,
+      size: 15,
+      font: fontBold,
+      color: rgb(...BLANCO),
+    });
+    pagina.drawText(esPrimeraPagina ? "Sistema Titos" : "Continuación", {
+      x: tituloX,
+      y: PAGE_HEIGHT - HEADER_HEIGHT / 2 - 18,
+      size: 8,
+      font: fontRegular,
+      color: rgb(...VERDE_TEXTO_CLARO),
+    });
+
+    const anchoGenerado = fontRegular.widthOfTextAtSize(generadoEl, 8);
+    pagina.drawText(generadoEl, {
+      x: PAGE_WIDTH - MARGIN - anchoGenerado,
+      y: PAGE_HEIGHT - HEADER_HEIGHT + 14,
+      size: 8,
+      font: fontRegular,
+      color: rgb(...VERDE_TEXTO_CLARO),
+    });
+  }
+
+  dibujarEncabezadoMarca(page, true);
 
   function nuevaPagina() {
     page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-    y = PAGE_HEIGHT - MARGIN;
+    dibujarEncabezadoMarca(page, false);
+    y = CONTENT_TOP;
   }
 
   function escribir(
     texto: string,
     opts: { size?: number; font?: PDFFont; x?: number; color?: [number, number, number] } = {}
   ) {
-    const { size = 10, font = fontRegular, x = MARGIN, color = [0, 0, 0] } = opts;
+    const { size = 10, font = fontRegular, x = MARGIN, color = GRIS_TEXTO } = opts;
     page.drawText(texto, { x, y, size, font, color: rgb(...color) });
   }
 
@@ -54,56 +124,125 @@ export async function generarTablaPDF(opciones: TablaPDFOpciones): Promise<Uint8
     });
   }
 
-  function dibujarTabla(tabla: Tabla) {
+  function encabezadosTabla(tabla: Tabla) {
     if (tabla.titulo) {
-      escribir(tabla.titulo, { size: 12, font: fontBold, color: VERDE_TITOS });
+      escribir(tabla.titulo, { size: 12, font: fontBold, color: VERDE_OSCURO });
       y -= 18;
     }
 
+    page.drawRectangle({
+      x: MARGIN - 4,
+      y: y - 4,
+      width: PAGE_WIDTH - MARGIN * 2 + 8,
+      height: 18,
+      color: rgb(...VERDE_CLARO),
+    });
+
     let x = MARGIN;
     for (const col of tabla.columnas) {
-      escribir(col.header, { size: 9, font: fontBold, x, color: GRIS });
+      escribir(col.header, { size: 9, font: fontBold, x, color: VERDE_OSCURO });
       x += col.width;
     }
-    y -= 6;
-    linea();
-    y -= 14;
+    y -= 20;
+  }
 
-    for (const fila of tabla.filas) {
-      if (y < MARGIN + 30) nuevaPagina();
-      x = MARGIN;
-      fila.forEach((celda, i) => {
-        const col = tabla.columnas[i];
+  function dibujarTabla(tabla: Tabla) {
+    encabezadosTabla(tabla);
+
+    tabla.filas.forEach((fila, i) => {
+      if (y < CONTENT_BOTTOM + 20) {
+        nuevaPagina();
+        encabezadosTabla(tabla);
+      }
+
+      if (i % 2 === 1) {
+        page.drawRectangle({
+          x: MARGIN - 4,
+          y: y - 4,
+          width: PAGE_WIDTH - MARGIN * 2 + 8,
+          height: 15,
+          color: rgb(...ZEBRA),
+        });
+      }
+
+      let x = MARGIN;
+      fila.forEach((celda, ci) => {
+        const col = tabla.columnas[ci];
         const ancho = fontRegular.widthOfTextAtSize(celda, 9);
         const textoX = col.align === "right" ? x + col.width - ancho : x;
         escribir(celda, { size: 9, x: textoX });
         x += col.width;
       });
       y -= 15;
-    }
+    });
     y -= 8;
   }
 
-  escribir(opciones.titulo, { size: 16, font: fontBold, color: VERDE_TITOS });
-  y -= 20;
   for (const l of opciones.subtitulo) {
-    escribir(l, { size: 10, color: GRIS });
+    escribir(l, { size: 10, color: GRIS_TEXTO });
     y -= 13;
   }
   y -= 10;
 
   dibujarTabla(opciones.tabla);
 
-  linea([0.6, 0.6, 0.6], 0.8);
-  y -= 16;
-  const anchoTotalLabel = fontBold.widthOfTextAtSize(opciones.totalLabel, 11);
-  escribir(opciones.totalLabel, { size: 11, font: fontBold, x: PAGE_WIDTH - MARGIN - 100 - anchoTotalLabel, color: VERDE_TITOS });
-  escribir(opciones.totalValor, { size: 11, font: fontBold, x: PAGE_WIDTH - MARGIN - 90, color: VERDE_TITOS });
-  y -= 26;
+  if (y < CONTENT_BOTTOM + 30) nuevaPagina();
+
+  linea(VERDE_OSCURO, 1);
+  y -= 20;
+  const anchoCajaTotal = 190;
+  page.drawRectangle({
+    x: PAGE_WIDTH - MARGIN - anchoCajaTotal,
+    y: y - 8,
+    width: anchoCajaTotal,
+    height: 24,
+    color: rgb(...VERDE_CLARO),
+  });
+  escribir(opciones.totalLabel, {
+    size: 11,
+    font: fontBold,
+    x: PAGE_WIDTH - MARGIN - anchoCajaTotal + 12,
+    color: VERDE_OSCURO,
+  });
+  const anchoTotalValor = fontBold.widthOfTextAtSize(opciones.totalValor, 11);
+  escribir(opciones.totalValor, {
+    size: 11,
+    font: fontBold,
+    x: PAGE_WIDTH - MARGIN - 12 - anchoTotalValor,
+    color: VERDE_OSCURO,
+  });
+  y -= 28;
 
   if (opciones.tablaExtra && opciones.tablaExtra.filas.length > 0) {
+    if (y < CONTENT_BOTTOM + 40) nuevaPagina();
     dibujarTabla(opciones.tablaExtra);
   }
+
+  const paginas = pdf.getPages();
+  paginas.forEach((pagina, i) => {
+    pagina.drawLine({
+      start: { x: MARGIN, y: MARGIN + 16 },
+      end: { x: PAGE_WIDTH - MARGIN, y: MARGIN + 16 },
+      thickness: 0.6,
+      color: rgb(...GRIS_CLARO),
+    });
+    pagina.drawText("Titos · documento generado automáticamente", {
+      x: MARGIN,
+      y: MARGIN + 4,
+      size: 7.5,
+      font: fontRegular,
+      color: rgb(...GRIS_CLARO),
+    });
+    const textoPagina = `Página ${i + 1} de ${paginas.length}`;
+    const anchoPagina = fontRegular.widthOfTextAtSize(textoPagina, 7.5);
+    pagina.drawText(textoPagina, {
+      x: PAGE_WIDTH - MARGIN - anchoPagina,
+      y: MARGIN + 4,
+      size: 7.5,
+      font: fontRegular,
+      color: rgb(...GRIS_CLARO),
+    });
+  });
 
   return pdf.save();
 }
@@ -136,8 +275,7 @@ export async function generarPdfPedido(pedido: {
   items: PedidoItemPDF[];
   cajas: CajaPDF[];
 }): Promise<Uint8Array> {
-  const montoLinea = (i: PedidoItemPDF) => (i.cantidadSurtida ?? i.cantidadAsignada ?? i.cantidadPedida) * i.precioVenta;
-  const total = pedido.items.reduce((s, i) => s + montoLinea(i), 0);
+  const total = pedido.items.reduce((s, i) => s + montoLineaPedido(i), 0);
 
   const filas = pedido.items.map((i) => [
     i.nombreProducto + (i.requierePesaje ? " (pesaje)" : ""),
@@ -145,7 +283,7 @@ export async function generarPdfPedido(pedido: {
     i.cantidadAsignada != null ? String(i.cantidadAsignada) : "—",
     i.cantidadSurtida != null ? `${i.cantidadSurtida}${i.pesoSurtidoKg ? ` (${i.pesoSurtidoKg}kg)` : ""}` : "—",
     formatMoney(i.precioVenta),
-    formatMoney(montoLinea(i)),
+    formatMoney(montoLineaPedido(i)),
   ]);
 
   const filasCajas = pedido.cajas.map((c) => [

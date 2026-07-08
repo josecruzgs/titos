@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Button, Card, EstadoBadge, EmptyState, Input, Select, Modal, formatMoney } from "@/components/ui";
+import { Button, Card, EstadoBadge, EmptyState, Input, Select, Modal, FormField, formatMoney } from "@/components/ui";
 import { ProductoCombobox } from "@/components/ProductoCombobox";
 import { EnviarWhatsAppControl } from "@/components/EnviarWhatsAppControl";
 import { imprimirHTML } from "@/lib/print";
@@ -126,44 +126,97 @@ function htmlImprimibleOrden(orden: Orden) {
   `;
 }
 
-function AgregarNecesidadForm({
+function AgregarNecesidadModal({
   necesidad,
   proveedores,
+  onClose,
   onAgregar,
 }: {
   necesidad: Necesidad;
   proveedores: Proveedor[];
+  onClose: () => void;
   onAgregar: (proveedorId: string, cantidad: number) => void;
 }) {
   const [proveedorId, setProveedorId] = useState("");
   const [cantidad, setCantidad] = useState(String(necesidad.cantidadRequerida));
 
   return (
-    <div className="mt-3 flex flex-wrap items-end gap-2 rounded-lg bg-titos-green-100/40 p-3">
-      <div className="min-w-40 flex-1">
-        <label className="mb-1 block text-xs text-black/50">Proveedor</label>
-        <Select value={proveedorId} onChange={(e) => setProveedorId(e.target.value)}>
-          <option value="">Selecciona...</option>
-          {proveedores.map((p) => (
-            <option key={p._id} value={p._id}>
-              {p.nombre}
-            </option>
-          ))}
-        </Select>
+    <Modal open onClose={onClose} title={`Agregar a orden · ${necesidad.nombreProducto}`}>
+      <p className="mb-4 text-sm text-black/50">
+        Requiere {necesidad.cantidadRequerida} · {MOTIVO_LABEL[necesidad.motivo]}
+      </p>
+      <div className="space-y-3.5">
+        <FormField label="Proveedor">
+          <Select value={proveedorId} onChange={(e) => setProveedorId(e.target.value)}>
+            <option value="">Selecciona...</option>
+            {proveedores.map((p) => (
+              <option key={p._id} value={p._id}>
+                {p.nombre}
+              </option>
+            ))}
+          </Select>
+        </FormField>
+        <FormField label="Cantidad a pedir">
+          <Input type="number" min="1" value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
+        </FormField>
       </div>
-      <div className="w-28">
-        <label className="mb-1 block text-xs text-black/50">Cantidad a pedir</label>
-        <Input type="number" min="1" value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
+      <div className="mt-5 flex justify-end">
+        <Button
+          disabled={!proveedorId || Number(cantidad) <= 0}
+          onClick={() => onAgregar(proveedorId, Number(cantidad))}
+        >
+          Agregar a la orden
+        </Button>
       </div>
-      <Button
-        type="button"
-        variant="secondary"
-        disabled={!proveedorId || Number(cantidad) <= 0}
-        onClick={() => onAgregar(proveedorId, Number(cantidad))}
-      >
-        Agregar a la orden
-      </Button>
-    </div>
+    </Modal>
+  );
+}
+
+function AgregarManualModal({
+  productos,
+  proveedores,
+  onClose,
+  onAgregar,
+}: {
+  productos: ProductoOpcion[];
+  proveedores: Proveedor[];
+  onClose: () => void;
+  onAgregar: (proveedorId: string, productoId: string, cantidad: number) => void;
+}) {
+  const [productoId, setProductoId] = useState("");
+  const [cantidad, setCantidad] = useState("");
+  const [proveedorId, setProveedorId] = useState("");
+
+  return (
+    <Modal open onClose={onClose} title="Agregar producto manualmente">
+      <div className="space-y-3.5">
+        <FormField label="Producto">
+          <ProductoCombobox productos={productos} value={productoId} onChange={setProductoId} />
+        </FormField>
+        <FormField label="Cantidad">
+          <Input type="number" min="1" value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
+        </FormField>
+        <FormField label="Proveedor">
+          <Select value={proveedorId} onChange={(e) => setProveedorId(e.target.value)}>
+            <option value="">Selecciona...</option>
+            {proveedores.map((p) => (
+              <option key={p._id} value={p._id}>
+                {p.nombre}
+              </option>
+            ))}
+          </Select>
+        </FormField>
+      </div>
+      <div className="mt-5 flex justify-end">
+        <Button
+          variant="secondary"
+          disabled={!productoId || !proveedorId || !cantidad}
+          onClick={() => onAgregar(proveedorId, productoId, Number(cantidad))}
+        >
+          Agregar
+        </Button>
+      </div>
+    </Modal>
   );
 }
 
@@ -537,11 +590,9 @@ export function OrdenesCompraManager() {
   const [loading, setLoading] = useState(true);
   const [abierta, setAbierta] = useState<string | null>(null);
   const [ordenModal, setOrdenModal] = useState<Orden | null>(null);
+  const [necesidadModal, setNecesidadModal] = useState<Necesidad | null>(null);
+  const [manualModalAbierto, setManualModalAbierto] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const [manualProductoId, setManualProductoId] = useState("");
-  const [manualCantidad, setManualCantidad] = useState("");
-  const [manualProveedorId, setManualProveedorId] = useState("");
 
   async function cargar() {
     setLoading(true);
@@ -591,20 +642,17 @@ export function OrdenesCompraManager() {
     cargar();
   }
 
-  function agregarManual() {
-    const producto = productos.find((p) => p._id === manualProductoId);
-    const cantidad = Number(manualCantidad);
-    if (!producto || !manualProveedorId || !cantidad || cantidad <= 0) return;
+  function agregarManual(proveedorId: string, productoId: string, cantidad: number) {
+    const producto = productos.find((p) => p._id === productoId);
+    if (!producto) return;
 
     agregarProducto({
-      proveedorId: manualProveedorId,
+      proveedorId,
       productoId: producto._id,
       nombreProducto: producto.nombre,
       cantidadOrdenada: cantidad,
     });
-    setManualProductoId("");
-    setManualCantidad("");
-    setManualProveedorId("");
+    setManualModalAbierto(false);
   }
 
   const ordenesOrdenadas = useMemo(
@@ -639,77 +687,42 @@ export function OrdenesCompraManager() {
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
           <Card>
-            <h2 className="mb-3 font-semibold text-titos-green-900">Necesidades pendientes ({necesidades.length})</h2>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-semibold text-titos-green-900">Necesidades pendientes ({necesidades.length})</h2>
+              <Button variant="secondary" onClick={() => setManualModalAbierto(true)}>
+                Agregar producto manualmente
+              </Button>
+            </div>
             {necesidades.length === 0 ? (
               <EmptyState message="No hay necesidades de compra pendientes por asignar a un proveedor." />
             ) : (
-              <div className="space-y-3">
-                {necesidades.map((n) => (
-                  <div key={n._id} className="rounded-lg border border-black/5 p-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div>
-                        <p className="font-medium">{n.nombreProducto}</p>
-                        <p className="text-xs text-black/40">
-                          requiere {n.cantidadRequerida} · {MOTIVO_LABEL[n.motivo]}
-                        </p>
-                      </div>
-                      <Button variant="ghost" onClick={() => setAbierta(abierta === n._id ? null : n._id)}>
-                        {abierta === n._id ? "Cerrar" : "Agregar a orden"}
-                      </Button>
-                    </div>
-                    {abierta === n._id ? (
-                      <AgregarNecesidadForm
-                        necesidad={n}
-                        proveedores={proveedores}
-                        onAgregar={(proveedorId, cantidad) => {
-                          agregarProducto({
-                            proveedorId,
-                            productoId: n.productoId,
-                            nombreProducto: n.nombreProducto,
-                            cantidadOrdenada: cantidad,
-                            cantidadRequerida: n.cantidadRequerida,
-                            necesidadId: n._id,
-                          });
-                          setAbierta(null);
-                        }}
-                      />
-                    ) : null}
-                  </div>
-                ))}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-black/10 text-black/50">
+                      <th className="py-2 pr-2">Producto</th>
+                      <th className="py-2 pr-2">Cantidad requerida</th>
+                      <th className="py-2 pr-2">Motivo</th>
+                      <th className="py-2 pr-2" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {necesidades.map((n) => (
+                      <tr key={n._id} className="border-b border-black/5">
+                        <td className="py-2 pr-2 font-medium">{n.nombreProducto}</td>
+                        <td className="py-2 pr-2 text-black/60">{n.cantidadRequerida}</td>
+                        <td className="py-2 pr-2 text-black/60">{MOTIVO_LABEL[n.motivo]}</td>
+                        <td className="py-2 pr-2">
+                          <Button variant="ghost" onClick={() => setNecesidadModal(n)}>
+                            Agregar a orden
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
-          </Card>
-
-          <Card>
-            <h2 className="mb-3 font-semibold text-titos-green-900">Agregar producto manualmente</h2>
-            <div className="flex flex-wrap items-end gap-2">
-              <div className="min-w-56 flex-1">
-                <label className="mb-1 block text-xs text-black/50">Producto</label>
-                <ProductoCombobox productos={productos} value={manualProductoId} onChange={setManualProductoId} />
-              </div>
-              <div className="w-28">
-                <label className="mb-1 block text-xs text-black/50">Cantidad</label>
-                <Input type="number" min="1" value={manualCantidad} onChange={(e) => setManualCantidad(e.target.value)} />
-              </div>
-              <div className="min-w-40">
-                <label className="mb-1 block text-xs text-black/50">Proveedor</label>
-                <Select value={manualProveedorId} onChange={(e) => setManualProveedorId(e.target.value)}>
-                  <option value="">Selecciona...</option>
-                  {proveedores.map((p) => (
-                    <option key={p._id} value={p._id}>
-                      {p.nombre}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <Button
-                variant="secondary"
-                disabled={!manualProductoId || !manualProveedorId || !manualCantidad}
-                onClick={agregarManual}
-              >
-                Agregar
-              </Button>
-            </div>
           </Card>
         </div>
       ) : tab === "ordenes" ? (
@@ -804,6 +817,34 @@ export function OrdenesCompraManager() {
             setOrdenModal(actualizado);
             setOrdenes((prev) => prev.map((o) => (o._id === actualizado._id ? actualizado : o)));
           }}
+        />
+      ) : null}
+
+      {necesidadModal ? (
+        <AgregarNecesidadModal
+          necesidad={necesidadModal}
+          proveedores={proveedores}
+          onClose={() => setNecesidadModal(null)}
+          onAgregar={(proveedorId, cantidad) => {
+            agregarProducto({
+              proveedorId,
+              productoId: necesidadModal.productoId,
+              nombreProducto: necesidadModal.nombreProducto,
+              cantidadOrdenada: cantidad,
+              cantidadRequerida: necesidadModal.cantidadRequerida,
+              necesidadId: necesidadModal._id,
+            });
+            setNecesidadModal(null);
+          }}
+        />
+      ) : null}
+
+      {manualModalAbierto ? (
+        <AgregarManualModal
+          productos={productos}
+          proveedores={proveedores}
+          onClose={() => setManualModalAbierto(false)}
+          onAgregar={agregarManual}
         />
       ) : null}
     </div>

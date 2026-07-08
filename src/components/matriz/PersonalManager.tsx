@@ -298,16 +298,19 @@ export function PersonalManager() {
   return (
     <div>
       <Card>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="font-semibold text-titos-green-900">Personal ({empleados.length})</h2>
-          <div className="flex flex-wrap gap-2">
-            <Input
-              placeholder="Buscar por nombre o puesto..."
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              className="max-w-xs"
-            />
-            <Button onClick={() => setCreando(true)}>+ Nuevo empleado</Button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="w-full sm:w-64">
+              <Input
+                placeholder="Buscar por nombre o puesto..."
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+              />
+            </div>
+            <Button className="shrink-0" onClick={() => setCreando(true)}>
+              + Nuevo empleado
+            </Button>
           </div>
         </div>
         {loading ? (

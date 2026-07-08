@@ -7,6 +7,7 @@ import { Button, Card, EstadoBadge, EmptyState, Input, Select, Modal, formatMone
 import { EnviarWhatsAppControl } from "@/components/EnviarWhatsAppControl";
 import { imprimirHTML } from "@/lib/print";
 import { categoriaLabel } from "@/lib/categorias";
+import { montoLineaPedido } from "@/lib/montoPedido";
 
 // Frutas y verduras y carnicería se surten directo, sin empacar en cajas selladas.
 const CATEGORIAS_SIN_CAJAS = ["frutas_verduras", "carniceria"];
@@ -65,16 +66,8 @@ function whatsappSucursal(pedido: Pedido) {
   return typeof pedido.sucursalId === "string" ? "" : (pedido.sucursalId.whatsapp ?? "");
 }
 
-// Usa la cantidad más avanzada que se conozca del ciclo de vida del pedido
-// (surtida > asignada por el Nivelador > pedida) para calcular cuánto debe
-// pagar realmente la sucursal por esa línea.
-function montoLinea(item: Item) {
-  const cantidad = item.cantidadSurtida ?? item.cantidadAsignada ?? item.cantidadPedida;
-  return cantidad * item.precioVenta;
-}
-
 function totalPedido(pedido: Pedido) {
-  return pedido.items.reduce((sum, i) => sum + montoLinea(i), 0);
+  return pedido.items.reduce((sum, i) => sum + montoLineaPedido(i), 0);
 }
 
 // Texto corto que acompaña al PDF adjunto por WhatsApp (el detalle completo
@@ -102,7 +95,7 @@ function htmlImprimiblePedido(pedido: Pedido) {
         <td>${i.cantidadAsignada ?? "—"}</td>
         <td>${i.cantidadSurtida ?? "—"}${i.pesoSurtidoKg ? ` (${i.pesoSurtidoKg} kg)` : ""}</td>
         <td>${formatMoney(i.precioVenta)}</td>
-        <td>${formatMoney(montoLinea(i))}</td>
+        <td>${formatMoney(montoLineaPedido(i))}</td>
       </tr>`
     )
     .join("");
@@ -386,7 +379,7 @@ function PedidoModal({
     onRefrescar();
   }
 
-  const total = pedido.items.reduce((sum, i) => sum + montoLinea(i), 0);
+  const total = pedido.items.reduce((sum, i) => sum + montoLineaPedido(i), 0);
   const completadas = categorias.filter(categoriaCompleta).length;
 
   return (
@@ -536,7 +529,7 @@ function PedidoModal({
                     {item.pesoRecibidoKg ? ` (${item.pesoRecibidoKg} kg)` : ""}
                   </td>
                 ) : null}
-                <td className="py-1.5 pr-2 font-medium">{formatMoney(montoLinea(item))}</td>
+                <td className="py-1.5 pr-2 font-medium">{formatMoney(montoLineaPedido(item))}</td>
               </tr>
             ))}
           </tbody>
@@ -583,6 +576,191 @@ function PedidoModal({
   );
 }
 
+type SucursalCantidades = { pedido: number; asignado: number };
+
+type FilaMatriz = {
+  productoId: string;
+  nombreProducto: string;
+  categoria: string;
+  existenciaMatriz: number;
+  porSucursal: Record<string, SucursalCantidades>;
+  pendienteCompra: number;
+};
+
+type MatrizData = {
+  corte: string;
+  cortesDisponibles: string[];
+  sucursales: { _id: string; nombre: string }[];
+  productos: FilaMatriz[];
+};
+
+function fechaISO(desplazamientoDias = 0) {
+  const d = new Date();
+  d.setDate(d.getDate() + desplazamientoDias);
+  return d.toISOString().slice(0, 10);
+}
+
+function claseBotonFecha(activo: boolean) {
+  return `rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+    activo ? "bg-titos-green-600 text-white" : "bg-black/5 text-black/60 hover:bg-black/10"
+  }`;
+}
+
+function SelectorFecha({ valor, onChange }: { valor: string; onChange: (corte: string) => void }) {
+  const hoy = fechaISO(0);
+  const ayer = fechaISO(-1);
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <button type="button" className={claseBotonFecha(valor === hoy)} onClick={() => onChange(hoy)}>
+        Hoy
+      </button>
+      <button type="button" className={claseBotonFecha(valor === ayer)} onClick={() => onChange(ayer)}>
+        Ayer
+      </button>
+      <input
+        type="date"
+        value={valor}
+        onChange={(e) => e.target.value && onChange(e.target.value)}
+        className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-sm outline-none focus:border-titos-green-500 focus:ring-2 focus:ring-titos-green-100"
+      />
+    </div>
+  );
+}
+
+function MatrizPorProducto({ onClose }: { onClose: () => void }) {
+  const [data, setData] = useState<MatrizData | null>(null);
+  const [corteSeleccionado, setCorteSeleccionado] = useState(fechaISO(0));
+  const [loading, setLoading] = useState(true);
+
+  async function cargar(corte: string) {
+    setLoading(true);
+    setCorteSeleccionado(corte);
+    const res = await fetch(`/api/pedidos/matriz?corte=${encodeURIComponent(corte)}`);
+    if (res.ok) setData(await res.json());
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial de datos al montar
+    cargar(fechaISO(0));
+  }, []);
+
+  return (
+    <Modal open onClose={onClose} title="Vista por producto" size="xl">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h3 className="font-semibold text-titos-green-900">Corte {corteSeleccionado}</h3>
+        <SelectorFecha valor={corteSeleccionado} onChange={cargar} />
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-black/50">Cargando...</p>
+      ) : !data || data.productos.length === 0 ? (
+        <EmptyState message="No hay pedidos nivelados en esta fecha. Ejecuta el Nivelador para generar esta vista." />
+      ) : (
+        <>
+          <div className="overflow-x-auto rounded-xl border border-black/5">
+            <table className="w-full border-separate border-spacing-0 text-left text-sm">
+              <thead>
+                <tr>
+                  <th
+                    rowSpan={2}
+                    className="sticky left-0 z-10 border-b border-black/5 bg-titos-green-100/40 px-3 py-2.5 text-center align-bottom text-xs font-semibold uppercase tracking-wide text-titos-green-900"
+                  >
+                    Producto
+                  </th>
+                  <th
+                    rowSpan={2}
+                    className="border-b border-l border-black/5 bg-titos-green-100/70 px-3 py-2.5 text-center align-bottom text-xs font-semibold uppercase tracking-wide text-titos-green-900"
+                  >
+                    Inv. almacén
+                  </th>
+                  <th
+                    colSpan={data.sucursales.length}
+                    className="border-b border-l border-black/5 bg-titos-green-600 px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-white"
+                  >
+                    Pedido / surtido
+                  </th>
+                  <th
+                    rowSpan={2}
+                    className="border-b border-l border-black/5 bg-titos-green-100/70 px-3 py-2.5 text-center align-bottom text-xs font-semibold uppercase tracking-wide text-titos-green-900"
+                  >
+                    Pendiente de compra
+                  </th>
+                </tr>
+                <tr>
+                  {data.sucursales.map((s) => (
+                    <th
+                      key={s._id}
+                      className="border-b border-l border-black/5 bg-titos-green-100/40 px-3 py-2 text-center text-xs font-medium text-titos-green-700"
+                    >
+                      {s.nombre}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-black/5">
+                {data.productos.map((p) => (
+                  <tr key={p.productoId} className="group">
+                    <td className="sticky left-0 z-10 bg-white px-3 py-2.5 font-medium text-black/80 group-hover:bg-black/1.5">
+                      {p.nombreProducto}
+                    </td>
+                    <td className="border-l border-black/5 px-3 py-2.5 text-center group-hover:bg-black/1.5">
+                      <span className="inline-flex min-w-9 items-center justify-center rounded-md bg-titos-green-100 px-2 py-0.5 font-semibold text-titos-green-700">
+                        {p.existenciaMatriz}
+                      </span>
+                    </td>
+                    {data.sucursales.map((s) => {
+                      const cantidades = p.porSucursal[s._id];
+                      const pedido = cantidades?.pedido ?? 0;
+                      const asignado = cantidades?.asignado ?? 0;
+                      const completo = asignado >= pedido;
+                      return (
+                        <td
+                          key={s._id}
+                          className="border-l border-black/5 px-3 py-2.5 text-center group-hover:bg-black/1.5"
+                        >
+                          {pedido > 0 ? (
+                            <span className="inline-flex items-baseline gap-1 tabular-nums">
+                              <span className="text-black/35">{pedido}</span>
+                              <span className="text-black/15">/</span>
+                              <span className={completo ? "font-semibold text-titos-green-700" : "font-semibold text-red-600"}>
+                                {asignado}
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="text-black/20">—</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td className="border-l border-black/5 px-3 py-2.5 text-center group-hover:bg-black/1.5">
+                      {p.pendienteCompra > 0 ? (
+                        <span className="inline-flex min-w-9 items-center justify-center rounded-md bg-amber-100 px-2 py-0.5 font-semibold text-amber-800">
+                          {p.pendienteCompra}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center justify-center gap-1 text-xs font-medium text-titos-green-600">
+                          <Check className="h-3.5 w-3.5" /> cubierto
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-3 text-xs text-black/40">
+            Cada celda de sucursal muestra <span className="font-medium text-black/60">pedido / surtido</span> tras
+            ejecutar el Nivelador. En <span className="font-semibold text-red-600">rojo</span>, lo que no alcanzó a
+            cubrirse con la existencia disponible.
+          </p>
+        </>
+      )}
+    </Modal>
+  );
+}
+
 export function PedidosManager() {
   const searchParams = useSearchParams();
   const tabInicial = TABS.find((t) => t.value === searchParams.get("tab"))?.value ?? "pendiente";
@@ -594,6 +772,7 @@ export function PedidosManager() {
   const [nivelando, setNivelando] = useState(false);
   const [resultadoNivelador, setResultadoNivelador] = useState<string | null>(null);
   const [pedidoModal, setPedidoModal] = useState<Pedido | null>(null);
+  const [matrizAbierta, setMatrizAbierta] = useState(false);
 
   async function cargar() {
     setLoading(true);
@@ -612,6 +791,8 @@ export function PedidosManager() {
     if (tab === "historial") return pedidos.filter((p) => p.estado === "surtido" || p.estado === "recibido");
     return pedidos.filter((p) => p.estado === tab);
   }, [pedidos, tab]);
+
+  const hayNivelados = useMemo(() => pedidos.some((p) => p.estado !== "pendiente"), [pedidos]);
 
   async function ejecutarNivelador() {
     setNivelando(true);
@@ -642,21 +823,43 @@ export function PedidosManager() {
 
   return (
     <div>
-      <Card className="mb-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="font-semibold text-titos-green-900">Nivelador</h2>
-            <p className="text-sm text-black/50">
-              Reparte de forma proporcional y justa la existencia disponible entre todas las sucursales que pidieron
-              el mismo producto, cuando la demanda supera lo que hay en almacén.
-            </p>
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <Card className="md:col-span-2">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-titos-green-900">Nivelador</h2>
+              <p className="text-sm text-black/50">
+                Reparte de forma proporcional y justa la existencia disponible entre todas las sucursales que pidieron
+                el mismo producto, cuando la demanda supera lo que hay en almacén.
+              </p>
+            </div>
+            <Button onClick={ejecutarNivelador} disabled={nivelando} className="shrink-0">
+              {nivelando ? "Ejecutando..." : "Ejecutar Nivelador"}
+            </Button>
           </div>
-          <Button onClick={ejecutarNivelador} disabled={nivelando}>
-            {nivelando ? "Ejecutando..." : "Ejecutar Nivelador"}
-          </Button>
-        </div>
-        {resultadoNivelador ? <p className="mt-3 text-sm text-titos-green-700">{resultadoNivelador}</p> : null}
-      </Card>
+          {resultadoNivelador ? <p className="mt-3 text-sm text-titos-green-700">{resultadoNivelador}</p> : null}
+        </Card>
+
+        <Card className="bg-black/1.5 shadow-none">
+          <div className="flex h-full flex-col justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-medium text-black/70">Vista por producto</h3>
+              <p className="mt-1 text-xs text-black/40">
+                Consulta el comparativo de existencia, pedido y surtido por producto de un corte ya nivelado.
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              onClick={() => setMatrizAbierta(true)}
+              disabled={!hayNivelados}
+              title={hayNivelados ? undefined : "Ejecuta el Nivelador para habilitar esta vista"}
+              className="self-start"
+            >
+              Ver vista por producto
+            </Button>
+          </div>
+        </Card>
+      </div>
 
       <div className="mb-4 flex gap-1 border-b border-black/10">
         {TABS.map((t) => (
@@ -725,6 +928,8 @@ export function PedidosManager() {
           onRefrescar={cargar}
         />
       ) : null}
+
+      {matrizAbierta ? <MatrizPorProducto onClose={() => setMatrizAbierta(false)} /> : null}
     </div>
   );
 }
