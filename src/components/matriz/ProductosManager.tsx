@@ -383,17 +383,17 @@ export function ProductosManager() {
                         <td className="py-2 pr-2 text-black/60">{p.linea || "—"}</td>
                         <td className="py-2 pr-2 text-black/60">{p.categoria}</td>
                         <td className="py-2 pr-2 text-black/50">{p.sku}</td>
-                        <td className="sticky left-0 z-10 max-w-55 bg-white py-2 pr-2">
+                        <td className="sticky left-0 z-10 w-55 max-w-55 overflow-hidden bg-white py-2 pr-2">
                           <button
                             type="button"
                             onClick={() => setEditando(p)}
-                            className="truncate font-medium text-titos-green-900 hover:underline"
+                            className="block max-w-full truncate text-left font-medium text-titos-green-900 hover:underline"
                             title={p.nombre}
                           >
                             {p.nombre}
                           </button>
                           {p.alias?.length > 0 ? (
-                            <p className="truncate text-xs text-black/40" title={p.alias.join(", ")}>
+                            <p className="max-w-full truncate text-xs text-black/40" title={p.alias.join(", ")}>
                               alias: {p.alias.join(", ")}
                             </p>
                           ) : null}
