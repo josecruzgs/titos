@@ -92,7 +92,8 @@ const MATRIZ_NAV: NavCategory[] = [
 ];
 
 const SUCURSAL_NAV: NavItem[] = [
-  { href: "/sucursal", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/sucursal", label: "Punto de venta", icon: ShoppingCart },
+  { href: "/sucursal/ventas", label: "Historial de ventas", icon: Receipt },
   { href: "/sucursal/nuevo-pedido", label: "Nuevo pedido", icon: PlusCircle },
   { href: "/sucursal/pedidos", label: "Mis pedidos", icon: ClipboardList },
   { href: "/sucursal/ajustes", label: "Ajustes", icon: Settings },
@@ -113,7 +114,15 @@ function initials(nombre: string) {
     .join("");
 }
 
-export function Sidebar({ role, nombre }: { role: "matriz" | "sucursal"; nombre: string }) {
+export function Sidebar({
+  role,
+  nombre,
+  sucursalNombre,
+}: {
+  role: "matriz" | "sucursal";
+  nombre: string;
+  sucursalNombre?: string;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
@@ -223,9 +232,12 @@ export function Sidebar({ role, nombre }: { role: "matriz" | "sucursal"; nombre:
         </div>
 
         {!collapsed ? (
-          <p className="px-5 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-black/35">
-            {roleLabel}
-          </p>
+          <div className="px-5 pt-4 pb-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-black/35">{roleLabel}</p>
+            {role === "sucursal" && sucursalNombre ? (
+              <p className="truncate text-sm font-semibold text-titos-green-900">{sucursalNombre}</p>
+            ) : null}
+          </div>
         ) : null}
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-3">

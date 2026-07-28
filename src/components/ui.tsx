@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { forwardRef, type ReactNode } from "react";
 import { type LucideIcon } from "lucide-react";
 
 export { Modal } from "./Modal";
@@ -46,6 +46,7 @@ const ESTADO_STYLES: Record<string, string> = {
   borrador: "bg-black/5 text-black/60",
   solicitada: "bg-sky-100 text-sky-800",
   recibida: "bg-titos-green-100 text-titos-green-700",
+  completada: "bg-titos-green-100 text-titos-green-700",
   cancelada: "bg-red-100 text-red-700",
   asignada: "bg-sky-100 text-sky-800",
   convertida: "bg-titos-green-100 text-titos-green-700",
@@ -86,25 +87,24 @@ export function Button({
   );
 }
 
-export function Input({
-  icon: Icon,
-  className = "",
-  ...props
-}: React.InputHTMLAttributes<HTMLInputElement> & { icon?: LucideIcon }) {
-  const input = (
-    <input
-      {...props}
-      className={`w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-titos-green-500 focus:ring-2 focus:ring-titos-green-100 ${Icon ? "pl-9" : ""} ${className}`}
-    />
-  );
-  if (!Icon) return input;
-  return (
-    <div className="relative">
-      <Icon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-black/30" />
-      {input}
-    </div>
-  );
-}
+export const Input = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement> & { icon?: LucideIcon }>(
+  function Input({ icon: Icon, className = "", ...props }, ref) {
+    const input = (
+      <input
+        ref={ref}
+        {...props}
+        className={`w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-titos-green-500 focus:ring-2 focus:ring-titos-green-100 ${Icon ? "pl-9" : ""} ${className}`}
+      />
+    );
+    if (!Icon) return input;
+    return (
+      <div className="relative">
+        <Icon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-black/30" />
+        {input}
+      </div>
+    );
+  }
+);
 
 export function Select({
   icon: Icon,
