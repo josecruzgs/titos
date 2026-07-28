@@ -3,8 +3,8 @@ import { connectDB } from "@/lib/db";
 import OrdenCompra from "@/models/OrdenCompra";
 import Proveedor from "@/models/Proveedor";
 import Producto from "@/models/Producto";
-import NecesidadCompra from "@/models/NecesidadCompra";
-import { requireSession, unauthorized, forbidden, badRequest, notFound, generateFolio } from "@/lib/apiAuth";
+import { requireSession, unauthorized, forbidden, badRequest, notFound } from "@/lib/apiAuth";
+import { agregarItemAOrden } from "@/lib/ordenesCompra";
 
 export async function GET(req: NextRequest) {
   const session = await requireSession(req);
@@ -47,44 +47,16 @@ export async function POST(req: NextRequest) {
   const producto = await Producto.findById(productoId);
   if (!producto) return notFound("Producto no encontrado");
 
-  let orden = await OrdenCompra.findOne({ proveedorId, estado: "borrador" });
-
-  if (!orden) {
-    orden = new OrdenCompra({
-      folio: generateFolio("OC"),
-      proveedorId,
-      estado: "borrador",
-      items: [],
-    });
-  }
-
-  type OrdenItemDoc = (typeof orden.items)[number];
-  const existente = orden.items.find((i: OrdenItemDoc) => String(i.productoId) === String(productoId));
-
-  if (existente) {
-    existente.cantidadOrdenada += cantidadOrdenada;
-    if (body?.cantidadRequerida != null) {
-      existente.cantidadRequerida = (existente.cantidadRequerida ?? 0) + Number(body.cantidadRequerida);
-    }
-  } else {
-    orden.items.push({
-      productoId,
-      nombreProducto: producto.nombre,
-      cantidadRequerida: body?.cantidadRequerida ?? null,
-      cantidadOrdenada,
-      precioUnitario: producto.precioCompra ?? 0,
-      necesidadId: necesidadId ?? null,
-    });
-  }
+  const cache = new Map<string, InstanceType<typeof OrdenCompra>>();
+  const orden = await agregarItemAOrden(cache, {
+    proveedorId,
+    productoId,
+    cantidadOrdenada,
+    cantidadRequerida: body?.cantidadRequerida ?? null,
+    necesidadId: necesidadId ?? null,
+  });
 
   await orden.save();
-
-  if (necesidadId) {
-    await NecesidadCompra.updateOne({ _id: necesidadId }, { estado: "asignada", ordenCompraId: orden._id });
-  }
-
-  producto.proveedorPreferidoId = proveedorId;
-  await producto.save();
 
   return NextResponse.json(orden, { status: 201 });
 }

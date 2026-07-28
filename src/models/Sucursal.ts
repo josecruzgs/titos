@@ -3,6 +3,7 @@ import { Schema, model, models, type InferSchemaType } from "mongoose";
 const SucursalSchema = new Schema(
   {
     nombre: { type: String, required: true },
+    clave: { type: String, trim: true, unique: true, sparse: true },
     direccion: { type: String, default: "" },
     whatsapp: { type: String, default: "" },
     activo: { type: Boolean, default: true },

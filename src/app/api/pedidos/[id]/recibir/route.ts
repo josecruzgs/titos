@@ -42,7 +42,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     await InventarioSucursal.findOneAndUpdate(
       { sucursalId: session.sucursalId, productoId: item.productoId },
-      { $inc: { existencia: cantidad } },
+      { $inc: { stockActual: cantidad } },
       { upsert: true }
     );
 

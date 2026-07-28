@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "seed": "tsx scripts/seed.ts",
-    "seed:ventas-demo": "tsx scripts/seed-ventas-demo.ts"
+    "seed:ventas-demo": "tsx scripts/seed-ventas-demo.ts",
+    "clear:productos": "tsx scripts/clear-productos.ts",
+    "import:sucursal": "tsx scripts/importar-inventario-sucursal.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

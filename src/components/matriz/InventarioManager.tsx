@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Button, Card, Input, Select, EmptyState, Pagination, Modal, FormGrid, FormField } from "@/components/ui";
 import { Warehouse, Hash, Scale } from "lucide-react";
 import { ProductoCombobox } from "@/components/ProductoCombobox";
-import { CATEGORIAS } from "@/lib/categorias";
 
 const PAGE_SIZE = 20;
 
@@ -96,8 +95,11 @@ function RegistrarEntradaModal({
   );
 }
 
+type Categoria = { _id: string; nombre: string };
+
 export function InventarioManager() {
   const [productos, setProductos] = useState<Producto[]>([]);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [categoriaFiltro, setCategoriaFiltro] = useState("");
   const [page, setPage] = useState(1);
@@ -108,9 +110,15 @@ export function InventarioManager() {
     if (res.ok) setProductos(await res.json());
   }
 
+  async function cargarCategorias() {
+    const res = await fetch("/api/categorias");
+    if (res.ok) setCategorias(await res.json());
+  }
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial de datos al montar
     cargar();
+    cargarCategorias();
   }, []);
 
   const productosFiltrados = useMemo(() => {
@@ -152,9 +160,9 @@ export function InventarioManager() {
             <div className="w-full sm:w-44">
               <Select value={categoriaFiltro} onChange={(e) => actualizarCategoriaFiltro(e.target.value)}>
                 <option value="">Todas las categorías</option>
-                {CATEGORIAS.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
+                {categorias.map((c) => (
+                  <option key={c._id} value={c.nombre}>
+                    {c.nombre}
                   </option>
                 ))}
               </Select>

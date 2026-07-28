@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Card, Input, Select, Modal, FormField, EmptyState } from "@/components/ui";
+import { Button, Card, Input, Select, Modal, FormField, EmptyState, Pagination } from "@/components/ui";
 import { ProductoCombobox } from "@/components/ProductoCombobox";
 import { categoriaLabel } from "@/lib/categorias";
+
+const PAGE_SIZE = 20;
 
 type Producto = {
   _id: string;
@@ -13,6 +15,8 @@ type Producto = {
   categoria: string;
   unidad: "pieza" | "kg";
 };
+
+type InventarioProducto = { stockActual: number; stockMinimo: number; stockMaximo: number };
 
 type LineaPedido = { productoId: string; nombre: string; categoria: string; unidad: string; cantidad: string };
 
@@ -88,17 +92,27 @@ function SolicitudProductoModal({
 export function NuevoPedidoForm() {
   const router = useRouter();
   const [productos, setProductos] = useState<Producto[]>([]);
+  const [inventario, setInventario] = useState<Map<string, InventarioProducto>>(new Map());
   const [productoSeleccionado, setProductoSeleccionado] = useState("");
   const [lineas, setLineas] = useState<LineaPedido[]>([]);
   const [solicitudes, setSolicitudes] = useState<SolicitudNueva[]>([]);
   const [modalSolicitudAbierto, setModalSolicitudAbierto] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const [cargandoResurtido, setCargandoResurtido] = useState(false);
+  const [mensajeResurtido, setMensajeResurtido] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     fetch("/api/productos")
       .then((r) => r.json())
       .then(setProductos);
+
+    fetch("/api/inventario-sucursal")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: { productoId: string; stockActual: number; stockMinimo: number; stockMaximo: number }[]) => {
+        setInventario(new Map(rows.map((r) => [r.productoId, r])));
+      });
   }, []);
 
   const productosDisponibles = useMemo(
@@ -114,6 +128,7 @@ export function NuevoPedidoForm() {
       { productoId: p._id, nombre: p.nombre, categoria: p.categoria, unidad: p.unidad, cantidad: "" },
     ]);
     setProductoSeleccionado("");
+    setPage(1);
   }
 
   function actualizarCantidad(productoId: string, cantidad: string) {
@@ -122,6 +137,55 @@ export function NuevoPedidoForm() {
 
   function quitarLinea(productoId: string) {
     setLineas((prev) => prev.filter((l) => l.productoId !== productoId));
+  }
+
+  function sugeridoPara(productoId: string): number | null {
+    const inv = inventario.get(productoId);
+    if (!inv || inv.stockMaximo <= 0) return null;
+    return Math.max(0, inv.stockMaximo - inv.stockActual);
+  }
+
+  function autocompletarCantidad(productoId: string) {
+    const sugerido = sugeridoPara(productoId);
+    if (sugerido === null) return;
+    actualizarCantidad(productoId, String(sugerido));
+  }
+
+  async function cargarSugerenciaResurtido() {
+    setMensajeResurtido(null);
+    setError(null);
+    setCargandoResurtido(true);
+
+    const res = await fetch("/api/inventario-sucursal/resurtido");
+    setCargandoResurtido(false);
+
+    if (!res.ok) {
+      setError("No se pudo calcular la sugerencia de resurtido");
+      return;
+    }
+
+    const sugerencias: { productoId: string; nombre: string; categoria: string; unidad: string; cantidadSugerida: number }[] =
+      await res.json();
+
+    setLineas((prev) => {
+      const yaEnPedido = new Set(prev.map((l) => l.productoId));
+      const nuevas = sugerencias
+        .filter((s) => !yaEnPedido.has(s.productoId))
+        .map((s) => ({
+          productoId: s.productoId,
+          nombre: s.nombre,
+          categoria: s.categoria,
+          unidad: s.unidad,
+          cantidad: String(s.cantidadSugerida),
+        }));
+      setMensajeResurtido(
+        nuevas.length > 0
+          ? `Se agregaron ${nuevas.length} productos en su punto de resurtido. Revisa las cantidades antes de enviar.`
+          : "No hay productos en su punto de resurtido en este momento."
+      );
+      return [...prev, ...nuevas];
+    });
+    setPage(1);
   }
 
   function quitarSolicitud(idx: number) {
@@ -162,11 +226,21 @@ export function NuevoPedidoForm() {
     router.refresh();
   }
 
+  const totalPages = Math.max(1, Math.ceil(lineas.length / PAGE_SIZE));
+  const paginaActual = Math.min(page, totalPages);
+  const lineasPagina = lineas.slice((paginaActual - 1) * PAGE_SIZE, paginaActual * PAGE_SIZE);
+
   return (
     <div className="space-y-6">
       <Card>
-        <h2 className="mb-3 font-semibold text-titos-green-900">Agregar productos del catálogo</h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-semibold text-titos-green-900">Agregar productos del catálogo</h2>
+          <Button type="button" variant="ghost" onClick={cargarSugerenciaResurtido} disabled={cargandoResurtido}>
+            {cargandoResurtido ? "Calculando..." : "Cargar sugerencia de resurtido"}
+          </Button>
+        </div>
         <ProductoCombobox productos={productosDisponibles} value={productoSeleccionado} onChange={agregarProducto} />
+        {mensajeResurtido ? <p className="mt-2 text-sm text-titos-green-700">{mensajeResurtido}</p> : null}
 
         <div className="mt-4">
           {lineas.length === 0 ? (
@@ -183,34 +257,54 @@ export function NuevoPedidoForm() {
                   </tr>
                 </thead>
                 <tbody>
-                  {lineas.map((l) => (
-                    <tr key={l.productoId} className="border-b border-black/5">
-                      <td className="py-2 pr-2 font-medium">{l.nombre}</td>
-                      <td className="py-2 pr-2 capitalize text-black/60">{categoriaLabel(l.categoria)}</td>
-                      <td className="py-2 pr-2">
-                        <div className="flex items-center gap-2">
-                          <Input
-                            type="number"
-                            min="0"
-                            placeholder="0"
-                            value={l.cantidad}
-                            onChange={(e) => actualizarCantidad(l.productoId, e.target.value)}
-                            className="w-24"
-                          />
-                          <span className="text-black/40">{l.unidad}</span>
-                        </div>
-                      </td>
-                      <td className="py-2 pr-2">
-                        <button onClick={() => quitarLinea(l.productoId)} className="text-sm text-red-500">
-                          Quitar
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {lineasPagina.map((l) => {
+                    const sugerido = sugeridoPara(l.productoId);
+                    return (
+                      <tr key={l.productoId} className="border-b border-black/5">
+                        <td className="py-2 pr-2 font-medium">{l.nombre}</td>
+                        <td className="py-2 pr-2 capitalize text-black/60">{categoriaLabel(l.categoria)}</td>
+                        <td className="py-2 pr-2">
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="number"
+                              min="0"
+                              placeholder="0"
+                              value={l.cantidad}
+                              onChange={(e) => actualizarCantidad(l.productoId, e.target.value)}
+                              className="w-24"
+                            />
+                            <span className="text-black/40">{l.unidad}</span>
+                            {sugerido !== null ? (
+                              <button
+                                type="button"
+                                onClick={() => autocompletarCantidad(l.productoId)}
+                                className="whitespace-nowrap text-xs font-medium text-titos-green-700 hover:underline"
+                                title="Llenar con la diferencia entre el máximo y tu stock actual"
+                              >
+                                Usar sugerido ({sugerido})
+                              </button>
+                            ) : null}
+                          </div>
+                        </td>
+                        <td className="py-2 pr-2">
+                          <button onClick={() => quitarLinea(l.productoId)} className="text-sm text-red-500">
+                            Quitar
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           )}
+          <Pagination
+            page={paginaActual}
+            totalPages={totalPages}
+            totalItems={lineas.length}
+            pageSize={PAGE_SIZE}
+            onChange={setPage}
+          />
         </div>
       </Card>
 

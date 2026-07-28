@@ -9,6 +9,7 @@ import SolicitudProductoNuevo from "@/models/SolicitudProductoNuevo";
 import "@/models/Sucursal"; // necesario para que populate("sucursalId") funcione
 import { Card, PageHeader, Button, EmptyState } from "@/components/ui";
 import { VentasChart } from "@/components/matriz/VentasChart";
+import { StockBajoCard } from "@/components/matriz/StockBajoCard";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,16 @@ export default async function MatrizDashboard() {
       Producto.find({ activo: true }).lean(),
     ]);
 
-  const stockBajo = productos.filter((p) => p.stockMinimo > 0 && p.existenciaMatriz <= p.stockMinimo);
+  const stockBajo = productos
+    .filter((p) => p.stockMinimo > 0 && p.existenciaMatriz <= p.stockMinimo)
+    .map((p) => ({
+      _id: String(p._id),
+      nombre: p.nombre,
+      existenciaMatriz: p.existenciaMatriz,
+      unidad: p.unidad,
+      stockMinimo: p.stockMinimo,
+      diferencia: Math.max(0, p.stockMaximo - p.existenciaMatriz),
+    }));
 
   return (
     <div>
@@ -97,23 +107,7 @@ export default async function MatrizDashboard() {
           )}
         </Card>
 
-        <Card>
-          <h2 className="mb-3 font-semibold text-titos-green-900">Alertas de stock bajo</h2>
-          {stockBajo.length === 0 ? (
-            <EmptyState message="Ningún producto por debajo de su mínimo." />
-          ) : (
-            <ul className="divide-y divide-black/5">
-              {stockBajo.map((p) => (
-                <li key={p._id} className="flex items-center justify-between py-2 text-sm">
-                  <span className="font-medium">{p.nombre}</span>
-                  <span className="text-red-600">
-                    {p.existenciaMatriz} {p.unidad} (mín. {p.stockMinimo})
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
+        <StockBajoCard productos={stockBajo} />
       </div>
     </div>
   );

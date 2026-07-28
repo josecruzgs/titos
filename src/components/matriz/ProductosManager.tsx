@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Button, Card, Input, Select, EmptyState, Pagination, Modal, FormGrid, FormField } from "@/components/ui";
-import { Package, Barcode, Tag, Scale, DollarSign, Boxes, AlertTriangle } from "lucide-react";
-import { CATEGORIAS } from "@/lib/categorias";
+import { Package, Barcode, Tag, Tags, Scale, DollarSign, Boxes, AlertTriangle, ArrowUpToLine } from "lucide-react";
+import { ProductoProveedoresModal } from "@/components/matriz/ProductoProveedoresModal";
 
 const PAGE_SIZE = 20;
 
@@ -11,6 +11,7 @@ type Producto = {
   _id: string;
   sku: string;
   nombre: string;
+  linea: string;
   categoria: string;
   unidad: "pieza" | "kg";
   requierePesaje: boolean;
@@ -18,22 +19,38 @@ type Producto = {
   precioVenta: number;
   existenciaMatriz: number;
   stockMinimo: number;
+  stockMaximo: number;
   activo: boolean;
 };
+
+type Linea = { _id: string; nombre: string };
+type Categoria = { _id: string; nombre: string };
 
 const emptyForm = {
   sku: "",
   nombre: "",
-  categoria: "abarrotes",
+  linea: "",
+  categoria: "",
   unidad: "pieza" as "pieza" | "kg",
   requierePesaje: false,
   precioCompra: "",
   precioVenta: "",
   existenciaMatriz: "",
   stockMinimo: "",
+  stockMaximo: "",
 };
 
-function CrearProductoModal({ onClose, onCreado }: { onClose: () => void; onCreado: () => void }) {
+function CrearProductoModal({
+  lineas,
+  categorias,
+  onClose,
+  onCreado,
+}: {
+  lineas: Linea[];
+  categorias: Categoria[];
+  onClose: () => void;
+  onCreado: () => void;
+}) {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +84,7 @@ function CrearProductoModal({ onClose, onCreado }: { onClose: () => void; onCrea
       icon={Package}
       size="lg"
       footer={
-        <Button onClick={crear} disabled={saving || !form.sku || !form.nombre}>
+        <Button onClick={crear} disabled={saving || !form.sku || !form.nombre || !form.categoria}>
           {saving ? "Guardando..." : "Agregar producto"}
         </Button>
       }
@@ -80,11 +97,22 @@ function CrearProductoModal({ onClose, onCreado }: { onClose: () => void; onCrea
           <FormField label="Nombre">
             <Input icon={Package} required value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
           </FormField>
+          <FormField label="Línea (marca)">
+            <Select icon={Tags} value={form.linea} onChange={(e) => setForm({ ...form, linea: e.target.value })}>
+              <option value="">Sin línea</option>
+              {lineas.map((l) => (
+                <option key={l._id} value={l.nombre}>
+                  {l.nombre}
+                </option>
+              ))}
+            </Select>
+          </FormField>
           <FormField label="Categoría">
             <Select icon={Tag} value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })}>
-              {CATEGORIAS.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
+              <option value="">Selecciona una categoría</option>
+              {categorias.map((c) => (
+                <option key={c._id} value={c.nombre}>
+                  {c.nombre}
                 </option>
               ))}
             </Select>
@@ -107,6 +135,9 @@ function CrearProductoModal({ onClose, onCreado }: { onClose: () => void; onCrea
           <FormField label="Stock mínimo (alerta)">
             <Input icon={AlertTriangle} type="number" value={form.stockMinimo} onChange={(e) => setForm({ ...form, stockMinimo: e.target.value })} />
           </FormField>
+          <FormField label="Stock máximo">
+            <Input icon={ArrowUpToLine} type="number" value={form.stockMaximo} onChange={(e) => setForm({ ...form, stockMaximo: e.target.value })} />
+          </FormField>
         </FormGrid>
         <label className="flex items-center gap-2 text-sm text-black/70">
           <input
@@ -124,11 +155,14 @@ function CrearProductoModal({ onClose, onCreado }: { onClose: () => void; onCrea
 
 export function ProductosManager() {
   const [productos, setProductos] = useState<Producto[]>([]);
+  const [lineas, setLineas] = useState<Linea[]>([]);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState("");
   const [categoriaFiltro, setCategoriaFiltro] = useState("");
   const [page, setPage] = useState(1);
   const [creando, setCreando] = useState(false);
+  const [proveedoresModal, setProveedoresModal] = useState<Producto | null>(null);
 
   async function cargar() {
     setLoading(true);
@@ -137,9 +171,21 @@ export function ProductosManager() {
     setLoading(false);
   }
 
+  async function cargarLineas() {
+    const res = await fetch("/api/lineas");
+    if (res.ok) setLineas(await res.json());
+  }
+
+  async function cargarCategorias() {
+    const res = await fetch("/api/categorias");
+    if (res.ok) setCategorias(await res.json());
+  }
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial de datos al montar
     cargar();
+    cargarLineas();
+    cargarCategorias();
   }, []);
 
   async function toggleRequierePesaje(producto: Producto) {
@@ -151,20 +197,26 @@ export function ProductosManager() {
     cargar();
   }
 
-  async function actualizarStockMinimo(producto: Producto, value: string) {
+  async function actualizarCampoNumerico(
+    producto: Producto,
+    campo: "existenciaMatriz" | "stockMinimo" | "stockMaximo" | "precioCompra" | "precioVenta",
+    value: string
+  ) {
     await fetch(`/api/productos/${producto._id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ stockMinimo: Number(value) || 0 }),
+      body: JSON.stringify({ [campo]: Number(value) || 0 }),
     });
+    cargar();
   }
 
-  async function actualizarPrecioVenta(producto: Producto, value: string) {
+  async function actualizarCampoTexto(producto: Producto, campo: "linea" | "categoria", value: string) {
     await fetch(`/api/productos/${producto._id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ precioVenta: Number(value) || 0 }),
+      body: JSON.stringify({ [campo]: value }),
     });
+    cargar();
   }
 
   const productosFiltrados = useMemo(() => {
@@ -206,9 +258,9 @@ export function ProductosManager() {
             <div className="w-full sm:w-44">
               <Select value={categoriaFiltro} onChange={(e) => actualizarCategoriaFiltro(e.target.value)}>
                 <option value="">Todas las categorías</option>
-                {CATEGORIAS.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
+                {categorias.map((c) => (
+                  <option key={c._id} value={c.nombre}>
+                    {c.nombre}
                   </option>
                 ))}
               </Select>
@@ -234,46 +286,116 @@ export function ProductosManager() {
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="border-b border-black/10 text-black/50">
-                    <th className="py-2 pr-2">SKU</th>
-                    <th className="py-2 pr-2">Nombre</th>
-                    <th className="py-2 pr-2">Categoría</th>
-                    <th className="py-2 pr-2">Existencia</th>
-                    <th className="py-2 pr-2">Precio venta</th>
-                    <th className="py-2 pr-2">Pesaje</th>
+                    <th className="py-2 pr-2">Línea</th>
+                    <th className="py-2 pr-2">Tipo de producto</th>
+                    <th className="py-2 pr-2">Código</th>
+                    <th className="py-2 pr-2">Producto</th>
+                    <th className="py-2 pr-2">Unidad medida</th>
+                    <th className="py-2 pr-2">Stock</th>
                     <th className="py-2 pr-2">Mínimo</th>
+                    <th className="py-2 pr-2">Máximo</th>
+                    <th className="py-2 pr-2">Diferencia</th>
+                    <th className="py-2 pr-2">Costo</th>
+                    <th className="py-2 pr-2">Público</th>
+                    <th className="py-2 pr-2">Total costo</th>
+                    <th className="py-2 pr-2">Total público</th>
+                    <th className="py-2 pr-2">Pesaje</th>
+                    <th className="py-2 pr-2" />
                   </tr>
                 </thead>
                 <tbody>
-                  {productosPagina.map((p) => (
-                    <tr key={p._id} className="border-b border-black/5">
-                      <td className="py-2 pr-2 text-black/50">{p.sku}</td>
-                      <td className="py-2 pr-2 font-medium">{p.nombre}</td>
-                      <td className="py-2 pr-2 capitalize text-black/60">{p.categoria.replaceAll("_", " ")}</td>
-                      <td className="py-2 pr-2">
-                        {p.existenciaMatriz} {p.unidad}
-                      </td>
-                      <td className="py-2 pr-2">
-                        <input
-                          type="number"
-                          step="0.01"
-                          defaultValue={p.precioVenta}
-                          onBlur={(e) => actualizarPrecioVenta(p, e.target.value)}
-                          className="w-20 rounded border border-black/10 px-1 py-0.5"
-                        />
-                      </td>
-                      <td className="py-2 pr-2">
-                        <input type="checkbox" checked={p.requierePesaje} onChange={() => toggleRequierePesaje(p)} />
-                      </td>
-                      <td className="py-2 pr-2">
-                        <input
-                          type="number"
-                          defaultValue={p.stockMinimo}
-                          onBlur={(e) => actualizarStockMinimo(p, e.target.value)}
-                          className="w-16 rounded border border-black/10 px-1 py-0.5"
-                        />
-                      </td>
-                    </tr>
-                  ))}
+                  {productosPagina.map((p) => {
+                    const diferencia = p.stockMaximo - p.existenciaMatriz;
+                    const totalCosto = p.existenciaMatriz * p.precioCompra;
+                    const totalPublico = p.existenciaMatriz * p.precioVenta;
+                    return (
+                      <tr key={p._id} className="border-b border-black/5">
+                        <td className="py-2 pr-2">
+                          <select
+                            defaultValue={p.linea}
+                            onChange={(e) => actualizarCampoTexto(p, "linea", e.target.value)}
+                            className="w-28 rounded border border-black/10 px-1 py-0.5"
+                          >
+                            <option value="">Sin línea</option>
+                            {lineas.map((l) => (
+                              <option key={l._id} value={l.nombre}>
+                                {l.nombre}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="py-2 pr-2">
+                          <select
+                            defaultValue={p.categoria}
+                            onChange={(e) => actualizarCampoTexto(p, "categoria", e.target.value)}
+                            className="w-28 rounded border border-black/10 px-1 py-0.5"
+                          >
+                            {categorias.map((c) => (
+                              <option key={c._id} value={c.nombre}>
+                                {c.nombre}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="py-2 pr-2 text-black/50">{p.sku}</td>
+                        <td className="py-2 pr-2 font-medium">{p.nombre}</td>
+                        <td className="py-2 pr-2 text-black/60">{p.unidad}</td>
+                        <td className="py-2 pr-2">
+                          <input
+                            type="number"
+                            defaultValue={p.existenciaMatriz}
+                            onBlur={(e) => actualizarCampoNumerico(p, "existenciaMatriz", e.target.value)}
+                            className="w-16 rounded border border-black/10 px-1 py-0.5"
+                          />
+                        </td>
+                        <td className="py-2 pr-2">
+                          <input
+                            type="number"
+                            defaultValue={p.stockMinimo}
+                            onBlur={(e) => actualizarCampoNumerico(p, "stockMinimo", e.target.value)}
+                            className="w-16 rounded border border-black/10 px-1 py-0.5"
+                          />
+                        </td>
+                        <td className="py-2 pr-2">
+                          <input
+                            type="number"
+                            defaultValue={p.stockMaximo}
+                            onBlur={(e) => actualizarCampoNumerico(p, "stockMaximo", e.target.value)}
+                            className="w-16 rounded border border-black/10 px-1 py-0.5"
+                          />
+                        </td>
+                        <td className={`py-2 pr-2 ${diferencia < 0 ? "text-red-600" : "text-black/60"}`}>{diferencia}</td>
+                        <td className="py-2 pr-2">
+                          <input
+                            type="number"
+                            step="0.01"
+                            defaultValue={p.precioCompra}
+                            onBlur={(e) => actualizarCampoNumerico(p, "precioCompra", e.target.value)}
+                            className="w-20 rounded border border-black/10 px-1 py-0.5"
+                          />
+                        </td>
+                        <td className="py-2 pr-2">
+                          <input
+                            type="number"
+                            step="0.01"
+                            defaultValue={p.precioVenta}
+                            onBlur={(e) => actualizarCampoNumerico(p, "precioVenta", e.target.value)}
+                            className="w-20 rounded border border-black/10 px-1 py-0.5"
+                          />
+                        </td>
+                        <td className="py-2 pr-2 text-black/60">${totalCosto.toFixed(2)}</td>
+                        <td className="py-2 pr-2 text-black/60">${totalPublico.toFixed(2)}</td>
+                        <td className="py-2 pr-2">
+                          <input type="checkbox" checked={p.requierePesaje} onChange={() => toggleRequierePesaje(p)} />
+                        </td>
+                        <td className="py-2 pr-2">
+                          <Button variant="ghost" onClick={() => setProveedoresModal(p)}>
+                            Proveedores
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -290,11 +412,21 @@ export function ProductosManager() {
 
       {creando ? (
         <CrearProductoModal
+          lineas={lineas}
+          categorias={categorias}
           onClose={() => setCreando(false)}
           onCreado={() => {
             setCreando(false);
             cargar();
           }}
+        />
+      ) : null}
+
+      {proveedoresModal ? (
+        <ProductoProveedoresModal
+          productoId={proveedoresModal._id}
+          productoNombre={proveedoresModal.nombre}
+          onClose={() => setProveedoresModal(null)}
         />
       ) : null}
     </div>

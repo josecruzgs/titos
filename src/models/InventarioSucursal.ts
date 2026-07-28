@@ -4,7 +4,9 @@ const InventarioSucursalSchema = new Schema(
   {
     sucursalId: { type: Schema.Types.ObjectId, ref: "Sucursal", required: true },
     productoId: { type: Schema.Types.ObjectId, ref: "Producto", required: true },
-    existencia: { type: Number, required: true, default: 0 },
+    stockActual: { type: Number, required: true, default: 0 },
+    stockMinimo: { type: Number, default: 0 },
+    stockMaximo: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

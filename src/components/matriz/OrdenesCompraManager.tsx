@@ -6,8 +6,6 @@ import { Button, Card, EstadoBadge, EmptyState, Input, Select, Modal, FormField,
 import { ProductoCombobox } from "@/components/ProductoCombobox";
 import { EnviarWhatsAppControl } from "@/components/EnviarWhatsAppControl";
 import { imprimirHTML } from "@/lib/print";
-import { CATEGORIAS } from "@/lib/categorias";
-
 type Necesidad = {
   _id: string;
   productoId: string;
@@ -17,10 +15,32 @@ type Necesidad = {
 };
 
 type Proveedor = { _id: string; nombre: string; whatsapp?: string };
+type Categoria = { _id: string; nombre: string };
 
 type Empleado = { _id: string; nombre: string; puesto: string; whatsapp: string };
 
 type ProductoOpcion = { _id: string; sku: string; nombre: string; unidad: "pieza" | "kg"; precioCompra: number };
+
+type CostoProveedor = { proveedorId: string; nombre: string; costoUnitario: number; esPrincipal: boolean };
+
+async function cargarCostosProveedor(productoId: string): Promise<CostoProveedor[]> {
+  const res = await fetch(`/api/productos/${productoId}/proveedores`);
+  if (!res.ok) return [];
+  const enlaces: {
+    proveedorId: { _id: string; nombre: string } | string;
+    costoUnitario: number;
+    esPrincipal: boolean;
+    activo: boolean;
+  }[] = await res.json();
+  return enlaces
+    .filter((e) => e.activo)
+    .map((e) => ({
+      proveedorId: typeof e.proveedorId === "string" ? e.proveedorId : e.proveedorId._id,
+      nombre: typeof e.proveedorId === "string" ? e.proveedorId : e.proveedorId.nombre,
+      costoUnitario: e.costoUnitario,
+      esPrincipal: e.esPrincipal,
+    }));
+}
 
 type OrdenItem = {
   productoId: string;
@@ -126,52 +146,6 @@ function htmlImprimibleOrden(orden: Orden) {
   `;
 }
 
-function AgregarNecesidadModal({
-  necesidad,
-  proveedores,
-  onClose,
-  onAgregar,
-}: {
-  necesidad: Necesidad;
-  proveedores: Proveedor[];
-  onClose: () => void;
-  onAgregar: (proveedorId: string, cantidad: number) => void;
-}) {
-  const [proveedorId, setProveedorId] = useState("");
-  const [cantidad, setCantidad] = useState(String(necesidad.cantidadRequerida));
-
-  return (
-    <Modal open onClose={onClose} title={`Agregar a orden · ${necesidad.nombreProducto}`}>
-      <p className="mb-4 text-sm text-black/50">
-        Requiere {necesidad.cantidadRequerida} · {MOTIVO_LABEL[necesidad.motivo]}
-      </p>
-      <div className="space-y-3.5">
-        <FormField label="Proveedor">
-          <Select value={proveedorId} onChange={(e) => setProveedorId(e.target.value)}>
-            <option value="">Selecciona...</option>
-            {proveedores.map((p) => (
-              <option key={p._id} value={p._id}>
-                {p.nombre}
-              </option>
-            ))}
-          </Select>
-        </FormField>
-        <FormField label="Cantidad a pedir">
-          <Input type="number" min="1" value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
-        </FormField>
-      </div>
-      <div className="mt-5 flex justify-end">
-        <Button
-          disabled={!proveedorId || Number(cantidad) <= 0}
-          onClick={() => onAgregar(proveedorId, Number(cantidad))}
-        >
-          Agregar a la orden
-        </Button>
-      </div>
-    </Modal>
-  );
-}
-
 function AgregarManualModal({
   productos,
   proveedores,
@@ -186,6 +160,25 @@ function AgregarManualModal({
   const [productoId, setProductoId] = useState("");
   const [cantidad, setCantidad] = useState("");
   const [proveedorId, setProveedorId] = useState("");
+  const [costos, setCostos] = useState<CostoProveedor[]>([]);
+
+  useEffect(() => {
+    if (!productoId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- limpia costos cuando se deselecciona el producto
+      setCostos([]);
+      return;
+    }
+    let cancelado = false;
+    cargarCostosProveedor(productoId).then((c) => {
+      if (cancelado) return;
+      setCostos(c);
+      const principal = c.find((x) => x.esPrincipal) ?? c[0];
+      setProveedorId(principal ? principal.proveedorId : "");
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [productoId]);
 
   return (
     <Modal open onClose={onClose} title="Agregar producto manualmente">
@@ -199,11 +192,18 @@ function AgregarManualModal({
         <FormField label="Proveedor">
           <Select value={proveedorId} onChange={(e) => setProveedorId(e.target.value)}>
             <option value="">Selecciona...</option>
-            {proveedores.map((p) => (
-              <option key={p._id} value={p._id}>
-                {p.nombre}
-              </option>
-            ))}
+            {costos.length > 0
+              ? costos.map((c) => (
+                  <option key={c.proveedorId} value={c.proveedorId}>
+                    {c.nombre} — {formatMoney(c.costoUnitario)}
+                    {c.esPrincipal ? " (principal)" : ""}
+                  </option>
+                ))
+              : proveedores.map((p) => (
+                  <option key={p._id} value={p._id}>
+                    {p.nombre}
+                  </option>
+                ))}
           </Select>
         </FormField>
       </div>
@@ -220,9 +220,17 @@ function AgregarManualModal({
   );
 }
 
-function ConvertirForm({ solicitud, onConvertida }: { solicitud: Solicitud; onConvertida: () => void }) {
+function ConvertirForm({
+  solicitud,
+  categorias,
+  onConvertida,
+}: {
+  solicitud: Solicitud;
+  categorias: Categoria[];
+  onConvertida: () => void;
+}) {
   const [sku, setSku] = useState("");
-  const [categoria, setCategoria] = useState("abarrotes");
+  const [categoria, setCategoria] = useState("");
   const [requierePesaje, setRequierePesaje] = useState(solicitud.unidad === "kg");
   const [precioCompra, setPrecioCompra] = useState("");
   const [precioVenta, setPrecioVenta] = useState("");
@@ -261,9 +269,10 @@ function ConvertirForm({ solicitud, onConvertida }: { solicitud: Solicitud; onCo
     <form onSubmit={handleSubmit} className="mt-3 grid grid-cols-1 gap-2 rounded-lg bg-titos-green-100/40 p-3 sm:grid-cols-2">
       <Input placeholder="SKU nuevo" required value={sku} onChange={(e) => setSku(e.target.value)} />
       <Select value={categoria} onChange={(e) => setCategoria(e.target.value)}>
-        {CATEGORIAS.map((c) => (
-          <option key={c.value} value={c.value}>
-            {c.label}
+        <option value="">Selecciona una categoría</option>
+        {categorias.map((c) => (
+          <option key={c._id} value={c.nombre}>
+            {c.nombre}
           </option>
         ))}
       </Select>
@@ -287,7 +296,7 @@ function ConvertirForm({ solicitud, onConvertida }: { solicitud: Solicitud; onCo
       </label>
       {error ? <p className="col-span-full text-sm text-red-600">{error}</p> : null}
       <div className="col-span-full">
-        <Button type="submit" disabled={saving} variant="secondary">
+        <Button type="submit" disabled={saving || !categoria} variant="secondary">
           {saving ? "Creando..." : "Dar de alta producto y generar necesidad de compra"}
         </Button>
       </div>
@@ -587,22 +596,29 @@ export function OrdenesCompraManager() {
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [ordenes, setOrdenes] = useState<Orden[]>([]);
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([]);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
   const [abierta, setAbierta] = useState<string | null>(null);
   const [ordenModal, setOrdenModal] = useState<Orden | null>(null);
-  const [necesidadModal, setNecesidadModal] = useState<Necesidad | null>(null);
   const [manualModalAbierto, setManualModalAbierto] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [costosPorProducto, setCostosPorProducto] = useState<Map<string, CostoProveedor[]>>(new Map());
+  const [seleccion, setSeleccion] = useState<
+    Map<string, Partial<{ proveedorId: string; cantidad: string; incluida: boolean }>>
+  >(new Map());
+  const [generandoOrdenes, setGenerandoOrdenes] = useState(false);
+  const [mensajeGenerado, setMensajeGenerado] = useState<string | null>(null);
 
   async function cargar() {
     setLoading(true);
-    const [necRes, provRes, prodRes, ordRes, solRes, empRes] = await Promise.all([
+    const [necRes, provRes, prodRes, ordRes, solRes, empRes, catRes] = await Promise.all([
       fetch("/api/necesidades-compra?estado=pendiente"),
       fetch("/api/proveedores"),
       fetch("/api/productos"),
       fetch("/api/ordenes-compra"),
       fetch("/api/solicitudes-producto"),
       fetch("/api/empleados"),
+      fetch("/api/categorias"),
     ]);
     if (necRes.ok) setNecesidades(await necRes.json());
     if (provRes.ok) setProveedores(await provRes.json());
@@ -610,6 +626,7 @@ export function OrdenesCompraManager() {
     if (ordRes.ok) setOrdenes(await ordRes.json());
     if (solRes.ok) setSolicitudes(await solRes.json());
     if (empRes.ok) setEmpleados(await empRes.json());
+    if (catRes.ok) setCategorias(await catRes.json());
     setLoading(false);
   }
 
@@ -617,6 +634,103 @@ export function OrdenesCompraManager() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial de datos al montar
     cargar();
   }, []);
+
+  // Trae los costos por proveedor de cada producto en "por ordenar" (una vez
+  // por producto, se cachean) para sugerir el proveedor más barato por fila.
+  useEffect(() => {
+    const idsFaltantes = [...new Set(necesidades.map((n) => n.productoId))].filter(
+      (id) => !costosPorProducto.has(id)
+    );
+    if (idsFaltantes.length === 0) return;
+
+    let cancelado = false;
+    Promise.all(idsFaltantes.map((id) => cargarCostosProveedor(id).then((c) => [id, c] as const))).then((pares) => {
+      if (cancelado) return;
+      setCostosPorProducto((prev) => {
+        const next = new Map(prev);
+        for (const [id, c] of pares) next.set(id, c);
+        return next;
+      });
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [necesidades, costosPorProducto]);
+
+  function costosDe(productoId: string): CostoProveedor[] {
+    return costosPorProducto.get(productoId) ?? [];
+  }
+
+  function proveedorSugeridoId(productoId: string): string {
+    const costos = costosDe(productoId);
+    const principal = costos.find((c) => c.esPrincipal) ?? costos[0];
+    return principal ? principal.proveedorId : "";
+  }
+
+  function proveedorSeleccionado(necesidad: Necesidad): string {
+    return seleccion.get(necesidad._id)?.proveedorId ?? proveedorSugeridoId(necesidad.productoId);
+  }
+
+  function cantidadSeleccionada(necesidad: Necesidad): string {
+    return seleccion.get(necesidad._id)?.cantidad ?? String(necesidad.cantidadRequerida);
+  }
+
+  function incluida(necesidad: Necesidad): boolean {
+    return seleccion.get(necesidad._id)?.incluida ?? true;
+  }
+
+  function actualizarSeleccion(
+    necesidadId: string,
+    patch: Partial<{ proveedorId: string; cantidad: string; incluida: boolean }>
+  ) {
+    setSeleccion((prev) => {
+      const next = new Map(prev);
+      next.set(necesidadId, { ...next.get(necesidadId), ...patch });
+      return next;
+    });
+  }
+
+  async function generarOrdenes() {
+    setError(null);
+    setMensajeGenerado(null);
+
+    const items = necesidades
+      .filter((n) => incluida(n))
+      .map((n) => ({
+        proveedorId: proveedorSeleccionado(n),
+        productoId: n.productoId,
+        cantidadOrdenada: Number(cantidadSeleccionada(n)) || 0,
+        cantidadRequerida: n.cantidadRequerida,
+        necesidadId: n._id,
+      }))
+      .filter((i) => i.proveedorId && i.cantidadOrdenada > 0);
+
+    if (items.length === 0) {
+      setError("Selecciona al menos un producto con proveedor y cantidad válidos");
+      return;
+    }
+
+    setGenerandoOrdenes(true);
+    const res = await fetch("/api/ordenes-compra/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items }),
+    });
+    setGenerandoOrdenes(false);
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error || "No se pudieron generar las órdenes de compra");
+      return;
+    }
+
+    const data: { ordenes: unknown[] } = await res.json();
+    setMensajeGenerado(
+      `Se generaron/actualizaron ${data.ordenes.length} ${data.ordenes.length === 1 ? "orden" : "órdenes"} de compra.`
+    );
+    setSeleccion(new Map());
+    cargar();
+  }
 
   async function agregarProducto(payload: {
     proveedorId: string;
@@ -685,13 +799,19 @@ export function OrdenesCompraManager() {
       ) : tab === "por-ordenar" ? (
         <div className="space-y-6">
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          {mensajeGenerado ? <p className="text-sm text-titos-green-700">{mensajeGenerado}</p> : null}
 
           <Card>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <h2 className="font-semibold text-titos-green-900">Necesidades pendientes ({necesidades.length})</h2>
-              <Button variant="secondary" onClick={() => setManualModalAbierto(true)}>
-                Agregar producto manualmente
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="secondary" onClick={() => setManualModalAbierto(true)}>
+                  Agregar producto manualmente
+                </Button>
+                <Button onClick={generarOrdenes} disabled={generandoOrdenes || necesidades.length === 0}>
+                  {generandoOrdenes ? "Generando..." : "Generar órdenes de compra"}
+                </Button>
+              </div>
             </div>
             {necesidades.length === 0 ? (
               <EmptyState message="No hay necesidades de compra pendientes por asignar a un proveedor." />
@@ -700,25 +820,61 @@ export function OrdenesCompraManager() {
                 <table className="w-full text-left text-sm">
                   <thead>
                     <tr className="border-b border-black/10 text-black/50">
-                      <th className="py-2 pr-2">Producto</th>
-                      <th className="py-2 pr-2">Cantidad requerida</th>
-                      <th className="py-2 pr-2">Motivo</th>
                       <th className="py-2 pr-2" />
+                      <th className="py-2 pr-2">Producto</th>
+                      <th className="py-2 pr-2">Motivo</th>
+                      <th className="py-2 pr-2">Proveedor sugerido</th>
+                      <th className="py-2 pr-2">Cantidad a pedir</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {necesidades.map((n) => (
-                      <tr key={n._id} className="border-b border-black/5">
-                        <td className="py-2 pr-2 font-medium">{n.nombreProducto}</td>
-                        <td className="py-2 pr-2 text-black/60">{n.cantidadRequerida}</td>
-                        <td className="py-2 pr-2 text-black/60">{MOTIVO_LABEL[n.motivo]}</td>
-                        <td className="py-2 pr-2">
-                          <Button variant="ghost" onClick={() => setNecesidadModal(n)}>
-                            Agregar a orden
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
+                    {necesidades.map((n) => {
+                      const costos = costosDe(n.productoId);
+                      const proveedorActual = proveedorSeleccionado(n);
+                      return (
+                        <tr key={n._id} className={`border-b border-black/5 ${!incluida(n) ? "opacity-50" : ""}`}>
+                          <td className="py-2 pr-2">
+                            <input
+                              type="checkbox"
+                              checked={incluida(n)}
+                              onChange={(e) => actualizarSeleccion(n._id, { incluida: e.target.checked })}
+                            />
+                          </td>
+                          <td className="py-2 pr-2 font-medium">{n.nombreProducto}</td>
+                          <td className="py-2 pr-2 text-black/60">{MOTIVO_LABEL[n.motivo]}</td>
+                          <td className="py-2 pr-2">
+                            <Select
+                              value={proveedorActual}
+                              onChange={(e) => actualizarSeleccion(n._id, { proveedorId: e.target.value })}
+                              className="min-w-48"
+                            >
+                              <option value="">Sin proveedor asignado</option>
+                              {costos.length > 0
+                                ? costos.map((c) => (
+                                    <option key={c.proveedorId} value={c.proveedorId}>
+                                      {c.nombre} — {formatMoney(c.costoUnitario)}
+                                      {c.esPrincipal ? " (principal)" : ""}
+                                    </option>
+                                  ))
+                                : proveedores.map((p) => (
+                                    <option key={p._id} value={p._id}>
+                                      {p.nombre}
+                                    </option>
+                                  ))}
+                            </Select>
+                          </td>
+                          <td className="py-2 pr-2">
+                            <Input
+                              type="number"
+                              min="1"
+                              value={cantidadSeleccionada(n)}
+                              onChange={(e) => actualizarSeleccion(n._id, { cantidad: e.target.value })}
+                              className="w-24"
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -793,6 +949,7 @@ export function OrdenesCompraManager() {
               {abierta === s._id ? (
                 <ConvertirForm
                   solicitud={s}
+                  categorias={categorias}
                   onConvertida={() => {
                     setAbierta(null);
                     cargar();
@@ -816,25 +973,6 @@ export function OrdenesCompraManager() {
           onUpdated={(actualizado) => {
             setOrdenModal(actualizado);
             setOrdenes((prev) => prev.map((o) => (o._id === actualizado._id ? actualizado : o)));
-          }}
-        />
-      ) : null}
-
-      {necesidadModal ? (
-        <AgregarNecesidadModal
-          necesidad={necesidadModal}
-          proveedores={proveedores}
-          onClose={() => setNecesidadModal(null)}
-          onAgregar={(proveedorId, cantidad) => {
-            agregarProducto({
-              proveedorId,
-              productoId: necesidadModal.productoId,
-              nombreProducto: necesidadModal.nombreProducto,
-              cantidadOrdenada: cantidad,
-              cantidadRequerida: necesidadModal.cantidadRequerida,
-              necesidadId: necesidadModal._id,
-            });
-            setNecesidadModal(null);
           }}
         />
       ) : null}

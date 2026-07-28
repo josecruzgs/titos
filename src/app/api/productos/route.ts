@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
   const producto = await Producto.create({
     sku: body.sku,
     nombre: body.nombre,
+    linea: body.linea || "",
     categoria: body.categoria,
     unidad: body.unidad,
     requierePesaje: Boolean(body.requierePesaje),
@@ -33,6 +34,7 @@ export async function POST(req: NextRequest) {
     precioVenta: Number(body.precioVenta) || 0,
     existenciaMatriz: Number(body.existenciaMatriz) || 0,
     stockMinimo: Number(body.stockMinimo) || 0,
+    stockMaximo: Number(body.stockMaximo) || 0,
   });
 
   return NextResponse.json(producto, { status: 201 });

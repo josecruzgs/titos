@@ -1,15 +1,5 @@
-export const CATEGORIAS = [
-  { value: "abarrotes", label: "Abarrotes" },
-  { value: "frutas_verduras", label: "Frutas y verduras" },
-  { value: "carniceria", label: "Carnicería" },
-  { value: "lacteos", label: "Lácteos" },
-  { value: "limpieza", label: "Limpieza" },
-  { value: "panaderia", label: "Panadería" },
-  { value: "bebidas", label: "Bebidas" },
-] as const;
-
-export const CATEGORIA_VALUES = CATEGORIAS.map((c) => c.value);
-
+// Las categorías ahora son un catálogo dinámico (ver CategoriaProducto / /api/categorias).
+// Este helper solo da formato de respaldo a valores antiguos tipo snake_case.
 export function categoriaLabel(value: string) {
-  return CATEGORIAS.find((c) => c.value === value)?.label ?? value.replaceAll("_", " ");
+  return value.replaceAll("_", " ");
 }
