@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button, Card, Input, Select, EmptyState, Pagination, Modal, FormGrid, FormField } from "@/components/ui";
-import { Package, Barcode, Tag, Tags, Scale, DollarSign, Boxes, AlertTriangle, ArrowUpToLine } from "lucide-react";
+import { Package, Barcode, Tag, Tags, Scale, DollarSign, Boxes, AlertTriangle, ArrowUpToLine, X } from "lucide-react";
 import { ProductoProveedoresModal } from "@/components/matriz/ProductoProveedoresModal";
 
 const PAGE_SIZE = 20;
@@ -11,6 +11,7 @@ type Producto = {
   _id: string;
   sku: string;
   nombre: string;
+  alias: string[];
   linea: string;
   categoria: string;
   unidad: "pieza" | "kg";
@@ -40,59 +41,116 @@ const emptyForm = {
   stockMaximo: "",
 };
 
-function CrearProductoModal({
+function formDesdeProducto(p: Producto) {
+  return {
+    sku: p.sku,
+    nombre: p.nombre,
+    linea: p.linea,
+    categoria: p.categoria,
+    unidad: p.unidad,
+    requierePesaje: p.requierePesaje,
+    precioCompra: String(p.precioCompra),
+    precioVenta: String(p.precioVenta),
+    existenciaMatriz: String(p.existenciaMatriz),
+    stockMinimo: String(p.stockMinimo),
+    stockMaximo: String(p.stockMaximo),
+  };
+}
+
+function ProductoFormModal({
+  producto,
   lineas,
   categorias,
   onClose,
-  onCreado,
+  onGuardado,
 }: {
+  producto: Producto | null;
   lineas: Linea[];
   categorias: Categoria[];
   onClose: () => void;
-  onCreado: () => void;
+  onGuardado: () => void;
 }) {
-  const [form, setForm] = useState(emptyForm);
+  const editando = producto != null;
+  const [form, setForm] = useState(producto ? formDesdeProducto(producto) : emptyForm);
+  const [alias, setAlias] = useState<string[]>(producto?.alias ?? []);
+  const [aliasInput, setAliasInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function crear() {
+  function agregarAlias() {
+    const valor = aliasInput.trim();
+    if (!valor || alias.some((a) => a.toLowerCase() === valor.toLowerCase())) {
+      setAliasInput("");
+      return;
+    }
+    setAlias((prev) => [...prev, valor]);
+    setAliasInput("");
+  }
+
+  function quitarAlias(idx: number) {
+    setAlias((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  async function guardar() {
     setError(null);
     setSaving(true);
 
-    const res = await fetch("/api/productos", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
+    const body = {
+      ...form,
+      alias,
+      precioCompra: Number(form.precioCompra) || 0,
+      precioVenta: Number(form.precioVenta) || 0,
+      existenciaMatriz: Number(form.existenciaMatriz) || 0,
+      stockMinimo: Number(form.stockMinimo) || 0,
+      stockMaximo: Number(form.stockMaximo) || 0,
+    };
+
+    const res = editando
+      ? await fetch(`/api/productos/${producto._id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        })
+      : await fetch("/api/productos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
 
     setSaving(false);
 
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      setError(data.error || "No se pudo crear el producto");
+      setError(data.error || "No se pudo guardar el producto");
       return;
     }
 
-    onCreado();
+    onGuardado();
   }
 
   return (
     <Modal
       open
       onClose={onClose}
-      title="Nuevo producto"
+      title={editando ? `Editar producto — ${producto.nombre}` : "Nuevo producto"}
       icon={Package}
       size="lg"
       footer={
-        <Button onClick={crear} disabled={saving || !form.sku || !form.nombre || !form.categoria}>
-          {saving ? "Guardando..." : "Agregar producto"}
+        <Button onClick={guardar} disabled={saving || !form.sku || !form.nombre || !form.categoria}>
+          {saving ? "Guardando..." : editando ? "Guardar cambios" : "Agregar producto"}
         </Button>
       }
     >
       <div className="space-y-4">
         <FormGrid>
           <FormField label="SKU">
-            <Input icon={Barcode} required value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} />
+            <Input
+              icon={Barcode}
+              required
+              disabled={editando}
+              value={form.sku}
+              onChange={(e) => setForm({ ...form, sku: e.target.value })}
+            />
           </FormField>
           <FormField label="Nombre">
             <Input icon={Package} required value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
@@ -139,6 +197,41 @@ function CrearProductoModal({
             <Input icon={ArrowUpToLine} type="number" value={form.stockMaximo} onChange={(e) => setForm({ ...form, stockMaximo: e.target.value })} />
           </FormField>
         </FormGrid>
+
+        <FormField label="Alias (otros nombres por los que se conoce el producto)">
+          <div className="flex gap-2">
+            <Input
+              value={aliasInput}
+              onChange={(e) => setAliasInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  agregarAlias();
+                }
+              }}
+              placeholder="Ej. Coca chica, refresco 355ml..."
+            />
+            <Button type="button" variant="ghost" onClick={agregarAlias}>
+              Agregar
+            </Button>
+          </div>
+          {alias.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {alias.map((a, idx) => (
+                <span
+                  key={idx}
+                  className="inline-flex items-center gap-1 rounded-full bg-black/5 px-2.5 py-1 text-xs text-black/70"
+                >
+                  {a}
+                  <button type="button" onClick={() => quitarAlias(idx)} className="text-black/40 hover:text-red-600">
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </FormField>
+
         <label className="flex items-center gap-2 text-sm text-black/70">
           <input
             type="checkbox"
@@ -155,102 +248,79 @@ function CrearProductoModal({
 
 export function ProductosManager() {
   const [productos, setProductos] = useState<Producto[]>([]);
+  const [total, setTotal] = useState(0);
   const [lineas, setLineas] = useState<Linea[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState("");
+  const [busquedaDebounced, setBusquedaDebounced] = useState("");
   const [categoriaFiltro, setCategoriaFiltro] = useState("");
   const [page, setPage] = useState(1);
   const [creando, setCreando] = useState(false);
+  const [editando, setEditando] = useState<Producto | null>(null);
   const [proveedoresModal, setProveedoresModal] = useState<Producto | null>(null);
 
-  async function cargar() {
+  // Espera a que el usuario deje de teclear antes de disparar la búsqueda en el servidor.
+  useEffect(() => {
+    const t = setTimeout(() => setBusquedaDebounced(busqueda), 300);
+    return () => clearTimeout(t);
+  }, [busqueda]);
+
+  // El catálogo puede tener miles de productos: se pagina y filtra en el
+  // servidor en vez de mandar todo al navegador en cada carga.
+  const cargar = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/productos");
-    if (res.ok) setProductos(await res.json());
+    const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
+    if (busquedaDebounced) params.set("q", busquedaDebounced);
+    if (categoriaFiltro) params.set("categoria", categoriaFiltro);
+
+    const res = await fetch(`/api/productos?${params.toString()}`);
+    if (res.ok) {
+      const data: { items: Producto[]; total: number } = await res.json();
+      setProductos(data.items);
+      setTotal(data.total);
+    }
     setLoading(false);
-  }
-
-  async function cargarLineas() {
-    const res = await fetch("/api/lineas");
-    if (res.ok) setLineas(await res.json());
-  }
-
-  async function cargarCategorias() {
-    const res = await fetch("/api/categorias");
-    if (res.ok) setCategorias(await res.json());
-  }
+  }, [page, busquedaDebounced, categoriaFiltro]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial de datos al montar
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- recarga desde el servidor cuando cambian página, búsqueda o filtro
     cargar();
-    cargarLineas();
-    cargarCategorias();
+  }, [cargar]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- vuelve a la página 1 cuando cambia la búsqueda o el filtro
+    setPage(1);
+  }, [busquedaDebounced, categoriaFiltro]);
+
+  useEffect(() => {
+    fetch("/api/lineas")
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setLineas);
+    fetch("/api/categorias")
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setCategorias);
   }, []);
 
-  async function toggleRequierePesaje(producto: Producto) {
-    await fetch(`/api/productos/${producto._id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ requierePesaje: !producto.requierePesaje }),
-    });
-    cargar();
-  }
-
-  async function actualizarCampoNumerico(
-    producto: Producto,
-    campo: "existenciaMatriz" | "stockMinimo" | "stockMaximo" | "precioCompra" | "precioVenta",
-    value: string
-  ) {
-    await fetch(`/api/productos/${producto._id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ [campo]: Number(value) || 0 }),
-    });
-    cargar();
-  }
-
-  async function actualizarCampoTexto(producto: Producto, campo: "linea" | "categoria", value: string) {
-    await fetch(`/api/productos/${producto._id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ [campo]: value }),
-    });
-    cargar();
-  }
-
-  const productosFiltrados = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
-    return productos.filter((p) => {
-      const coincideNombre = !q || p.nombre.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
-      const coincideCategoria = !categoriaFiltro || p.categoria === categoriaFiltro;
-      return coincideNombre && coincideCategoria;
-    });
-  }, [productos, busqueda, categoriaFiltro]);
-
-  const totalPages = Math.max(1, Math.ceil(productosFiltrados.length / PAGE_SIZE));
-  const paginaActual = Math.min(page, totalPages);
-  const productosPagina = productosFiltrados.slice((paginaActual - 1) * PAGE_SIZE, paginaActual * PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   function actualizarBusqueda(value: string) {
     setBusqueda(value);
-    setPage(1);
   }
 
   function actualizarCategoriaFiltro(value: string) {
     setCategoriaFiltro(value);
-    setPage(1);
   }
 
   return (
     <div>
       <Card>
         <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="font-semibold text-titos-green-900">Catálogo ({productosFiltrados.length})</h2>
+          <h2 className="font-semibold text-titos-green-900">Catálogo ({total})</h2>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <div className="w-full sm:w-56">
               <Input
-                placeholder="Buscar por nombre o SKU..."
+                placeholder="Buscar por nombre, SKU o alias..."
                 value={busqueda}
                 onChange={(e) => actualizarBusqueda(e.target.value)}
               />
@@ -272,10 +342,10 @@ export function ProductosManager() {
         </div>
         {loading ? (
           <p className="text-sm text-black/50">Cargando...</p>
-        ) : productosFiltrados.length === 0 ? (
+        ) : total === 0 ? (
           <EmptyState
             message={
-              productos.length === 0
+              !busquedaDebounced && !categoriaFiltro
                 ? "Todavía no hay productos en el catálogo."
                 : "Ningún producto coincide con la búsqueda o el filtro."
             }
@@ -285,113 +355,68 @@ export function ProductosManager() {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead>
-                  <tr className="border-b border-black/10 text-black/50">
+                  <tr className="border-b border-black/10 whitespace-nowrap text-black/50">
                     <th className="py-2 pr-2">Línea</th>
-                    <th className="py-2 pr-2">Tipo de producto</th>
+                    <th className="py-2 pr-2">Categoría</th>
                     <th className="py-2 pr-2">Código</th>
-                    <th className="py-2 pr-2">Producto</th>
-                    <th className="py-2 pr-2">Unidad medida</th>
+                    <th className="sticky left-0 z-10 bg-white py-2 pr-2">Producto</th>
+                    <th className="py-2 pr-2">Unidad</th>
                     <th className="py-2 pr-2">Stock</th>
-                    <th className="py-2 pr-2">Mínimo</th>
-                    <th className="py-2 pr-2">Máximo</th>
-                    <th className="py-2 pr-2">Diferencia</th>
+                    <th className="py-2 pr-2">Mín</th>
+                    <th className="py-2 pr-2">Máx</th>
+                    <th className="py-2 pr-2">Dif.</th>
                     <th className="py-2 pr-2">Costo</th>
                     <th className="py-2 pr-2">Público</th>
-                    <th className="py-2 pr-2">Total costo</th>
-                    <th className="py-2 pr-2">Total público</th>
+                    <th className="py-2 pr-2">Tot. costo</th>
+                    <th className="py-2 pr-2">Tot. público</th>
                     <th className="py-2 pr-2">Pesaje</th>
-                    <th className="py-2 pr-2" />
+                    <th className="sticky right-0 z-10 bg-white py-2 pr-2" />
                   </tr>
                 </thead>
                 <tbody>
-                  {productosPagina.map((p) => {
+                  {productos.map((p) => {
                     const diferencia = p.stockMaximo - p.existenciaMatriz;
                     const totalCosto = p.existenciaMatriz * p.precioCompra;
                     const totalPublico = p.existenciaMatriz * p.precioVenta;
                     return (
-                      <tr key={p._id} className="border-b border-black/5">
-                        <td className="py-2 pr-2">
-                          <select
-                            defaultValue={p.linea}
-                            onChange={(e) => actualizarCampoTexto(p, "linea", e.target.value)}
-                            className="w-28 rounded border border-black/10 px-1 py-0.5"
-                          >
-                            <option value="">Sin línea</option>
-                            {lineas.map((l) => (
-                              <option key={l._id} value={l.nombre}>
-                                {l.nombre}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="py-2 pr-2">
-                          <select
-                            defaultValue={p.categoria}
-                            onChange={(e) => actualizarCampoTexto(p, "categoria", e.target.value)}
-                            className="w-28 rounded border border-black/10 px-1 py-0.5"
-                          >
-                            {categorias.map((c) => (
-                              <option key={c._id} value={c.nombre}>
-                                {c.nombre}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
+                      <tr key={p._id} className="border-b border-black/5 whitespace-nowrap">
+                        <td className="py-2 pr-2 text-black/60">{p.linea || "—"}</td>
+                        <td className="py-2 pr-2 text-black/60">{p.categoria}</td>
                         <td className="py-2 pr-2 text-black/50">{p.sku}</td>
-                        <td className="py-2 pr-2 font-medium">{p.nombre}</td>
+                        <td className="sticky left-0 z-10 max-w-55 bg-white py-2 pr-2">
+                          <button
+                            type="button"
+                            onClick={() => setEditando(p)}
+                            className="truncate font-medium text-titos-green-900 hover:underline"
+                            title={p.nombre}
+                          >
+                            {p.nombre}
+                          </button>
+                          {p.alias?.length > 0 ? (
+                            <p className="truncate text-xs text-black/40" title={p.alias.join(", ")}>
+                              alias: {p.alias.join(", ")}
+                            </p>
+                          ) : null}
+                        </td>
                         <td className="py-2 pr-2 text-black/60">{p.unidad}</td>
-                        <td className="py-2 pr-2">
-                          <input
-                            type="number"
-                            defaultValue={p.existenciaMatriz}
-                            onBlur={(e) => actualizarCampoNumerico(p, "existenciaMatriz", e.target.value)}
-                            className="w-16 rounded border border-black/10 px-1 py-0.5"
-                          />
-                        </td>
-                        <td className="py-2 pr-2">
-                          <input
-                            type="number"
-                            defaultValue={p.stockMinimo}
-                            onBlur={(e) => actualizarCampoNumerico(p, "stockMinimo", e.target.value)}
-                            className="w-16 rounded border border-black/10 px-1 py-0.5"
-                          />
-                        </td>
-                        <td className="py-2 pr-2">
-                          <input
-                            type="number"
-                            defaultValue={p.stockMaximo}
-                            onBlur={(e) => actualizarCampoNumerico(p, "stockMaximo", e.target.value)}
-                            className="w-16 rounded border border-black/10 px-1 py-0.5"
-                          />
-                        </td>
+                        <td className="py-2 pr-2">{p.existenciaMatriz}</td>
+                        <td className="py-2 pr-2 text-black/60">{p.stockMinimo}</td>
+                        <td className="py-2 pr-2 text-black/60">{p.stockMaximo}</td>
                         <td className={`py-2 pr-2 ${diferencia < 0 ? "text-red-600" : "text-black/60"}`}>{diferencia}</td>
-                        <td className="py-2 pr-2">
-                          <input
-                            type="number"
-                            step="0.01"
-                            defaultValue={p.precioCompra}
-                            onBlur={(e) => actualizarCampoNumerico(p, "precioCompra", e.target.value)}
-                            className="w-20 rounded border border-black/10 px-1 py-0.5"
-                          />
-                        </td>
-                        <td className="py-2 pr-2">
-                          <input
-                            type="number"
-                            step="0.01"
-                            defaultValue={p.precioVenta}
-                            onBlur={(e) => actualizarCampoNumerico(p, "precioVenta", e.target.value)}
-                            className="w-20 rounded border border-black/10 px-1 py-0.5"
-                          />
-                        </td>
+                        <td className="py-2 pr-2 text-black/60">${p.precioCompra.toFixed(2)}</td>
+                        <td className="py-2 pr-2 text-black/60">${p.precioVenta.toFixed(2)}</td>
                         <td className="py-2 pr-2 text-black/60">${totalCosto.toFixed(2)}</td>
                         <td className="py-2 pr-2 text-black/60">${totalPublico.toFixed(2)}</td>
-                        <td className="py-2 pr-2">
-                          <input type="checkbox" checked={p.requierePesaje} onChange={() => toggleRequierePesaje(p)} />
-                        </td>
-                        <td className="py-2 pr-2">
-                          <Button variant="ghost" onClick={() => setProveedoresModal(p)}>
-                            Proveedores
-                          </Button>
+                        <td className="py-2 pr-2 text-black/60">{p.requierePesaje ? "Sí" : "—"}</td>
+                        <td className="sticky right-0 z-10 bg-white py-2 pr-2">
+                          <div className="flex gap-1">
+                            <Button variant="ghost" onClick={() => setEditando(p)}>
+                              Editar
+                            </Button>
+                            <Button variant="ghost" onClick={() => setProveedoresModal(p)}>
+                              Proveedores
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -400,9 +425,9 @@ export function ProductosManager() {
               </table>
             </div>
             <Pagination
-              page={paginaActual}
+              page={page}
               totalPages={totalPages}
-              totalItems={productosFiltrados.length}
+              totalItems={total}
               pageSize={PAGE_SIZE}
               onChange={setPage}
             />
@@ -411,12 +436,26 @@ export function ProductosManager() {
       </Card>
 
       {creando ? (
-        <CrearProductoModal
+        <ProductoFormModal
+          producto={null}
           lineas={lineas}
           categorias={categorias}
           onClose={() => setCreando(false)}
-          onCreado={() => {
+          onGuardado={() => {
             setCreando(false);
+            cargar();
+          }}
+        />
+      ) : null}
+
+      {editando ? (
+        <ProductoFormModal
+          producto={editando}
+          lineas={lineas}
+          categorias={categorias}
+          onClose={() => setEditando(null)}
+          onGuardado={() => {
+            setEditando(null);
             cargar();
           }}
         />

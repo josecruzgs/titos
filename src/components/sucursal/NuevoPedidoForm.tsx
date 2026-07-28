@@ -12,6 +12,7 @@ type Producto = {
   _id: string;
   sku: string;
   nombre: string;
+  alias?: string[];
   categoria: string;
   unidad: "pieza" | "kg";
 };

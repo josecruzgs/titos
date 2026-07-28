@@ -31,6 +31,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   for (const key of updatable) {
     if (key in body) update[key] = body[key];
   }
+  if ("alias" in body) {
+    update.alias = Array.isArray(body.alias) ? body.alias.map((a: string) => String(a).trim()).filter(Boolean) : [];
+  }
 
   const producto = await Producto.findByIdAndUpdate(id, update, { new: true });
   if (!producto) return notFound("Producto no encontrado");

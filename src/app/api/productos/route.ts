@@ -3,13 +3,57 @@ import { connectDB } from "@/lib/db";
 import Producto from "@/models/Producto";
 import { requireSession, unauthorized, forbidden, badRequest } from "@/lib/apiAuth";
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Los productos creados antes de agregar el campo "alias" no lo tienen en Mongo
+// (los defaults del schema no aplican retroactivamente a documentos existentes).
+function conAliasNormalizado<T extends { alias?: string[] }>(producto: T): T & { alias: string[] } {
+  return { ...producto, alias: producto.alias ?? [] };
+}
+
 export async function GET(req: NextRequest) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
 
   await connectDB();
-  const productos = await Producto.find({ activo: true }).sort({ nombre: 1 }).lean();
-  return NextResponse.json(productos);
+
+  const url = new URL(req.url);
+  const pageParam = url.searchParams.get("page");
+
+  // Sin "page": comportamiento original, devuelve el catálogo completo. Lo usan
+  // el punto de venta y el combobox de pedidos, que necesitan la lista completa
+  // en el cliente para buscar/escanear al instante sin ida y vuelta al servidor.
+  if (!pageParam) {
+    const productos = await Producto.find({ activo: true }).sort({ nombre: 1 }).lean();
+    return NextResponse.json(productos.map(conAliasNormalizado));
+  }
+
+  // Con "page": paginación y búsqueda en el servidor, para el catálogo de
+  // matriz (miles de productos) donde no tiene sentido mandar todo al cliente.
+  const page = Math.max(1, Number(pageParam) || 1);
+  const pageSize = Math.min(100, Math.max(1, Number(url.searchParams.get("pageSize")) || 20));
+  const q = url.searchParams.get("q")?.trim();
+  const categoria = url.searchParams.get("categoria")?.trim();
+
+  const filter: Record<string, unknown> = { activo: true };
+  if (categoria) filter.categoria = categoria;
+  if (q) {
+    const regex = new RegExp(escapeRegExp(q), "i");
+    filter.$or = [{ nombre: regex }, { sku: regex }, { alias: regex }];
+  }
+
+  const [items, total] = await Promise.all([
+    Producto.find(filter)
+      .sort({ nombre: 1 })
+      .skip((page - 1) * pageSize)
+      .limit(pageSize)
+      .lean(),
+    Producto.countDocuments(filter),
+  ]);
+
+  return NextResponse.json({ items: items.map(conAliasNormalizado), total });
 }
 
 export async function POST(req: NextRequest) {
@@ -22,10 +66,15 @@ export async function POST(req: NextRequest) {
     return badRequest("Faltan campos requeridos (sku, nombre, categoria, unidad)");
   }
 
+  const alias: string[] = Array.isArray(body.alias)
+    ? body.alias.map((a: string) => String(a).trim()).filter(Boolean)
+    : [];
+
   await connectDB();
   const producto = await Producto.create({
     sku: body.sku,
     nombre: body.nombre,
+    alias,
     linea: body.linea || "",
     categoria: body.categoria,
     unidad: body.unidad,

@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import Sucursal from "@/models/Sucursal";
-import { requireSession, unauthorized, forbidden, notFound } from "@/lib/apiAuth";
+import UserModel from "@/models/User";
+import InventarioSucursal from "@/models/InventarioSucursal";
+import Pedido from "@/models/Pedido";
+import Venta from "@/models/Venta";
+import CajaSesion from "@/models/CajaSesion";
+import { requireSession, unauthorized, forbidden, notFound, badRequest, conflict } from "@/lib/apiAuth";
 import { normalizarWhatsAppMX } from "@/lib/whatsapp";
+import { verifyPassword } from "@/lib/auth";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireSession(req);
@@ -31,4 +37,46 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!sucursal) return notFound("Sucursal no encontrada");
 
   return NextResponse.json(sucursal);
+}
+
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await requireSession(req);
+  if (!session) return unauthorized();
+  if (session.role !== "matriz") return forbidden();
+
+  const { id } = await params;
+  const body = await req.json().catch(() => null);
+  const password = body?.password;
+  if (!password) return badRequest("Debes confirmar tu contraseña para eliminar la sucursal");
+
+  await connectDB();
+
+  const usuario = await UserModel.findById(session.userId);
+  if (!usuario) return unauthorized();
+
+  const passwordValida = await verifyPassword(password, usuario.passwordHash);
+  if (!passwordValida) return badRequest("Contraseña incorrecta");
+
+  const sucursal = await Sucursal.findById(id);
+  if (!sucursal) return notFound("Sucursal no encontrada");
+
+  const [tienePedidos, tieneVentas, tieneCortes] = await Promise.all([
+    Pedido.exists({ sucursalId: id }),
+    Venta.exists({ sucursalId: id }),
+    CajaSesion.exists({ sucursalId: id }),
+  ]);
+
+  if (tienePedidos || tieneVentas || tieneCortes) {
+    return conflict(
+      "No se puede eliminar: esta sucursal ya tiene pedidos, ventas o cortes de caja registrados. Desactívala en su lugar."
+    );
+  }
+
+  await Promise.all([
+    Sucursal.findByIdAndDelete(id),
+    UserModel.deleteMany({ sucursalId: id, role: "sucursal" }),
+    InventarioSucursal.deleteMany({ sucursalId: id }),
+  ]);
+
+  return NextResponse.json({ ok: true });
 }

@@ -4,6 +4,7 @@ const ProductoSchema = new Schema(
   {
     sku: { type: String, required: true, unique: true, trim: true },
     nombre: { type: String, required: true, trim: true },
+    alias: { type: [String], default: [] }, // nombres alternativos para localizar el producto en búsquedas
     linea: { type: String, trim: true, default: "" },
     categoria: { type: String, required: true, trim: true },
     unidad: { type: String, enum: ["pieza", "kg"], required: true },
@@ -18,6 +19,9 @@ const ProductoSchema = new Schema(
   },
   { timestamps: true }
 );
+
+// Acelera el listado paginado del catálogo (find({activo:true}).sort({nombre:1})).
+ProductoSchema.index({ activo: 1, nombre: 1 });
 
 export type Producto = InferSchemaType<typeof ProductoSchema> & { _id: string };
 

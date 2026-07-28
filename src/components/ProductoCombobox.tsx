@@ -7,13 +7,14 @@ type ProductoOpcion = {
   _id: string;
   sku: string;
   nombre: string;
+  alias?: string[];
 };
 
 export function ProductoCombobox({
   productos,
   value,
   onChange,
-  placeholder = "Buscar producto por nombre o SKU...",
+  placeholder = "Buscar producto por nombre, SKU o alias...",
 }: {
   productos: ProductoOpcion[];
   value: string;
@@ -40,7 +41,12 @@ export function ProductoCombobox({
   const resultados = useMemo(() => {
     const q = query.trim().toLowerCase();
     const coincidencias = q
-      ? productos.filter((p) => p.nombre.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q))
+      ? productos.filter(
+          (p) =>
+            p.nombre.toLowerCase().includes(q) ||
+            p.sku.toLowerCase().includes(q) ||
+            p.alias?.some((a) => a.toLowerCase().includes(q))
+        )
       : productos;
     return coincidencias.slice(0, 8);
   }, [productos, query]);

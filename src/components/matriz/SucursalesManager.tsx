@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Button, Card, Input, EmptyState, Modal, FormGrid, FormField } from "@/components/ui";
-import { Store, MapPin, MessageCircle, User, Mail, Lock } from "lucide-react";
+import { Store, MapPin, MessageCircle, User, Mail, Lock, TriangleAlert } from "lucide-react";
 
 type Sucursal = {
   _id: string;
@@ -212,11 +212,82 @@ function SucursalModal({
   );
 }
 
+function EliminarSucursalModal({
+  sucursal,
+  onClose,
+  onEliminada,
+}: {
+  sucursal: Sucursal;
+  onClose: () => void;
+  onEliminada: () => void;
+}) {
+  const [password, setPassword] = useState("");
+  const [eliminando, setEliminando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function eliminar() {
+    setError(null);
+    setEliminando(true);
+
+    const res = await fetch(`/api/sucursales/${sucursal._id}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+
+    setEliminando(false);
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error || "No se pudo eliminar la sucursal");
+      return;
+    }
+
+    onEliminada();
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Eliminar ${sucursal.nombre}`}
+      icon={TriangleAlert}
+      footer={
+        <Button variant="danger" onClick={eliminar} disabled={eliminando || !password}>
+          {eliminando ? "Eliminando..." : "Eliminar sucursal"}
+        </Button>
+      }
+    >
+      <div className="space-y-4">
+        <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">
+          Esta acción no se puede deshacer. Se eliminará la sucursal, su usuario de acceso y sus registros de
+          inventario. Si la sucursal ya tiene pedidos, ventas o cortes de caja registrados, no se podrá eliminar —
+          desactívala en su lugar.
+        </p>
+        <FormField label="Confirma tu contraseña para continuar">
+          <Input
+            icon={Lock}
+            type="password"
+            autoFocus
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && password) eliminar();
+            }}
+          />
+        </FormField>
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      </div>
+    </Modal>
+  );
+}
+
 export function SucursalesManager() {
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
   const [loading, setLoading] = useState(true);
   const [sucursalModal, setSucursalModal] = useState<Sucursal | null>(null);
   const [creando, setCreando] = useState(false);
+  const [sucursalAEliminar, setSucursalAEliminar] = useState<Sucursal | null>(null);
 
   async function cargar() {
     setLoading(true);
@@ -264,9 +335,14 @@ export function SucursalesManager() {
                     <td className="py-2 pr-2 text-black/60">{s.whatsapp || "—"}</td>
                     <td className="py-2 pr-2 text-black/60">{s.usuario?.email || "—"}</td>
                     <td className="py-2 pr-2">
-                      <Button variant="ghost" onClick={() => setSucursalModal(s)}>
-                        Ver / Editar
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" onClick={() => setSucursalModal(s)}>
+                          Ver / Editar
+                        </Button>
+                        <Button variant="danger" onClick={() => setSucursalAEliminar(s)}>
+                          Eliminar
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -292,6 +368,17 @@ export function SucursalesManager() {
           onClose={() => setSucursalModal(null)}
           onGuardado={() => {
             setSucursalModal(null);
+            cargar();
+          }}
+        />
+      ) : null}
+
+      {sucursalAEliminar ? (
+        <EliminarSucursalModal
+          sucursal={sucursalAEliminar}
+          onClose={() => setSucursalAEliminar(null)}
+          onEliminada={() => {
+            setSucursalAEliminar(null);
             cargar();
           }}
         />
