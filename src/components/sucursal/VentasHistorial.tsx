@@ -25,8 +25,8 @@ type Venta = {
   estado: "completada" | "cancelada";
 };
 
-function resumenPagos(pagos: PagoVenta[]) {
-  return pagos.map((p) => ETIQUETAS_METODO[p.metodoPago] ?? p.metodoPago).join(" + ");
+function resumenPagos(pagos: PagoVenta[] | null | undefined) {
+  return (pagos ?? []).map((p) => ETIQUETAS_METODO[p.metodoPago] ?? p.metodoPago).join(" + ");
 }
 
 export function VentasHistorial({ ventas }: { ventas: Venta[] }) {
@@ -79,13 +79,13 @@ export function VentasHistorial({ ventas }: { ventas: Venta[] }) {
                     ))}
                   </ul>
                   <ul className="mb-3 space-y-1 text-sm text-black/60">
-                    {v.pagos.map((p, idx) => (
+                    {(v.pagos ?? []).map((p, idx) => (
                       <li key={idx} className="flex items-center justify-between">
                         <span>{ETIQUETAS_METODO[p.metodoPago] ?? p.metodoPago}</span>
                         <span className="font-medium">{formatMoney(p.monto)}</span>
                       </li>
                     ))}
-                    {v.pagos.some((p) => p.metodoPago === "efectivo") ? (
+                    {(v.pagos ?? []).some((p) => p.metodoPago === "efectivo") ? (
                       <>
                         <li className="flex items-center justify-between">
                           <span>Efectivo recibido</span>
