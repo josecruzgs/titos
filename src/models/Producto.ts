@@ -7,6 +7,8 @@ const ProductoSchema = new Schema(
     alias: { type: [String], default: [] }, // nombres alternativos para localizar el producto en búsquedas
     linea: { type: String, trim: true, default: "" },
     categoria: { type: String, required: true, trim: true },
+    anaquel: { type: String, trim: true, default: "" }, // ubicación física donde se acomoda en el CEDIS matriz
+
     unidad: { type: String, enum: ["pieza", "kg"], required: true },
     requierePesaje: { type: Boolean, default: false },
     precioCompra: { type: Number, required: true, default: 0 },
@@ -22,6 +24,8 @@ const ProductoSchema = new Schema(
 
 // Acelera el listado paginado del catálogo (find({activo:true}).sort({nombre:1})).
 ProductoSchema.index({ activo: 1, nombre: 1 });
+// Para recorrer el CEDIS acomodando/surtiendo por ubicación en vez de por nombre.
+ProductoSchema.index({ activo: 1, anaquel: 1 });
 
 export type Producto = InferSchemaType<typeof ProductoSchema> & { _id: string };
 

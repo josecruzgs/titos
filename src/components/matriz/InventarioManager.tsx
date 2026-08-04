@@ -12,6 +12,7 @@ type Producto = {
   sku: string;
   nombre: string;
   categoria: string;
+  anaquel: string;
   unidad: "pieza" | "kg";
   requierePesaje: boolean;
   existenciaMatriz: number;
@@ -124,7 +125,11 @@ export function InventarioManager() {
   const productosFiltrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
     return productos.filter((p) => {
-      const coincideNombre = !q || p.nombre.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
+      const coincideNombre =
+        !q ||
+        p.nombre.toLowerCase().includes(q) ||
+        p.sku.toLowerCase().includes(q) ||
+        (p.anaquel ?? "").toLowerCase().includes(q);
       const coincideCategoria = !categoriaFiltro || p.categoria === categoriaFiltro;
       return coincideNombre && coincideCategoria;
     });
@@ -152,7 +157,7 @@ export function InventarioManager() {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <div className="w-full sm:w-56">
               <Input
-                placeholder="Buscar por nombre o SKU..."
+                placeholder="Buscar por nombre, SKU o anaquel..."
                 value={busqueda}
                 onChange={(e) => actualizarBusqueda(e.target.value)}
               />
@@ -187,6 +192,7 @@ export function InventarioManager() {
                 <thead>
                   <tr className="border-b border-black/10 text-black/50">
                     <th className="py-2 pr-2">Producto</th>
+                    <th className="py-2 pr-2">Anaquel</th>
                     <th className="py-2 pr-2">Categoría</th>
                     <th className="py-2 pr-2">Existencia</th>
                     <th className="py-2 pr-2">Pesaje</th>
@@ -196,6 +202,15 @@ export function InventarioManager() {
                   {productosPagina.map((p) => (
                     <tr key={p._id} className="border-b border-black/5">
                       <td className="py-2 pr-2 font-medium">{p.nombre}</td>
+                      <td className="py-2 pr-2">
+                        {p.anaquel ? (
+                          <span className="rounded bg-titos-green-900/10 px-1.5 py-0.5 font-mono text-xs text-titos-green-900">
+                            {p.anaquel}
+                          </span>
+                        ) : (
+                          <span className="text-black/30">—</span>
+                        )}
+                      </td>
                       <td className="py-2 pr-2 capitalize text-black/60">{p.categoria.replaceAll("_", " ")}</td>
                       <td className="py-2 pr-2">
                         {p.existenciaMatriz} {p.unidad}

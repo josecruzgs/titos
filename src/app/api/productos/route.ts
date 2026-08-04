@@ -7,10 +7,13 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// Los productos creados antes de agregar el campo "alias" no lo tienen en Mongo
-// (los defaults del schema no aplican retroactivamente a documentos existentes).
-function conAliasNormalizado<T extends { alias?: string[] }>(producto: T): T & { alias: string[] } {
-  return { ...producto, alias: producto.alias ?? [] };
+// Los productos creados antes de agregar los campos "alias" y "anaquel" no los
+// tienen en Mongo (los defaults del schema no aplican retroactivamente a
+// documentos existentes).
+function normalizado<T extends { alias?: string[]; anaquel?: string }>(
+  producto: T
+): T & { alias: string[]; anaquel: string } {
+  return { ...producto, alias: producto.alias ?? [], anaquel: producto.anaquel ?? "" };
 }
 
 export async function GET(req: NextRequest) {
@@ -27,7 +30,7 @@ export async function GET(req: NextRequest) {
   // en el cliente para buscar/escanear al instante sin ida y vuelta al servidor.
   if (!pageParam) {
     const productos = await Producto.find({ activo: true }).sort({ nombre: 1 }).lean();
-    return NextResponse.json(productos.map(conAliasNormalizado));
+    return NextResponse.json(productos.map(normalizado));
   }
 
   // Con "page": paginación y búsqueda en el servidor, para el catálogo de
@@ -36,24 +39,27 @@ export async function GET(req: NextRequest) {
   const pageSize = Math.min(100, Math.max(1, Number(url.searchParams.get("pageSize")) || 20));
   const q = url.searchParams.get("q")?.trim();
   const categoria = url.searchParams.get("categoria")?.trim();
+  // Para recorrer el CEDIS acomodando producto: lista ordenada por ubicación.
+  const orden: Record<string, 1> =
+    url.searchParams.get("orden") === "anaquel" ? { anaquel: 1, nombre: 1 } : { nombre: 1 };
 
   const filter: Record<string, unknown> = { activo: true };
   if (categoria) filter.categoria = categoria;
   if (q) {
     const regex = new RegExp(escapeRegExp(q), "i");
-    filter.$or = [{ nombre: regex }, { sku: regex }, { alias: regex }];
+    filter.$or = [{ nombre: regex }, { sku: regex }, { alias: regex }, { anaquel: regex }];
   }
 
   const [items, total] = await Promise.all([
     Producto.find(filter)
-      .sort({ nombre: 1 })
+      .sort(orden)
       .skip((page - 1) * pageSize)
       .limit(pageSize)
       .lean(),
     Producto.countDocuments(filter),
   ]);
 
-  return NextResponse.json({ items: items.map(conAliasNormalizado), total });
+  return NextResponse.json({ items: items.map(normalizado), total });
 }
 
 export async function POST(req: NextRequest) {
@@ -77,6 +83,7 @@ export async function POST(req: NextRequest) {
     alias,
     linea: body.linea || "",
     categoria: body.categoria,
+    anaquel: String(body.anaquel ?? "").trim(),
     unidad: body.unidad,
     requierePesaje: Boolean(body.requierePesaje),
     precioCompra: Number(body.precioCompra) || 0,

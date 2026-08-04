@@ -132,11 +132,16 @@ async function importarProductos(): Promise<Map<string, string>> {
     else actualizados++;
     log(`producto | ${esNuevo ? "crear" : "actualizar"} | ${r.sku} | ${r.nombre}`);
 
+    // "anaquel" es opcional en el CSV: si la columna viene vacía o no existe no
+    // se toca, para no borrar ubicaciones capturadas a mano desde la app.
+    const anaquel = r.anaquel?.trim();
+
     return {
       updateOne: {
         filter: { sku: r.sku },
         update: {
           $set: {
+            ...(anaquel ? { anaquel } : {}),
             nombre: r.nombre,
             linea: r.linea,
             categoria: r.categoria,

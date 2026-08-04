@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button, Card, Input, Select, EmptyState, Pagination, Modal, FormGrid, FormField } from "@/components/ui";
-import { Package, Barcode, Tag, Tags, Scale, DollarSign, Boxes, AlertTriangle, ArrowUpToLine, X } from "lucide-react";
+import { Package, Barcode, Tag, Tags, Scale, DollarSign, Boxes, AlertTriangle, ArrowUpToLine, MapPin, X } from "lucide-react";
 import { ProductoProveedoresModal } from "@/components/matriz/ProductoProveedoresModal";
 
 const PAGE_SIZE = 20;
@@ -14,6 +14,7 @@ type Producto = {
   alias: string[];
   linea: string;
   categoria: string;
+  anaquel: string;
   unidad: "pieza" | "kg";
   requierePesaje: boolean;
   precioCompra: number;
@@ -32,6 +33,7 @@ const emptyForm = {
   nombre: "",
   linea: "",
   categoria: "",
+  anaquel: "",
   unidad: "pieza" as "pieza" | "kg",
   requierePesaje: false,
   precioCompra: "",
@@ -47,6 +49,7 @@ function formDesdeProducto(p: Producto) {
     nombre: p.nombre,
     linea: p.linea,
     categoria: p.categoria,
+    anaquel: p.anaquel ?? "",
     unidad: p.unidad,
     requierePesaje: p.requierePesaje,
     precioCompra: String(p.precioCompra),
@@ -175,6 +178,14 @@ function ProductoFormModal({
               ))}
             </Select>
           </FormField>
+          <FormField label="Anaquel (ubicación en CEDIS matriz)">
+            <Input
+              icon={MapPin}
+              value={form.anaquel}
+              onChange={(e) => setForm({ ...form, anaquel: e.target.value })}
+              placeholder="Ej. A-03-2, Pasillo 4 nivel 1..."
+            />
+          </FormField>
           <FormField label="Unidad">
             <Select icon={Scale} value={form.unidad} onChange={(e) => setForm({ ...form, unidad: e.target.value as "pieza" | "kg" })}>
               <option value="pieza">Pieza</option>
@@ -255,6 +266,7 @@ export function ProductosManager() {
   const [busqueda, setBusqueda] = useState("");
   const [busquedaDebounced, setBusquedaDebounced] = useState("");
   const [categoriaFiltro, setCategoriaFiltro] = useState("");
+  const [orden, setOrden] = useState<"nombre" | "anaquel">("nombre");
   const [page, setPage] = useState(1);
   const [creando, setCreando] = useState(false);
   const [editando, setEditando] = useState<Producto | null>(null);
@@ -273,6 +285,7 @@ export function ProductosManager() {
     const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
     if (busquedaDebounced) params.set("q", busquedaDebounced);
     if (categoriaFiltro) params.set("categoria", categoriaFiltro);
+    if (orden === "anaquel") params.set("orden", "anaquel");
 
     const res = await fetch(`/api/productos?${params.toString()}`);
     if (res.ok) {
@@ -281,7 +294,7 @@ export function ProductosManager() {
       setTotal(data.total);
     }
     setLoading(false);
-  }, [page, busquedaDebounced, categoriaFiltro]);
+  }, [page, busquedaDebounced, categoriaFiltro, orden]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- recarga desde el servidor cuando cambian página, búsqueda o filtro
@@ -289,9 +302,9 @@ export function ProductosManager() {
   }, [cargar]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- vuelve a la página 1 cuando cambia la búsqueda o el filtro
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- vuelve a la página 1 cuando cambia la búsqueda, el filtro o el orden
     setPage(1);
-  }, [busquedaDebounced, categoriaFiltro]);
+  }, [busquedaDebounced, categoriaFiltro, orden]);
 
   useEffect(() => {
     fetch("/api/lineas")
@@ -320,7 +333,7 @@ export function ProductosManager() {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <div className="w-full sm:w-56">
               <Input
-                placeholder="Buscar por nombre, SKU o alias..."
+                placeholder="Buscar por nombre, SKU, alias o anaquel..."
                 value={busqueda}
                 onChange={(e) => actualizarBusqueda(e.target.value)}
               />
@@ -333,6 +346,12 @@ export function ProductosManager() {
                     {c.nombre}
                   </option>
                 ))}
+              </Select>
+            </div>
+            <div className="w-full sm:w-44">
+              <Select value={orden} onChange={(e) => setOrden(e.target.value as "nombre" | "anaquel")}>
+                <option value="nombre">Ordenar por nombre</option>
+                <option value="anaquel">Ordenar por anaquel</option>
               </Select>
             </div>
             <Button className="shrink-0" onClick={() => setCreando(true)}>
@@ -360,6 +379,7 @@ export function ProductosManager() {
                     <th className="py-2 pr-2">Categoría</th>
                     <th className="py-2 pr-2">Código</th>
                     <th className="sticky left-0 z-10 bg-white py-2 pr-2">Producto</th>
+                    <th className="py-2 pr-2">Anaquel</th>
                     <th className="py-2 pr-2">Unidad</th>
                     <th className="py-2 pr-2">Stock</th>
                     <th className="py-2 pr-2">Mín</th>
@@ -397,6 +417,15 @@ export function ProductosManager() {
                               alias: {p.alias.join(", ")}
                             </p>
                           ) : null}
+                        </td>
+                        <td className="py-2 pr-2">
+                          {p.anaquel ? (
+                            <span className="rounded bg-titos-green-900/10 px-1.5 py-0.5 font-mono text-xs text-titos-green-900">
+                              {p.anaquel}
+                            </span>
+                          ) : (
+                            <span className="text-black/30">—</span>
+                          )}
                         </td>
                         <td className="py-2 pr-2 text-black/60">{p.unidad}</td>
                         <td className="py-2 pr-2">{p.existenciaMatriz}</td>

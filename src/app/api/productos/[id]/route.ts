@@ -18,6 +18,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     "nombre",
     "linea",
     "categoria",
+    "anaquel",
     "unidad",
     "requierePesaje",
     "precioCompra",
