@@ -28,6 +28,11 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL("/matriz", req.url));
   }
 
+  // El rol "ventas" solo tiene acceso al punto de venta
+  if (isSucursalRoute && session.sucursalRol === "ventas" && pathname !== "/sucursal") {
+    return NextResponse.redirect(new URL("/sucursal", req.url));
+  }
+
   return NextResponse.next();
 }
 

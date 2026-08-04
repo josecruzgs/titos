@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
     email: user.email,
     nombre: user.nombre,
     role: user.role as "matriz" | "sucursal",
+    sucursalRol: user.role === "sucursal" ? ((user.sucursalRol as "admin" | "ventas") ?? "admin") : null,
     sucursalId: user.sucursalId ? String(user.sucursalId) : null,
   });
 

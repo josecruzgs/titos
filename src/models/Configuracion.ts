@@ -5,6 +5,7 @@ const ConfiguracionSchema = new Schema(
   {
     diasLaborales: { type: [String], enum: DIAS_SEMANA, default: ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado"] },
     horaCorte: { type: String, default: "16:00" },
+    tipoCambio: { type: Number, default: 17 },
   },
   { timestamps: true }
 );

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { Button, Card, FormGrid, FormField, Input, Modal } from "@/components/ui";
-import { Wifi, WifiOff, Loader2, RefreshCw, QrCode, Clock, CalendarCheck } from "lucide-react";
+import { Wifi, WifiOff, Loader2, RefreshCw, QrCode, Clock, CalendarCheck, DollarSign } from "lucide-react";
 import { DIAS_SEMANA, DIA_LABEL } from "@/lib/dias";
 
 type EstadoConexion = "open" | "connecting" | "close" | "desconocido";
@@ -106,6 +106,7 @@ export function ConfiguracionManager() {
 
   const [diasLaborales, setDiasLaborales] = useState<string[]>([]);
   const [horaCorte, setHoraCorte] = useState("16:00");
+  const [tipoCambio, setTipoCambio] = useState("17");
   const [cargandoConfig, setCargandoConfig] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
@@ -132,6 +133,7 @@ export function ConfiguracionManager() {
     const data = await res.json();
     setDiasLaborales(data.diasLaborales ?? []);
     setHoraCorte(data.horaCorte ?? "16:00");
+    setTipoCambio(String(data.tipoCambio ?? 17));
   }, []);
 
   useEffect(() => {
@@ -151,7 +153,7 @@ export function ConfiguracionManager() {
     const res = await fetch("/api/configuracion", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ diasLaborales, horaCorte }),
+      body: JSON.stringify({ diasLaborales, horaCorte, tipoCambio: Number(tipoCambio) }),
     });
     setGuardando(false);
 
@@ -243,6 +245,17 @@ export function ConfiguracionManager() {
             </FormField>
             <FormField label="Hora de corte de pedidos">
               <Input icon={Clock} type="time" value={horaCorte} onChange={(e) => setHoraCorte(e.target.value)} />
+            </FormField>
+            <FormField label="Tipo de cambio (pesos por dólar)">
+              <Input
+                icon={DollarSign}
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={tipoCambio}
+                onChange={(e) => setTipoCambio(e.target.value)}
+                placeholder="17.00"
+              />
             </FormField>
           </FormGrid>
         )}

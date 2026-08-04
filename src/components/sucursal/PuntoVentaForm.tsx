@@ -1,8 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ScanLine, Trash2, Receipt, Search, Banknote, ClipboardCheck, WifiOff, RefreshCw } from "lucide-react";
-import { Button, Card, Input, Modal, FormField, EmptyState, formatMoney } from "@/components/ui";
+import {
+  ScanLine,
+  Trash2,
+  Receipt,
+  Search,
+  Banknote,
+  ClipboardCheck,
+  WifiOff,
+  RefreshCw,
+  ShoppingCart,
+  X,
+  DollarSign,
+  Wifi,
+} from "lucide-react";
+import { Button, Card, Input, Modal, FormField, formatMoney } from "@/components/ui";
 import { ProductoCombobox } from "@/components/ProductoCombobox";
 import {
   leerProductosCache,
@@ -46,6 +59,8 @@ const ETIQUETAS_METODO: Record<MetodoPago, string> = {
   transferencia: "Transferencia",
 };
 
+const TIPO_CAMBIO_CACHE_KEY = "titos-pos-tipo-cambio";
+
 type VentaItemResp = { nombreProducto: string; cantidad: number; unidad: string; precioUnitario: number; subtotal: number };
 type PagoResp = { metodoPago: MetodoPago; monto: number };
 type VentaResp = {
@@ -84,7 +99,11 @@ function nombreCajero(sesion: SesionCaja | null) {
   return sesion.usuarioAperturaId.nombre ?? null;
 }
 
-export function PuntoVentaForm() {
+function formatDolares(value: number) {
+  return `$${value.toFixed(2)}`;
+}
+
+export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: string }) {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [inventario, setInventario] = useState<Map<string, number>>(new Map());
   const [codigo, setCodigo] = useState("");
@@ -99,6 +118,8 @@ export function PuntoVentaForm() {
   const [error, setError] = useState<string | null>(null);
   const [procesando, setProcesando] = useState(false);
   const [ventaCompletada, setVentaCompletada] = useState<VentaResp | null>(null);
+  const [tipoCambio, setTipoCambio] = useState(0);
+  const [modalCobro, setModalCobro] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // --- Caja: apertura, retiro de efectivo y corte ---
@@ -235,6 +256,21 @@ export function PuntoVentaForm() {
       })
       .catch(() => setInventario(new Map(Object.entries(leerInventarioCache()))));
 
+    fetch("/api/configuracion")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("http-error"))))
+      .then((data: { tipoCambio?: number }) => {
+        const valor = Number(data.tipoCambio) || 0;
+        setTipoCambio(valor);
+        try {
+          localStorage.setItem(TIPO_CAMBIO_CACHE_KEY, String(valor));
+        } catch {}
+      })
+      .catch(() => {
+        try {
+          setTipoCambio(Number(localStorage.getItem(TIPO_CAMBIO_CACHE_KEY)) || 0);
+        } catch {}
+      });
+
     fetch("/api/caja/actual")
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("http-error"))))
       .then((data) => {
@@ -249,8 +285,8 @@ export function PuntoVentaForm() {
   }, []);
 
   useEffect(() => {
-    if (!pesaje && !ventaCompletada && !modalRetiro && !modalCorte && !modalPrecio) inputRef.current?.focus();
-  }, [pesaje, ventaCompletada, modalRetiro, modalCorte, modalPrecio, carrito]);
+    if (!pesaje && !ventaCompletada && !modalRetiro && !modalCorte && !modalPrecio && !modalCobro) inputRef.current?.focus();
+  }, [pesaje, ventaCompletada, modalRetiro, modalCorte, modalPrecio, modalCobro, carrito]);
 
   const cargarResumenCorte = useCallback(async () => {
     if (!navigator.onLine) {
@@ -306,6 +342,8 @@ export function PuntoVentaForm() {
     [carrito]
   );
 
+  const totalDolares = tipoCambio > 0 ? total / tipoCambio : null;
+
   const nEfectivo = Number(montoEfectivo) || 0;
   const nTarjeta = Number(montoTarjeta) || 0;
   const nTransferencia = Number(montoTransferencia) || 0;
@@ -314,9 +352,10 @@ export function PuntoVentaForm() {
 
   const cambio = nEfectivo > 0 ? (Number(efectivoRecibido) || 0) - nEfectivo : null;
 
+  const carritoValido = carrito.length > 0 && carrito.every((l) => Number(l.cantidad) > 0);
+
   const puedeCobrar =
-    carrito.length > 0 &&
-    carrito.every((l) => Number(l.cantidad) > 0) &&
+    carritoValido &&
     Math.abs(restante) < 0.01 &&
     sumaPagos > 0 &&
     (nEfectivo <= 0 || (Number(efectivoRecibido) || 0) >= nEfectivo);
@@ -426,6 +465,17 @@ export function PuntoVentaForm() {
     setEfectivoRecibido("");
   }
 
+  function cancelarVenta() {
+    limpiarCarritoYPago();
+    setError(null);
+  }
+
+  function abrirCobro() {
+    if (!carritoValido) return;
+    setError(null);
+    setModalCobro(true);
+  }
+
   function registrarVentaOffline(payload: VentaPayload) {
     agregarACola({ id: generarIdLocal(), tipo: "venta", creadaEn: new Date().toISOString(), payload });
     setPendientes(leerCola().length);
@@ -452,6 +502,7 @@ export function PuntoVentaForm() {
     };
 
     aplicarDescuentoInventario();
+    setModalCobro(false);
     setVentaCompletada(ventaLocal);
     limpiarCarritoYPago();
   }
@@ -492,6 +543,7 @@ export function PuntoVentaForm() {
 
       const venta: VentaResp = await res.json();
       aplicarDescuentoInventario();
+      setModalCobro(false);
       setVentaCompletada(venta);
       limpiarCarritoYPago();
     } catch {
@@ -724,240 +776,360 @@ export function PuntoVentaForm() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
       {bannerSync}
-      <Card className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="flex items-center gap-2 text-sm text-black/50">
-            Caja abierta {sesion.offline ? "(sin sincronizar)" : ""}
-            {badgeConexion}
-          </p>
-          <p className="font-semibold text-titos-green-900">
-            Apertura {formatMoney(sesion.efectivoInicial)} ·{" "}
-            {new Date(sesion.fechaApertura).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
-            {nombreCajero(sesion) ? ` · ${nombreCajero(sesion)}` : ""}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="ghost"
-            onClick={() => {
-              setPrecioCodigo("");
-              setPrecioResultado(undefined);
-              setModalPrecio(true);
-            }}
-          >
-            <Search className="mr-1.5 inline h-4 w-4" />
-            Consultar precio <span className="ml-1 text-xs text-black/40">(Alt+C)</span>
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => {
-              setErrorRetiro(null);
-              setRetiroMonto("");
-              setRetiroMotivo("");
-              setModalRetiro(true);
-            }}
-          >
-            <Banknote className="mr-1.5 inline h-4 w-4" />
-            Retirar efectivo <span className="ml-1 text-xs text-black/40">(Alt+R)</span>
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={() => {
-              setEfectivoContado("");
-              setNotasCorte("");
-              setCorteCerrado(null);
-              setModalCorte(true);
-              cargarResumenCorte();
-            }}
-          >
-            <ClipboardCheck className="mr-1.5 inline h-4 w-4" />
-            Nuevo corte <span className="ml-1 text-xs text-white/70">(Alt+T)</span>
-          </Button>
-        </div>
-      </Card>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="space-y-4 lg:col-span-2">
-          <Card>
-            <form onSubmit={procesarCodigo} className="flex gap-2">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-black/10 bg-white shadow-sm">
+        {/* Barra superior tipo menú */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/10 bg-[#eef3fa] px-2 py-1">
+          <div className="flex flex-wrap items-center">
+            <button
+              onClick={() => {
+                setPrecioCodigo("");
+                setPrecioResultado(undefined);
+                setModalPrecio(true);
+              }}
+              className="rounded px-2.5 py-1 text-sm text-black/70 hover:bg-black/5"
+            >
+              Consultar precio <span className="text-xs text-black/35">(Alt+C)</span>
+            </button>
+            <button
+              onClick={() => {
+                setErrorRetiro(null);
+                setRetiroMonto("");
+                setRetiroMotivo("");
+                setModalRetiro(true);
+              }}
+              className="rounded px-2.5 py-1 text-sm text-black/70 hover:bg-black/5"
+            >
+              Retirar efectivo <span className="text-xs text-black/35">(Alt+R)</span>
+            </button>
+            <button
+              onClick={() => {
+                setEfectivoContado("");
+                setNotasCorte("");
+                setCorteCerrado(null);
+                setModalCorte(true);
+                cargarResumenCorte();
+              }}
+              className="rounded px-2.5 py-1 text-sm text-black/70 hover:bg-black/5"
+            >
+              Corte de caja <span className="text-xs text-black/35">(Alt+T)</span>
+            </button>
+          </div>
+          <div className="flex items-center gap-2 pr-1 text-xs text-black/50">
+            {badgeConexion}
+            <span>
+              Caja abierta {sesion.offline ? "(sin sincronizar)" : ""} · {formatMoney(sesion.efectivoInicial)} ·{" "}
+              {new Date(sesion.fechaApertura).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
+              {nombreCajero(sesion) ? ` · ${nombreCajero(sesion)}` : ""}
+            </span>
+          </div>
+        </div>
+
+        {/* Búsqueda */}
+        <div className="flex flex-col gap-2 border-b border-black/5 px-3 py-3 md:flex-row md:items-center">
+          <div className="flex flex-1 items-center gap-3">
+            <ShoppingCart className="hidden h-7 w-7 shrink-0 text-black/50 sm:block" />
+            <form onSubmit={procesarCodigo} className="flex flex-1">
               <Input
                 ref={inputRef}
                 icon={ScanLine}
                 autoFocus
                 value={codigo}
                 onChange={(e) => setCodigo(e.target.value)}
-                placeholder="Escanea o escribe el código del producto y presiona Enter"
-                className="text-base"
+                placeholder="Escanea o escribe el código y presiona Enter"
+                className="rounded-r-none border-r-0 text-base"
               />
-              <Button type="submit">Agregar</Button>
+              <button
+                type="submit"
+                title="Agregar por código"
+                className="rounded-r-lg bg-sky-600 px-3.5 text-white transition-colors hover:bg-sky-700"
+              >
+                <Search className="h-4 w-4" />
+              </button>
             </form>
-            <div className="mt-3">
-              <p className="mb-1 text-xs font-medium text-black/40">¿No tienes el código a la mano? Búscalo aquí:</p>
-              <ProductoCombobox
-                productos={productosDisponibles}
-                value={busquedaId}
-                onChange={agregarPorBusqueda}
-                placeholder="Buscar producto por nombre o SKU..."
-              />
-            </div>
-            {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
-          </Card>
-
-          <Card>
-            <h2 className="mb-3 font-semibold text-titos-green-900">Carrito</h2>
-            {carrito.length === 0 ? (
-              <EmptyState message="Escanea o busca productos para iniciar la venta." />
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-black/10 text-black/50">
-                      <th className="py-2 pr-2">Producto</th>
-                      <th className="py-2 pr-2">Cantidad</th>
-                      <th className="py-2 pr-2">Precio</th>
-                      <th className="py-2 pr-2">Subtotal</th>
-                      <th className="py-2 pr-2" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {carrito.map((l) => {
-                      const stock = inventario.get(l.productoId);
-                      const cantidad = Number(l.cantidad) || 0;
-                      const sinStock = stock != null && cantidad > stock;
-                      return (
-                        <tr key={l.productoId} className="border-b border-black/5">
-                          <td className="py-2 pr-2 font-medium">
-                            {l.nombre}
-                            <span className="ml-1 text-xs font-normal text-black/40">({l.sku})</span>
-                            {sinStock ? (
-                              <p className="text-xs font-normal text-red-600">Stock disponible: {stock}</p>
-                            ) : null}
-                          </td>
-                          <td className="py-2 pr-2">
-                            <div className="flex items-center gap-1.5">
-                              <Input
-                                type="number"
-                                min="0"
-                                step={l.unidad === "kg" ? "0.001" : "1"}
-                                value={l.cantidad}
-                                onChange={(e) => actualizarCantidad(l.productoId, e.target.value)}
-                                className="w-24"
-                              />
-                              <span className="text-black/40">{l.unidad}</span>
-                            </div>
-                          </td>
-                          <td className="py-2 pr-2 text-black/60">{formatMoney(l.precioUnitario)}</td>
-                          <td className="py-2 pr-2 font-medium">{formatMoney(cantidad * l.precioUnitario)}</td>
-                          <td className="py-2 pr-2">
-                            <button onClick={() => quitarLinea(l.productoId)} className="text-red-500" title="Quitar">
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Card>
+          </div>
+          <div className="w-full md:w-72">
+            <ProductoCombobox
+              productos={productosDisponibles}
+              value={busquedaId}
+              onChange={agregarPorBusqueda}
+              placeholder="Buscar por nombre o SKU..."
+            />
+          </div>
         </div>
+        {error ? <p className="border-b border-black/5 px-4 py-2 text-sm text-red-600">{error}</p> : null}
 
-        <div className="space-y-4">
-          <Card>
-            <h2 className="mb-3 font-semibold text-titos-green-900">Cobro</h2>
-            <p className="text-sm text-black/50">Total a pagar</p>
-            <p className="mb-4 text-3xl font-bold text-titos-green-900">{formatMoney(total)}</p>
-
-            <p className="mb-2 text-xs font-medium text-black/40">
-              Puedes dividir el pago entre varias formas (ej. una parte en efectivo y otra con tarjeta).
-            </p>
-
-            <div className="mb-2 space-y-2">
-              <div className="flex items-center gap-1.5">
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={montoEfectivo}
-                  onChange={(e) => setMontoEfectivo(e.target.value)}
-                  placeholder="Efectivo"
-                />
-                <button
-                  type="button"
-                  onClick={() => completarCon("efectivo")}
-                  className="whitespace-nowrap text-xs font-medium text-titos-green-700 hover:underline"
-                >
-                  Completar
-                </button>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={montoTarjeta}
-                  onChange={(e) => setMontoTarjeta(e.target.value)}
-                  placeholder="Tarjeta"
-                />
-                <button
-                  type="button"
-                  onClick={() => completarCon("tarjeta")}
-                  className="whitespace-nowrap text-xs font-medium text-titos-green-700 hover:underline"
-                >
-                  Completar
-                </button>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={montoTransferencia}
-                  onChange={(e) => setMontoTransferencia(e.target.value)}
-                  placeholder="Transferencia"
-                />
-                <button
-                  type="button"
-                  onClick={() => completarCon("transferencia")}
-                  className="whitespace-nowrap text-xs font-medium text-titos-green-700 hover:underline"
-                >
-                  Completar
-                </button>
-              </div>
-            </div>
-
-            <p className={`mb-3 text-sm font-semibold ${restante > 0 ? "text-red-600" : "text-black/40"}`}>
-              {restante > 0 ? `Restante por asignar: ${formatMoney(restante)}` : restante < 0 ? `Te pasaste por ${formatMoney(Math.abs(restante))}` : "Pago completo"}
-            </p>
-
-            {nEfectivo > 0 ? (
-              <FormField label="Efectivo recibido del cliente" className="mb-3">
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={efectivoRecibido}
-                  onChange={(e) => setEfectivoRecibido(e.target.value)}
-                  placeholder="0.00"
-                />
-              </FormField>
-            ) : null}
-
-            {nEfectivo > 0 && efectivoRecibido ? (
-              <p className={`mb-3 text-sm font-semibold ${(cambio ?? 0) < 0 ? "text-red-600" : "text-titos-green-700"}`}>
-                {(cambio ?? 0) < 0 ? "Falta" : "Cambio"}: {formatMoney(Math.abs(cambio ?? 0))}
+        {/* Cuerpo: tabla + panel derecho */}
+        <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+          <div className="min-h-85 flex-1 overflow-auto lg:min-h-0">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="bg-linear-to-b from-sky-500 to-sky-600 text-white">
+                  <th className="px-3 py-2 font-semibold">Código</th>
+                  <th className="px-2 py-2 font-semibold">Artículo</th>
+                  <th className="px-2 py-2 text-right font-semibold">Cantidad</th>
+                  <th className="px-2 py-2 text-right font-semibold">Precio</th>
+                  <th className="px-2 py-2 text-right font-semibold">Descuento</th>
+                  <th className="px-2 py-2 text-right font-semibold">Total</th>
+                  <th className="px-2 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {carrito.map((l) => {
+                  const stock = inventario.get(l.productoId);
+                  const cantidad = Number(l.cantidad) || 0;
+                  const sinStock = stock != null && cantidad > stock;
+                  return (
+                    <tr key={l.productoId} className="border-b border-black/5 odd:bg-white even:bg-sky-50/60">
+                      <td className="px-3 py-1.5 font-mono text-xs text-black/60">{l.sku}</td>
+                      <td className="px-2 py-1.5 font-medium uppercase">
+                        {l.nombre}
+                        {sinStock ? (
+                          <p className="text-xs font-normal normal-case text-red-600">Stock disponible: {stock}</p>
+                        ) : null}
+                      </td>
+                      <td className="px-2 py-1.5 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Input
+                            type="number"
+                            min="0"
+                            step={l.unidad === "kg" ? "0.001" : "1"}
+                            value={l.cantidad}
+                            onChange={(e) => actualizarCantidad(l.productoId, e.target.value)}
+                            className="w-20 py-1 text-right"
+                          />
+                          <span className="text-xs text-black/40">{l.unidad}</span>
+                        </div>
+                      </td>
+                      <td className="px-2 py-1.5 text-right text-black/70">{formatMoney(l.precioUnitario)}</td>
+                      <td className="px-2 py-1.5 text-right text-black/40">$0.00</td>
+                      <td className="px-2 py-1.5 text-right font-semibold">{formatMoney(cantidad * l.precioUnitario)}</td>
+                      <td className="px-2 py-1.5 text-right">
+                        <button onClick={() => quitarLinea(l.productoId)} className="text-red-500 hover:text-red-700" title="Quitar">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {carrito.length === 0 ? (
+              <p className="px-4 py-16 text-center text-sm text-black/40">
+                Escanea o busca productos para iniciar la venta.
               </p>
             ) : null}
+          </div>
 
-            <Button onClick={cobrar} disabled={!puedeCobrar || procesando} className="w-full justify-center">
-              {procesando ? "Procesando..." : "Cobrar"}
-            </Button>
-          </Card>
+          {/* Panel derecho de totales */}
+          <div className="w-full shrink-0 space-y-2 border-t border-black/10 bg-[#f4f8fc] p-3 lg:w-72 lg:overflow-y-auto lg:border-l lg:border-t-0">
+            <div className="grid grid-cols-2 gap-2 text-center">
+              <div className="rounded-lg border border-black/10 bg-white px-2 py-1.5">
+                <p className="text-xs font-semibold text-black/50">Artículos</p>
+                <p className="text-lg font-bold text-black/80">{carrito.length}</p>
+              </div>
+              <div className="rounded-lg border border-black/10 bg-white px-2 py-1.5">
+                <p className="text-xs font-semibold text-black/50">Tipo de cambio</p>
+                <p className="text-lg font-bold text-black/80">{tipoCambio > 0 ? formatDolares(tipoCambio) : "—"}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border border-black/10 bg-white px-3 py-1.5 text-sm">
+              <span className="font-semibold uppercase text-black/50">Total en dólares:</span>
+              <span className="font-bold text-black/80">{totalDolares != null ? formatDolares(totalDolares) : "—"}</span>
+            </div>
+
+            <div className="space-y-1 rounded-lg bg-linear-to-b from-sky-500 to-sky-600 px-3 py-2 text-white">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-semibold">Pago:</span>
+                <span className="font-bold">{formatMoney(sumaPagos)}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-semibold uppercase">Cambio pesos:</span>
+                <span className="font-bold">{formatMoney(cambio != null && cambio > 0 ? cambio : 0)}</span>
+              </div>
+            </div>
+
+            <div className="space-y-1 rounded-lg border border-black/10 bg-white px-3 py-2 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold uppercase text-sky-700">Subtotal</span>
+                <span className="font-bold text-sky-700">{formatMoney(total)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-semibold uppercase text-black/50">Descuento</span>
+                <span className="font-bold text-black/50">{formatMoney(0)}</span>
+              </div>
+            </div>
+
+            <div className="rounded-lg bg-linear-to-b from-sky-500 to-sky-600 px-3 py-2 text-right text-white">
+              <p className="text-sm font-bold uppercase tracking-wide">Total pesos</p>
+              <p className="text-4xl font-extrabold leading-tight">{formatMoney(total)}</p>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 pt-1">
+              <button
+                onClick={() => setCarrito([])}
+                disabled={carrito.length === 0}
+                title="Vaciar carrito"
+                className="grid h-12 place-items-center rounded-lg bg-red-500 text-white transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Trash2 className="h-5 w-5" />
+              </button>
+              <button
+                onClick={cancelarVenta}
+                disabled={carrito.length === 0 && sumaPagos === 0}
+                title="Cancelar venta"
+                className="grid h-12 place-items-center rounded-lg bg-red-500 text-white transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <X className="h-5 w-5" />
+              </button>
+              <button
+                onClick={abrirCobro}
+                disabled={!carritoValido}
+                title="Cobrar"
+                className="grid h-12 place-items-center rounded-lg bg-emerald-500 text-white transition-colors hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <DollarSign className="h-6 w-6" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Barra inferior */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-black/10 bg-[#eef3fa] px-3 py-1.5 text-xs text-black/60">
+          <span className="font-semibold uppercase">
+            Sucursal: {sucursalNombre || "—"} · Estación: Caja 1
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            {isOnline ? (
+              <>
+                <Wifi className="h-3.5 w-3.5 text-emerald-600" /> Servicio en línea
+              </>
+            ) : (
+              <>
+                <WifiOff className="h-3.5 w-3.5 text-red-600" /> Sin conexión
+              </>
+            )}
+          </span>
         </div>
       </div>
+
+      {modalCobro ? (
+        <Modal open onClose={() => setModalCobro(false)} title="Cobrar venta" icon={DollarSign}>
+          <p className="text-sm text-black/50">Total a pagar</p>
+          <p className="mb-1 text-3xl font-bold text-titos-green-900">{formatMoney(total)}</p>
+          {totalDolares != null ? (
+            <p className="mb-3 text-sm font-semibold text-sky-700">
+              Total en dólares: {formatDolares(totalDolares)}{" "}
+              <span className="font-normal text-black/40">(tipo de cambio {formatDolares(tipoCambio)})</span>
+            </p>
+          ) : (
+            <div className="mb-3" />
+          )}
+
+          <p className="mb-2 text-xs font-medium text-black/40">
+            Puedes dividir el pago entre varias formas (ej. una parte en efectivo y otra con tarjeta).
+          </p>
+
+          <div className="mb-2 space-y-2">
+            <div className="flex items-center gap-1.5">
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                autoFocus
+                value={montoEfectivo}
+                onChange={(e) => setMontoEfectivo(e.target.value)}
+                placeholder="Efectivo"
+              />
+              <button
+                type="button"
+                onClick={() => completarCon("efectivo")}
+                className="whitespace-nowrap text-xs font-medium text-titos-green-700 hover:underline"
+              >
+                Completar
+              </button>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={montoTarjeta}
+                onChange={(e) => setMontoTarjeta(e.target.value)}
+                placeholder="Tarjeta"
+              />
+              <button
+                type="button"
+                onClick={() => completarCon("tarjeta")}
+                className="whitespace-nowrap text-xs font-medium text-titos-green-700 hover:underline"
+              >
+                Completar
+              </button>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={montoTransferencia}
+                onChange={(e) => setMontoTransferencia(e.target.value)}
+                placeholder="Transferencia"
+              />
+              <button
+                type="button"
+                onClick={() => completarCon("transferencia")}
+                className="whitespace-nowrap text-xs font-medium text-titos-green-700 hover:underline"
+              >
+                Completar
+              </button>
+            </div>
+          </div>
+
+          <p className={`mb-3 text-sm font-semibold ${restante > 0 ? "text-red-600" : "text-black/40"}`}>
+            {restante > 0
+              ? `Restante por asignar: ${formatMoney(restante)}`
+              : restante < 0
+                ? `Te pasaste por ${formatMoney(Math.abs(restante))}`
+                : "Pago completo"}
+          </p>
+
+          {nEfectivo > 0 ? (
+            <FormField label="Efectivo recibido del cliente" className="mb-3">
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={efectivoRecibido}
+                onChange={(e) => setEfectivoRecibido(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && puedeCobrar && !procesando) cobrar();
+                }}
+                placeholder="0.00"
+              />
+            </FormField>
+          ) : null}
+
+          {nEfectivo > 0 && efectivoRecibido ? (
+            <p className={`mb-3 text-sm font-semibold ${(cambio ?? 0) < 0 ? "text-red-600" : "text-titos-green-700"}`}>
+              {(cambio ?? 0) < 0 ? "Falta" : "Cambio"}: {formatMoney(Math.abs(cambio ?? 0))}
+            </p>
+          ) : null}
+
+          {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
+
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setModalCobro(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={cobrar} disabled={!puedeCobrar || procesando}>
+              {procesando ? "Procesando..." : "Cobrar"}
+            </Button>
+          </div>
+        </Modal>
+      ) : null}
 
       {pesaje ? (
         <Modal open onClose={() => setPesaje(null)} title={`Capturar peso — ${pesaje.nombre}`} icon={ScanLine}>
@@ -1055,6 +1227,11 @@ export function PuntoVentaForm() {
               <p className="font-semibold text-titos-green-900">{precioResultado.nombre}</p>
               <p className="mb-2 text-xs text-black/40">SKU: {precioResultado.sku}</p>
               <p className="text-2xl font-bold text-titos-green-900">{formatMoney(precioResultado.precioVenta)}</p>
+              {tipoCambio > 0 ? (
+                <p className="text-sm font-semibold text-sky-700">
+                  {formatDolares(precioResultado.precioVenta / tipoCambio)} USD
+                </p>
+              ) : null}
               <p className="text-xs text-black/50">
                 por {precioResultado.unidad} · Stock disponible:{" "}
                 {inventario.get(precioResultado._id) ?? 0}

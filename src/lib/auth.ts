@@ -18,6 +18,8 @@ export type SessionPayload = {
   email: string;
   nombre: string;
   role: "matriz" | "sucursal";
+  // Rol interno de la sucursal; los tokens viejos no lo traen (se tratan como "admin")
+  sucursalRol?: "admin" | "ventas" | null;
   sucursalId: string | null;
 };
 

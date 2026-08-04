@@ -29,6 +29,7 @@ import {
   Tags,
   Tag,
   Banknote,
+  BadgeDollarSign,
   type LucideIcon,
 } from "lucide-react";
 
@@ -47,6 +48,7 @@ const MATRIZ_NAV: NavCategory[] = [
     items: [
       { href: "/matriz/reportes", label: "Reportes", icon: BarChart3 },
       { href: "/matriz/ventas-2", label: "Ventas 2", icon: Banknote },
+      { href: "/matriz/actualizacion-precios", label: "Actualización de precios", icon: BadgeDollarSign },
     ],
   },
   {
@@ -102,6 +104,7 @@ const SUCURSAL_NAV: NavItem[] = [
   { href: "/sucursal/ventas-2", label: "Ventas 2", icon: Banknote },
   { href: "/sucursal/nuevo-pedido", label: "Nuevo pedido", icon: PlusCircle },
   { href: "/sucursal/pedidos", label: "Mis pedidos", icon: ClipboardList },
+  { href: "/sucursal/usuarios", label: "Usuarios", icon: Users },
   { href: "/sucursal/ajustes", label: "Ajustes", icon: Settings },
 ];
 
@@ -124,14 +127,18 @@ export function Sidebar({
   role,
   nombre,
   sucursalNombre,
+  sucursalRol = "admin",
 }: {
   role: "matriz" | "sucursal";
   nombre: string;
   sucursalNombre?: string;
+  sucursalRol?: "admin" | "ventas";
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [collapsed, setCollapsed] = useState(false);
+  const soloVentas = role === "sucursal" && sucursalRol === "ventas";
+  // El rol de ventas arranca con el menú compacto para maximizar el punto de venta
+  const [collapsed, setCollapsed] = useState(soloVentas);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const mouseDownOnOverlay = useRef(false);
@@ -146,10 +153,11 @@ export function Sidebar({
   const roleLabel = role === "matriz" ? "Almacén Central" : "Sucursal";
 
   useEffect(() => {
+    if (soloVentas) return;
     const stored = window.localStorage.getItem(STORAGE_KEY);
     // eslint-disable-next-line react-hooks/set-state-in-effect -- lee preferencia persistida al montar
     if (stored === "1") setCollapsed(true);
-  }, []);
+  }, [soloVentas]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- cierra el drawer móvil al navegar
@@ -308,7 +316,7 @@ export function Sidebar({
                   </div>
                 );
               })
-            : SUCURSAL_NAV.map((item) => {
+            : (soloVentas ? SUCURSAL_NAV.filter((item) => item.href === "/sucursal") : SUCURSAL_NAV).map((item) => {
                 const active = isNavItemActive(pathname, role, item.href);
                 const Icon = item.icon;
                 return (
@@ -345,7 +353,7 @@ export function Sidebar({
           </span>
           <div className={`min-w-0 flex-1 ${collapsed ? "md:hidden" : ""}`}>
             <p className="truncate text-sm font-semibold text-titos-green-900">{nombre}</p>
-            <p className="truncate text-xs text-black/40 capitalize">{role}</p>
+            <p className="truncate text-xs text-black/40 capitalize">{soloVentas ? "ventas" : role}</p>
           </div>
           <button
             onClick={handleLogout}

@@ -6,6 +6,8 @@ const UserSchema = new Schema(
     passwordHash: { type: String, required: true },
     nombre: { type: String, required: true },
     role: { type: String, enum: ["matriz", "sucursal"], required: true },
+    // Rol interno dentro de la sucursal: admin (todo) o ventas (solo punto de venta)
+    sucursalRol: { type: String, enum: ["admin", "ventas"], default: "admin" },
     sucursalId: { type: Schema.Types.ObjectId, ref: "Sucursal", default: null },
     activo: { type: Boolean, default: true },
   },

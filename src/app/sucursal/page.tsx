@@ -1,11 +1,17 @@
-import { PageHeader } from "@/components/ui";
+import { getSession } from "@/lib/getSession";
+import { connectDB } from "@/lib/db";
+import Sucursal from "@/models/Sucursal";
 import { PuntoVentaForm } from "@/components/sucursal/PuntoVentaForm";
 
-export default function SucursalPuntoVenta() {
-  return (
-    <div>
-      <PageHeader title="Punto de venta" description="Escanea o busca productos para registrar una venta" />
-      <PuntoVentaForm />
-    </div>
-  );
+export const dynamic = "force-dynamic";
+
+export default async function SucursalPuntoVenta() {
+  const session = await getSession();
+  await connectDB();
+  const sucursal = session?.sucursalId
+    ? await Sucursal.findById(session.sucursalId).select("nombre").lean()
+    : null;
+  const sucursalNombre = (sucursal as { nombre?: string } | null)?.nombre ?? "";
+
+  return <PuntoVentaForm sucursalNombre={sucursalNombre} />;
 }

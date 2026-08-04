@@ -13,10 +13,15 @@ async function obtenerConfiguracion() {
 export async function GET(req: NextRequest) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
-  if (session.role !== "matriz") return forbidden();
 
   await connectDB();
   const config = await obtenerConfiguracion();
+
+  // Las sucursales solo necesitan el tipo de cambio (lo usa el punto de venta)
+  if (session.role !== "matriz") {
+    return NextResponse.json({ tipoCambio: config.tipoCambio ?? 17 });
+  }
+
   return NextResponse.json(config);
 }
 
@@ -38,6 +43,11 @@ export async function PATCH(req: NextRequest) {
   if ("horaCorte" in body) {
     if (!/^\d{2}:\d{2}$/.test(body.horaCorte)) return badRequest("Hora de corte inválida (usa formato HH:MM)");
     update.horaCorte = body.horaCorte;
+  }
+  if ("tipoCambio" in body) {
+    const tipoCambio = Number(body.tipoCambio);
+    if (!Number.isFinite(tipoCambio) || tipoCambio <= 0) return badRequest("Tipo de cambio inválido");
+    update.tipoCambio = tipoCambio;
   }
 
   await connectDB();
