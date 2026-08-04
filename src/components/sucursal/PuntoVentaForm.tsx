@@ -55,6 +55,8 @@ type VentaResp = {
   pagos: PagoResp[];
   montoRecibido: number | null;
   cambio: number | null;
+  esVentas2?: boolean;
+  ventas2SecuenciaEfectivo?: number | null;
   offline?: boolean;
 };
 
@@ -445,6 +447,7 @@ export function PuntoVentaForm() {
         pagoEfectivo && payload.montoRecibido != null
           ? Number((payload.montoRecibido - pagoEfectivo.monto).toFixed(2))
           : null,
+      esVentas2: false,
       offline: true,
     };
 

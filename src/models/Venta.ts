@@ -39,12 +39,17 @@ const VentaSchema = new Schema(
     pagos: { type: [PagoVentaSchema], required: true, default: [] },
     montoRecibido: { type: Number, default: null }, // efectivo entregado por el cliente (solo si hay un pago en efectivo)
     cambio: { type: Number, default: null },
+    esVentas2: { type: Boolean, default: false },
+    ventas2ActivacionId: { type: Schema.Types.ObjectId, ref: "Ventas2Activacion", default: null },
+    ventas2SecuenciaEfectivo: { type: Number, default: null },
     estado: { type: String, enum: ESTADOS_VENTA, default: "completada" },
   },
   { timestamps: true }
 );
 
 VentaSchema.index({ sucursalId: 1, createdAt: -1 });
+VentaSchema.index({ sucursalId: 1, esVentas2: 1, corte: 1 });
+VentaSchema.index({ ventas2ActivacionId: 1, estado: 1 });
 
 export type Venta = InferSchemaType<typeof VentaSchema> & { _id: string };
 

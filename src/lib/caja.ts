@@ -2,7 +2,7 @@ import Venta from "@/models/Venta";
 import MovimientoCaja from "@/models/MovimientoCaja";
 
 export async function calcularResumenSesion(cajaSesionId: string) {
-  const ventas = await Venta.find({ cajaSesionId, estado: "completada" }).select("pagos").lean();
+  const ventas = await Venta.find({ cajaSesionId, estado: "completada", esVentas2: { $ne: true } }).select("pagos").lean();
 
   let totalVentasEfectivo = 0;
   let totalVentasTarjeta = 0;

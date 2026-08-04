@@ -10,7 +10,10 @@ export default async function VentasPage() {
   const session = await getSession();
   await connectDB();
 
-  const ventas = await Venta.find({ sucursalId: session?.sucursalId }).sort({ createdAt: -1 }).limit(200).lean();
+  const ventas = await Venta.find({ sucursalId: session?.sucursalId, esVentas2: { $ne: true } })
+    .sort({ createdAt: -1 })
+    .limit(200)
+    .lean();
 
   const hoy = new Date().toISOString().slice(0, 10);
   const ventasHoy = ventas.filter((v) => v.corte === hoy && v.estado === "completada");

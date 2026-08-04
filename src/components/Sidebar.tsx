@@ -28,6 +28,7 @@ import {
   Receipt,
   Tags,
   Tag,
+  Banknote,
   type LucideIcon,
 } from "lucide-react";
 
@@ -43,7 +44,10 @@ const MATRIZ_NAV: NavCategory[] = [
   {
     label: "Reportes",
     icon: FileText,
-    items: [{ href: "/matriz/reportes", label: "Reportes", icon: BarChart3 }],
+    items: [
+      { href: "/matriz/reportes", label: "Reportes", icon: BarChart3 },
+      { href: "/matriz/ventas-2", label: "Ventas 2", icon: Banknote },
+    ],
   },
   {
     label: "Productos",
@@ -94,6 +98,7 @@ const MATRIZ_NAV: NavCategory[] = [
 const SUCURSAL_NAV: NavItem[] = [
   { href: "/sucursal", label: "Punto de venta", icon: ShoppingCart },
   { href: "/sucursal/ventas", label: "Historial de ventas", icon: Receipt },
+  { href: "/sucursal/ventas-2", label: "Ventas 2", icon: Banknote },
   { href: "/sucursal/nuevo-pedido", label: "Nuevo pedido", icon: PlusCircle },
   { href: "/sucursal/pedidos", label: "Mis pedidos", icon: ClipboardList },
   { href: "/sucursal/ajustes", label: "Ajustes", icon: Settings },

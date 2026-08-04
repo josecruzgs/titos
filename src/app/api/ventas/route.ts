@@ -7,6 +7,7 @@ import MovimientoInventario from "@/models/MovimientoInventario";
 import CajaSesion from "@/models/CajaSesion";
 import "@/models/Sucursal"; // necesario para que populate("sucursalId") funcione
 import { requireSession, unauthorized, forbidden, badRequest, conflict, generateFolio, todayCorte } from "@/lib/apiAuth";
+import { resolverVentas2ParaVenta } from "@/lib/ventas2";
 
 export async function GET(req: NextRequest) {
   const session = await requireSession(req);
@@ -15,15 +16,18 @@ export async function GET(req: NextRequest) {
   await connectDB();
 
   const filter: Record<string, unknown> = {};
+  const url = new URL(req.url);
+  const ventas2 = url.searchParams.get("ventas2");
   if (session.role === "sucursal") {
     filter.sucursalId = session.sucursalId;
   } else {
-    const url = new URL(req.url);
     const sucursalId = url.searchParams.get("sucursalId");
     const corte = url.searchParams.get("corte");
     if (sucursalId) filter.sucursalId = sucursalId;
     if (corte) filter.corte = corte;
   }
+  if (ventas2 === "only") filter.esVentas2 = true;
+  else if (ventas2 !== "include") filter.esVentas2 = { $ne: true };
 
   const ventas = await Venta.find(filter).sort({ createdAt: -1 }).populate("sucursalId", "nombre").lean();
   return NextResponse.json(ventas);
@@ -123,18 +127,28 @@ export async function POST(req: NextRequest) {
     return badRequest(`La suma de las formas de pago (${sumaPagos.toFixed(2)}) no coincide con el total (${total.toFixed(2)})`);
   }
 
+  const fechaVenta = new Date();
+  const ventas2 = await resolverVentas2ParaVenta({
+    sucursalId: session.sucursalId,
+    pagos,
+    fecha: fechaVenta,
+  });
+
   const venta = await Venta.create({
-    folio: generateFolio("VTA"),
+    folio: generateFolio(ventas2.esVentas2 ? "V2" : "VTA"),
     sucursalId: session.sucursalId,
     cajaSesionId: sesionCaja._id,
     usuarioId: session.userId,
-    fecha: new Date(),
+    fecha: fechaVenta,
     corte: todayCorte(),
     items: ventaItems,
     total,
     pagos,
     montoRecibido: pagoEfectivo ? montoRecibido : null,
     cambio: pagoEfectivo && montoRecibido != null ? Number((montoRecibido - pagoEfectivo.monto).toFixed(2)) : null,
+    esVentas2: ventas2.esVentas2,
+    ventas2ActivacionId: ventas2.activacionId,
+    ventas2SecuenciaEfectivo: ventas2.secuenciaEfectivo,
   });
 
   for (const item of ventaItems) {
