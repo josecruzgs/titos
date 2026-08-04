@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Button, Card, Input, EmptyState, Modal, FormGrid, FormField } from "@/components/ui";
-import { Truck, User, MessageCircle, Mail } from "lucide-react";
+import { Truck, User, MessageCircle, Mail, Pencil, Power, PowerOff, PauseCircle, PlayCircle, type LucideIcon } from "lucide-react";
 
 type Proveedor = {
   _id: string;
@@ -14,6 +14,39 @@ type Proveedor = {
 };
 
 const emptyForm = { nombre: "", contacto: "", whatsapp: "", email: "" };
+
+type ActionButtonTone = "edit" | "activate" | "deactivate" | "suspend" | "resume";
+
+const actionButtonToneClasses: Record<ActionButtonTone, string> = {
+  edit: "border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100",
+  activate: "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
+  deactivate: "border-red-200 bg-red-50 text-red-700 hover:bg-red-100",
+  suspend: "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100",
+  resume: "border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100",
+};
+
+function ActionButton({
+  children,
+  icon: Icon,
+  tone,
+  className = "",
+  ...props
+}: {
+  children: ReactNode;
+  icon: LucideIcon;
+  tone: ActionButtonTone;
+  className?: string;
+} & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      className={`inline-flex h-9 min-w-max shrink-0 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${actionButtonToneClasses[tone]} ${className}`}
+      {...props}
+    >
+      <Icon className="h-4 w-4" aria-hidden="true" />
+      <span>{children}</span>
+    </button>
+  );
+}
 
 function CrearProveedorModal({ onClose, onCreado }: { onClose: () => void; onCreado: () => void }) {
   const [form, setForm] = useState(emptyForm);
@@ -248,13 +281,24 @@ export function ProveedoresManager() {
                     <td className="py-2 pr-2 text-black/60">{p.whatsapp || "—"}</td>
                     <td className="py-2 pr-2 text-black/60">{p.email || "—"}</td>
                     <td className="py-2 pr-2">
-                      <div className="flex flex-wrap justify-end gap-1">
-                        <Button variant="ghost" onClick={() => setProveedorModal(p)}>
+                      <div className="flex flex-nowrap justify-end gap-2 whitespace-nowrap">
+                        <ActionButton icon={Pencil} tone="edit" onClick={() => setProveedorModal(p)}>
                           Ver / Editar
-                        </Button>
-                        <Button variant="ghost" onClick={() => alternarActivo(p)}>
+                        </ActionButton>
+                        <ActionButton
+                          icon={p.activo ? PowerOff : Power}
+                          tone={p.activo ? "deactivate" : "activate"}
+                          onClick={() => alternarActivo(p)}
+                        >
                           {p.activo ? "Desactivar" : "Activar"}
-                        </Button>
+                        </ActionButton>
+                        <ActionButton
+                          icon={p.activo ? PauseCircle : PlayCircle}
+                          tone={p.activo ? "suspend" : "resume"}
+                          onClick={() => alternarActivo(p)}
+                        >
+                          {p.activo ? "Suspender" : "Reanudar"}
+                        </ActionButton>
                       </div>
                     </td>
                   </tr>

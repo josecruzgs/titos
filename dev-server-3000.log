@@ -1,0 +1,12 @@
+
+> titos@0.1.0 dev
+> next dev --webpack --hostname 127.0.0.1 --port 3000
+
+▲ Next.js 16.2.10 (webpack)
+- Local:         http://127.0.0.1:3000
+- Network:       http://127.0.0.1:3000
+- Environments: .env.local
+✓ Ready in 550ms
+
+○ Compiling /login ...
+ GET /login?next=%2Fmatriz%2Fproveedores 200 in 4.0s (next.js: 3.6s, application-code: 315ms)
