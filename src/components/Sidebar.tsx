@@ -97,6 +97,7 @@ const MATRIZ_NAV: NavCategory[] = [
 
 const SUCURSAL_NAV: NavItem[] = [
   { href: "/sucursal", label: "Punto de venta", icon: ShoppingCart },
+  { href: "/sucursal/productos", label: "Productos", icon: Package },
   { href: "/sucursal/ventas", label: "Historial de ventas", icon: Receipt },
   { href: "/sucursal/ventas-2", label: "Ventas 2", icon: Banknote },
   { href: "/sucursal/nuevo-pedido", label: "Nuevo pedido", icon: PlusCircle },
