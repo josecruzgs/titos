@@ -4,6 +4,7 @@ import CajaSesion from "@/models/CajaSesion";
 import MovimientoCaja, { MONEDAS_CAJA } from "@/models/MovimientoCaja";
 import UserModel from "@/models/User";
 import { requireSession, unauthorized, forbidden, badRequest, generateFolio, todayCorte } from "@/lib/apiAuth";
+import { zonaHorariaDeSucursal } from "@/lib/credito";
 import { verifyPassword } from "@/lib/auth";
 import { calcularResumenSesion, calcularEfectivoEsperado, calcularEfectivoEsperadoUsd } from "@/lib/caja";
 
@@ -85,7 +86,7 @@ export async function POST(req: NextRequest) {
     usuarioId: session.userId,
     usuarioNombre: usuario.nombre,
     fecha: new Date(),
-    corte: todayCorte(),
+    corte: todayCorte(await zonaHorariaDeSucursal(session.sucursalId)),
   });
 
   return NextResponse.json(movimiento, { status: 201 });

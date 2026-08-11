@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Banknote } from "lucide-react";
 import { Button, Card, EmptyState, FormField, Input, Select, formatMoney } from "@/components/ui";
+import { fechaEnZona, formatFechaHora, formatHora, ZONA_HORARIA_DEFAULT } from "@/lib/zonasHorarias";
 
 type Retiro = {
   _id: string;
@@ -16,7 +17,7 @@ type Retiro = {
 
 type Corte = {
   _id: string;
-  sucursalId: { _id: string; nombre: string } | string;
+  sucursalId: { _id: string; nombre: string; zonaHoraria?: string } | string;
   usuarioAperturaId?: { nombre?: string } | null;
   usuarioCierreId?: { nombre?: string } | null;
   fechaApertura: string;
@@ -47,8 +48,11 @@ function nombreSucursal(corte: Corte) {
   return typeof corte.sucursalId === "string" ? "Sucursal" : corte.sucursalId.nombre;
 }
 
-function formatFechaHora(iso: string) {
-  return new Date(iso).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
+// Matriz ve cortes de varias sucursales a la vez, así que cada uno se muestra
+// en la zona horaria de su propia sucursal.
+function zonaDelCorte(corte: Corte) {
+  if (typeof corte.sucursalId === "string") return ZONA_HORARIA_DEFAULT;
+  return corte.sucursalId.zonaHoraria || ZONA_HORARIA_DEFAULT;
 }
 
 function formatDolares(value: number) {
@@ -56,7 +60,9 @@ function formatDolares(value: number) {
 }
 
 function hoyISO() {
-  return new Date().toISOString().slice(0, 10);
+  // En UTC, después de las 5 p.m. en Tijuana "hoy" ya sería mañana y el filtro
+  // saldría vacío.
+  return fechaEnZona(new Date(), ZONA_HORARIA_DEFAULT);
 }
 
 export function CortesManager() {
@@ -198,7 +204,7 @@ export function CortesManager() {
                       )}
                       {nombreSucursal(corte)}
                     </span>
-                    <span className="text-xs text-black/40">{formatFechaHora(corte.fechaCierre)}</span>
+                    <span className="text-xs text-black/40">{formatFechaHora(corte.fechaCierre, zonaDelCorte(corte))}</span>
                     <span className="text-black/50">
                       Efectivo {formatMoney(corte.efectivoContado)} / esperado {formatMoney(corte.efectivoEsperado)}
                     </span>
@@ -294,10 +300,7 @@ export function CortesManager() {
                                 <tr key={r._id} className="border-b border-black/5">
                                   <td className="py-1.5 pr-2 font-mono text-xs">{r.folio}</td>
                                   <td className="py-1.5 pr-2 text-black/60">
-                                    {new Date(r.fecha).toLocaleTimeString("es-MX", {
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    })}
+                                    {formatHora(r.fecha, zonaDelCorte(corte))}
                                   </td>
                                   <td className="py-1.5 pr-2 text-black/60">{r.usuarioNombre || "—"}</td>
                                   <td className="py-1.5 pr-2 text-black/60">{r.motivo}</td>

@@ -4,13 +4,10 @@ import { connectDB } from "@/lib/db";
 import Ventas2Activacion from "@/models/Ventas2Activacion";
 import { PageHeader, Card, EmptyState, formatMoney } from "@/components/ui";
 import { resumirActivacionesVentas2, sincronizarVentas2 } from "@/lib/ventas2";
+import { zonaHorariaDeSucursal } from "@/lib/credito";
+import { fechaEnZona, formatFechaHora } from "@/lib/zonasHorarias";
 
 export const dynamic = "force-dynamic";
-
-function formatoFecha(value: string | null) {
-  if (!value) return "-";
-  return new Date(value).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
-}
 
 function estadoClase(estado: string) {
   if (estado === "activa") return "bg-titos-green-100 text-titos-green-700";
@@ -22,6 +19,9 @@ function estadoClase(estado: string) {
 export default async function Ventas2SucursalPage() {
   const session = await getSession();
   await connectDB();
+
+  const zonaHoraria = await zonaHorariaDeSucursal(session?.sucursalId);
+  const formatoFecha = (value: string | null) => formatFechaHora(value, zonaHoraria, "-");
 
   const ahora = new Date();
   await sincronizarVentas2(ahora);
@@ -37,12 +37,13 @@ export default async function Ventas2SucursalPage() {
   const totalPendiente = resumen
     .filter((a) => !a.retiradoEn)
     .reduce((sum, a) => sum + a.totalRecaudado, 0);
+  // "Hoy" es el día natural de la sucursal, no el día UTC del servidor.
+  const hoy = fechaEnZona(ahora, zonaHoraria);
   const totalHoy = resumen.reduce((sum, a) => {
-    const hoy = new Date().toISOString().slice(0, 10);
     return (
       sum +
       a.movimientos
-        .filter((m) => m.estado === "completada" && m.fecha.slice(0, 10) === hoy)
+        .filter((m) => m.estado === "completada" && fechaEnZona(new Date(m.fecha), zonaHoraria) === hoy)
         .reduce((movSum, m) => movSum + m.total, 0)
     );
   }, 0);

@@ -3,6 +3,8 @@ import { connectDB } from "@/lib/db";
 import Venta from "@/models/Venta";
 import { PageHeader, Card, formatMoney, EmptyState } from "@/components/ui";
 import { VentasHistorial } from "@/components/sucursal/VentasHistorial";
+import { zonaHorariaDeSucursal } from "@/lib/credito";
+import { fechaEnZona } from "@/lib/zonasHorarias";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +17,9 @@ export default async function VentasPage() {
     .limit(200)
     .lean();
 
-  const hoy = new Date().toISOString().slice(0, 10);
+  // El "hoy" tiene que coincidir con el corte que sella la venta, que se
+  // calcula en la zona de la sucursal (no en la del servidor).
+  const hoy = fechaEnZona(new Date(), await zonaHorariaDeSucursal(session?.sucursalId));
   const ventasHoy = ventas.filter((v) => v.corte === hoy && v.estado === "completada");
   const totalHoy = ventasHoy.reduce((sum, v) => sum + v.total, 0);
 

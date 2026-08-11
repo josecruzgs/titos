@@ -25,6 +25,7 @@ import {
   formatMoney,
 } from "@/components/ui";
 import { REGIMENES_FISCALES, USOS_CFDI } from "@/lib/facturacion";
+import { useZonaHoraria } from "@/components/ZonaHorariaProvider";
 import {
   estadoCredito,
   formatFecha,
@@ -329,6 +330,7 @@ function EstadoCuentaModal({
   onClose: () => void;
   onCambio: () => void;
 }) {
+  const zonaHoraria = useZonaHoraria();
   const [cuentas, setCuentas] = useState<Cuenta[]>([]);
   const [abonos, setAbonos] = useState<Abono[]>([]);
   const [resumen, setResumen] = useState<ResumenCredito>(cliente.resumen);
@@ -418,7 +420,7 @@ function EstadoCuentaModal({
           </p>
         ) : resumen.proximoVencimiento ? (
           <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
-            Próximo pago: {formatFecha(resumen.proximoVencimiento)}
+            Próximo pago: {formatFecha(resumen.proximoVencimiento, zonaHoraria)}
           </p>
         ) : null}
 
@@ -492,9 +494,9 @@ function EstadoCuentaModal({
                   {cuentas.map((c) => (
                     <tr key={c._id} className="border-b border-black/5">
                       <td className="py-2 pr-2 font-mono text-xs">{c.folio}</td>
-                      <td className="py-2 pr-2 text-black/60">{formatFecha(c.fecha)}</td>
+                      <td className="py-2 pr-2 text-black/60">{formatFecha(c.fecha, zonaHoraria)}</td>
                       <td className={`py-2 pr-2 ${c.vencida ? "font-semibold text-red-600" : "text-black/60"}`}>
-                        {formatFecha(c.fechaVencimiento)}
+                        {formatFecha(c.fechaVencimiento, zonaHoraria)}
                       </td>
                       <td className="py-2 pr-2 text-right">{formatMoney(c.monto)}</td>
                       <td className="py-2 pr-2 text-right font-semibold">{formatMoney(c.saldo)}</td>
@@ -540,7 +542,7 @@ function EstadoCuentaModal({
                 <tbody>
                   {abonos.map((a) => (
                     <tr key={a._id} className="border-b border-black/5">
-                      <td className="py-2 pr-2 text-black/60">{formatFecha(a.fecha)}</td>
+                      <td className="py-2 pr-2 text-black/60">{formatFecha(a.fecha, zonaHoraria)}</td>
                       <td className="py-2 pr-2 text-right font-semibold text-titos-green-700">{formatMoney(a.monto)}</td>
                       <td className="py-2 pr-2 capitalize text-black/60">{a.metodoPago}</td>
                       <td className="py-2 pr-2 font-mono text-xs text-black/50">
@@ -560,6 +562,7 @@ function EstadoCuentaModal({
 }
 
 export function ClientesManager() {
+  const zonaHoraria = useZonaHoraria();
   const [clientes, setClientes] = useState<ClienteConCredito[]>([]);
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState("");
@@ -677,7 +680,7 @@ export function ClientesManager() {
                         {c.resumen.creditoActivo ? formatMoney(c.resumen.disponible) : "—"}
                       </td>
                       <td className={`py-2 pr-2 ${c.resumen.tieneVencidos ? "text-red-600" : "text-black/60"}`}>
-                        {c.resumen.tieneVencidos ? "Vencido" : formatFecha(c.resumen.proximoVencimiento)}
+                        {c.resumen.tieneVencidos ? "Vencido" : formatFecha(c.resumen.proximoVencimiento, zonaHoraria)}
                       </td>
                       <td className="py-2 pr-2">
                         <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${estado.className}`}>

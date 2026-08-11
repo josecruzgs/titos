@@ -5,7 +5,14 @@ import CuentaPorCobrar from "@/models/CuentaPorCobrar";
 import AbonoCliente, { METODOS_ABONO } from "@/models/AbonoCliente";
 import CajaSesion from "@/models/CajaSesion";
 import { requireSession, unauthorized, forbidden, notFound, badRequest, todayCorte } from "@/lib/apiAuth";
-import { EPSILON, aplicarAbonoFIFO, recalcularSaldoCliente, redondear, type CuentaLike } from "@/lib/credito";
+import {
+  EPSILON,
+  aplicarAbonoFIFO,
+  recalcularSaldoCliente,
+  redondear,
+  zonaHorariaDeSucursal,
+  type CuentaLike,
+} from "@/lib/credito";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireSession(req);
@@ -71,7 +78,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     cajaSesionId,
     usuarioId: session.userId,
     fecha: new Date(),
-    corte: todayCorte(),
+    corte: todayCorte(await zonaHorariaDeSucursal(session.sucursalId)),
     monto,
     metodoPago,
     aplicaciones: aplicaciones.map((a) => ({ cuentaId: a.cuentaId, folio: a.folio, monto: a.monto })),

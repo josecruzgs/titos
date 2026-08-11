@@ -6,6 +6,7 @@ import { Check } from "lucide-react";
 import { Button, Card, EstadoBadge, EmptyState, Input, Select, Modal, formatMoney } from "@/components/ui";
 import { EnviarWhatsAppControl } from "@/components/EnviarWhatsAppControl";
 import { imprimirHTML } from "@/lib/print";
+import { fechaEnZona, sumarDias, ZONA_HORARIA_DEFAULT } from "@/lib/zonasHorarias";
 import { categoriaLabel } from "@/lib/categorias";
 import { montoLineaPedido } from "@/lib/montoPedido";
 
@@ -595,9 +596,8 @@ type MatrizData = {
 };
 
 function fechaISO(desplazamientoDias = 0) {
-  const d = new Date();
-  d.setDate(d.getDate() + desplazamientoDias);
-  return d.toISOString().slice(0, 10);
+  // El día se cuenta en la zona de la operación, no en UTC.
+  return sumarDias(fechaEnZona(new Date(), ZONA_HORARIA_DEFAULT), desplazamientoDias);
 }
 
 function claseBotonFecha(activo: boolean) {

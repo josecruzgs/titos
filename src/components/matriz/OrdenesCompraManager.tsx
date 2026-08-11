@@ -6,6 +6,7 @@ import { Button, Card, EstadoBadge, EmptyState, Input, Select, Modal, FormField,
 import { ProductoCombobox } from "@/components/ProductoCombobox";
 import { EnviarWhatsAppControl } from "@/components/EnviarWhatsAppControl";
 import { imprimirHTML } from "@/lib/print";
+import { formatFechaLarga, ZONA_HORARIA_DEFAULT } from "@/lib/zonasHorarias";
 type Necesidad = {
   _id: string;
   productoId: string;
@@ -103,7 +104,7 @@ function totalOrden(orden: Orden) {
 
 function fechaRelevante(orden: Orden) {
   const fecha = orden.fechaRecepcion ?? orden.fechaCancelacion ?? orden.fechaSolicitud ?? orden.createdAt;
-  return new Date(fecha).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
+  return formatFechaLarga(fecha, ZONA_HORARIA_DEFAULT);
 }
 
 // Texto corto que acompaña al PDF adjunto por WhatsApp (el detalle completo

@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { EstadoBadge, Button, formatMoney } from "@/components/ui";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { formatFecha } from "@/lib/creditoCliente";
+import { useZonaHoraria } from "@/components/ZonaHorariaProvider";
+import { formatFechaHora } from "@/lib/zonasHorarias";
 
 const ETIQUETAS_METODO: Record<string, string> = {
   efectivo: "Efectivo",
@@ -35,6 +37,7 @@ function resumenPagos(pagos: PagoVenta[] | null | undefined) {
 }
 
 export function VentasHistorial({ ventas }: { ventas: Venta[] }) {
+  const zonaHoraria = useZonaHoraria();
   const router = useRouter();
   const [expandido, setExpandido] = useState<string | null>(null);
   const [cancelando, setCancelando] = useState<string | null>(null);
@@ -65,7 +68,7 @@ export function VentasHistorial({ ventas }: { ventas: Venta[] }) {
                 </span>
                 <span className="truncate text-xs text-black/50">{v.clienteNombre || "Público en general"}</span>
                 <span className="text-xs text-black/40">
-                  {new Date(v.createdAt).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" })}
+                  {formatFechaHora(v.createdAt, zonaHoraria)}
                 </span>
                 <span className="text-black/50">{resumenPagos(v.pagos)}</span>
                 <span className="font-semibold text-titos-green-900">{formatMoney(v.total)}</span>
@@ -108,7 +111,7 @@ export function VentasHistorial({ ventas }: { ventas: Venta[] }) {
                     <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
                       {formatMoney(v.creditoMonto)} a crédito de{" "}
                       <strong>{v.clienteNombre || "el cliente"}</strong> — fecha máxima de pago{" "}
-                      <strong>{formatFecha(v.creditoFechaVencimiento)}</strong>
+                      <strong>{formatFecha(v.creditoFechaVencimiento, zonaHoraria)}</strong>
                     </p>
                   ) : null}
                   {v.estado === "completada" ? (

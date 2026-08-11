@@ -3,6 +3,7 @@ import Venta from "@/models/Venta";
 import Sucursal from "@/models/Sucursal";
 import Ventas2ActivacionModel, { type Ventas2Activacion as Ventas2ActivacionType } from "@/models/Ventas2Activacion";
 import { enviarWhatsApp } from "@/lib/evolutionApi";
+import { formatFechaHora, ZONA_HORARIA_DEFAULT } from "@/lib/zonasHorarias";
 
 export type EstadoVentas2 = "programada" | "activa" | "finalizada" | "cancelada";
 type PagoLike = { metodoPago: string; monto: number };
@@ -26,8 +27,9 @@ export function calcularEstadoVentas2(
   return "programada";
 }
 
-function formatoFecha(fecha: Date) {
-  return fecha.toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short", timeZone: "America/Tijuana" });
+// El aviso lo lee la sucursal, así que las horas van en su zona horaria.
+function formatoFecha(fecha: Date, zona: string = ZONA_HORARIA_DEFAULT) {
+  return formatFechaHora(fecha, zona);
 }
 
 function formatMoney(value: number) {
@@ -88,10 +90,11 @@ export async function sincronizarVentas2(ahora = new Date()) {
   }).limit(25);
 
   for (const activacion of paraInicio) {
-    const sucursal = await Sucursal.findById(activacion.sucursalId).select("nombre").lean();
+    const sucursal = await Sucursal.findById(activacion.sucursalId).select("nombre zonaHoraria").lean();
+    const zona = sucursal?.zonaHoraria || ZONA_HORARIA_DEFAULT;
     const mensaje = [
       `Notas de venta activado para ${sucursal?.nombre ?? "la sucursal"}.`,
-      `Lapso: ${formatoFecha(activacion.inicio)} a ${formatoFecha(activacion.fin)}.`,
+      `Lapso: ${formatoFecha(activacion.inicio, zona)} a ${formatoFecha(activacion.fin, zona)}.`,
       `Regla: 1 de cada ${activacion.frecuencia} ventas 100% en efectivo se registrara en Notas de venta.`,
       "Revisa el apartado Notas de venta para separar el efectivo correspondiente.",
     ].join("\n");
@@ -105,11 +108,12 @@ export async function sincronizarVentas2(ahora = new Date()) {
   }).limit(25);
 
   for (const activacion of paraFin) {
-    const sucursal = await Sucursal.findById(activacion.sucursalId).select("nombre").lean();
+    const sucursal = await Sucursal.findById(activacion.sucursalId).select("nombre zonaHoraria").lean();
+    const zona = sucursal?.zonaHoraria || ZONA_HORARIA_DEFAULT;
     const totales = await totalesActivacion(String(activacion._id));
     const mensaje = [
       `Notas de venta finalizo para ${sucursal?.nombre ?? "la sucursal"}.`,
-      `Lapso: ${formatoFecha(activacion.inicio)} a ${formatoFecha(activacion.fin)}.`,
+      `Lapso: ${formatoFecha(activacion.inicio, zona)} a ${formatoFecha(activacion.fin, zona)}.`,
       `Total recaudado: ${formatMoney(totales.total)} en ${totales.cantidad} movimientos.`,
       "Separa el efectivo para que matriz pueda retirarlo.",
     ].join("\n");

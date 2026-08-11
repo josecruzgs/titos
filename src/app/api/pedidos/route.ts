@@ -6,6 +6,7 @@ import SolicitudProductoNuevo from "@/models/SolicitudProductoNuevo";
 import "@/models/Sucursal"; // necesario para que populate("sucursalId") funcione
 import "@/models/Empleado"; // necesario para que populate("repartidorId") funcione
 import { requireSession, unauthorized, forbidden, badRequest, generateFolio, todayCorte } from "@/lib/apiAuth";
+import { zonaHorariaDeSucursal } from "@/lib/credito";
 
 export async function GET(req: NextRequest) {
   const session = await requireSession(req);
@@ -81,7 +82,7 @@ export async function POST(req: NextRequest) {
       folio: generateFolio("PED"),
       sucursalId: session.sucursalId,
       fecha: new Date(),
-      corte: todayCorte(),
+      corte: todayCorte(await zonaHorariaDeSucursal(session.sucursalId)),
       estado: "pendiente",
       items: pedidoItems,
     });

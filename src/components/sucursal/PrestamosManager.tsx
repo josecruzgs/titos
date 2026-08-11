@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Search, ArrowLeftRight, PackageSearch, Store, Check, X, Truck, Undo2 } from "lucide-react";
 import { Button, Card, EmptyState, FormField, Input, Modal } from "@/components/ui";
+import { useZonaHoraria } from "@/components/ZonaHorariaProvider";
+import { formatFechaHora } from "@/lib/zonasHorarias";
 
 type StockSucursal = { sucursalId: string; nombre: string; stockActual: number };
 type ProductoStock = {
@@ -46,10 +48,6 @@ const ESTADO_ESTILO: Record<Prestamo["estado"], { label: string; className: stri
   rechazado: { label: "Rechazado", className: "bg-red-100 text-red-700" },
   cancelado: { label: "Cancelado", className: "bg-black/5 text-black/50" },
 };
-
-function formatFechaHora(iso: string) {
-  return new Date(iso).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
-}
 
 function SolicitarModal({
   producto,
@@ -251,6 +249,7 @@ function TarjetaPrestamo({
   onCantidades: (prestamo: Prestamo, accion: "aprobar" | "devolver") => void;
   procesando: string | null;
 }) {
+  const zonaHoraria = useZonaHoraria();
   const soySolicitante = prestamo.sucursalSolicitanteId === sucursalId;
   const estilo = ESTADO_ESTILO[prestamo.estado];
   const ocupado = procesando === prestamo._id;
@@ -267,7 +266,7 @@ function TarjetaPrestamo({
                 : `solicitado por ${prestamo.sucursalSolicitanteNombre}`}
             </span>
           </p>
-          <p className="text-xs text-black/40">{formatFechaHora(prestamo.createdAt)}</p>
+          <p className="text-xs text-black/40">{formatFechaHora(prestamo.createdAt, zonaHoraria)}</p>
         </div>
         <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${estilo.className}`}>{estilo.label}</span>
       </div>

@@ -21,6 +21,8 @@ import { Button, Card, Input, Select, Modal, FormField, formatMoney } from "@/co
 import { ProductoCombobox } from "@/components/ProductoCombobox";
 import { estadoCredito, formatFecha, type ClienteConCredito } from "@/lib/creditoCliente";
 import { imprimirHTML } from "@/lib/print";
+import { useZonaHoraria } from "@/components/ZonaHorariaProvider";
+import { formatFechaHora, formatHora, formatFechaLarga } from "@/lib/zonasHorarias";
 import {
   leerProductosCache,
   guardarProductosCache,
@@ -131,6 +133,7 @@ function formatDolares(value: number) {
 }
 
 export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: string }) {
+  const zonaHoraria = useZonaHoraria();
   const [productos, setProductos] = useState<Producto[]>([]);
   const [inventario, setInventario] = useState<Map<string, number>>(new Map());
   const [codigo, setCodigo] = useState("");
@@ -787,10 +790,10 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
         <table>
           <tbody>
             <tr><th>Sucursal</th><td>${sucursalNombre || "—"}</td></tr>
-            <tr><th>Fecha y hora</th><td>${new Date(retiro.fecha).toLocaleString("es-MX", {
-              dateStyle: "long",
-              timeStyle: "short",
-            })}</td></tr>
+            <tr><th>Fecha y hora</th><td>${formatFechaLarga(retiro.fecha, zonaHoraria)} · ${formatHora(
+              retiro.fecha,
+              zonaHoraria
+            )}</td></tr>
             <tr><th>Autorizó</th><td>${retiro.usuarioNombre || "—"}</td></tr>
             <tr><th>Moneda</th><td>${simbolo}</td></tr>
             <tr><th>Monto</th><td><strong>${monto} ${simbolo}</strong></td></tr>
@@ -800,7 +803,8 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
         <p class="subtitulo" style="margin-top:32px">
           Firma de quien recibe: ______________________________
         </p>
-      `
+      `,
+      zonaHoraria
     );
   }
 
@@ -995,7 +999,7 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
             {badgeConexion}
             <span>
               Caja abierta {sesion.offline ? "(sin sincronizar)" : ""} · {formatMoney(sesion.efectivoInicial)} ·{" "}
-              {new Date(sesion.fechaApertura).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
+              {formatHora(sesion.fechaApertura, zonaHoraria)}
               {nombreCajero(sesion) ? ` · ${nombreCajero(sesion)}` : ""}
             </span>
           </div>
@@ -1242,7 +1246,7 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
                     </span>
                     <span>Plazo {cliente.resumen.diasCredito} días</span>
                     {cliente.resumen.proximoVencimiento && !cliente.resumen.tieneVencidos ? (
-                      <span>Próximo pago {formatFecha(cliente.resumen.proximoVencimiento)}</span>
+                      <span>Próximo pago {formatFecha(cliente.resumen.proximoVencimiento, zonaHoraria)}</span>
                     ) : null}
                   </>
                 ) : (
@@ -1473,7 +1477,7 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
                 {formatMoney(ventaCompletada.creditoMonto)} a crédito de {ventaCompletada.clienteNombre || "el cliente"}
               </p>
               <p className="text-xs">
-                Fecha máxima de pago: <strong>{formatFecha(ventaCompletada.creditoFechaVencimiento ?? null)}</strong>. Si
+                Fecha máxima de pago: <strong>{formatFecha(ventaCompletada.creditoFechaVencimiento ?? null, zonaHoraria)}</strong>. Si
                 no liquida para esa fecha, se le bloquea el crédito.
               </p>
             </div>
@@ -1540,7 +1544,7 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
                 <div className="flex justify-between">
                   <span className="text-black/50">Fecha y hora</span>
                   <span className="font-medium">
-                    {new Date(ultimoRetiro.fecha).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" })}
+                    {formatFechaHora(ultimoRetiro.fecha, zonaHoraria)}
                   </span>
                 </div>
               </div>

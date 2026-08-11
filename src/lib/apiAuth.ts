@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, verifySession, type SessionPayload } from "@/lib/auth";
+import { fechaEnZona, ZONA_HORARIA_DEFAULT } from "@/lib/zonasHorarias";
 
 export async function requireSession(req: NextRequest): Promise<SessionPayload | null> {
   const token = req.cookies.get(SESSION_COOKIE)?.value;
@@ -33,6 +34,11 @@ export function generateFolio(prefix: string) {
   return `${prefix}-${stamp}${rand}`;
 }
 
-export function todayCorte() {
-  return new Date().toISOString().slice(0, 10);
+/**
+ * Día de corte (YYYY-MM-DD) con el que se sella una venta, retiro, abono o
+ * pedido. Debe calcularse en la zona horaria de la sucursal: en UTC, todo lo
+ * vendido después de las 5 p.m. en Tijuana caería en el corte del día siguiente.
+ */
+export function todayCorte(zona: string = ZONA_HORARIA_DEFAULT) {
+  return fechaEnZona(new Date(), zona);
 }

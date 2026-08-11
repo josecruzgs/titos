@@ -1,14 +1,19 @@
+import { formatFechaLarga, formatHora, ZONA_HORARIA_DEFAULT } from "@/lib/zonasHorarias";
+
 // Abre una ventana nueva con contenido HTML listo para imprimir y dispara el
 // diálogo de impresión del navegador. Se usa para pedidos y órdenes de
 // compra, generando el HTML a partir de los datos que ya están cargados en
 // pantalla (no requiere otra llamada al servidor).
-export function imprimirHTML(titulo: string, contenidoHTML: string) {
+//
+// `zona` es la zona horaria de la sucursal (useZonaHoraria()); sin ella el sello
+// de generación saldría con la hora del sistema operativo de la PC.
+export function imprimirHTML(titulo: string, contenidoHTML: string, zona: string = ZONA_HORARIA_DEFAULT) {
   const ventana = window.open("", "_blank", "width=850,height=900");
   if (!ventana) return;
 
   const ahora = new Date();
-  const fecha = ahora.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
-  const hora = ahora.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
+  const fecha = formatFechaLarga(ahora, zona);
+  const hora = formatHora(ahora, zona);
 
   ventana.document.write(`
     <!doctype html>

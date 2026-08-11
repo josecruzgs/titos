@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/db";
 import ActualizacionPrecio from "@/models/ActualizacionPrecio";
 import { requireSession, unauthorized, forbidden, badRequest, notFound } from "@/lib/apiAuth";
 import { generarTablaPDF, formatMoney } from "@/lib/pdf";
+import { formatFechaLarga, formatHora, ZONA_HORARIA_DEFAULT } from "@/lib/zonasHorarias";
 
 function rangoPeriodo(url: URL) {
   const ahora = new Date();
@@ -16,8 +17,8 @@ function rangoPeriodo(url: URL) {
 }
 
 function formatFechaHora(fecha: Date) {
-  const f = fecha.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
-  const h = fecha.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
+  const f = formatFechaLarga(fecha, ZONA_HORARIA_DEFAULT);
+  const h = formatHora(fecha, ZONA_HORARIA_DEFAULT);
   return `${f} ${h}`;
 }
 

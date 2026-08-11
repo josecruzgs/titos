@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/db";
 import Devolucion from "@/models/Devolucion";
 import CajaSesion from "@/models/CajaSesion";
 import { requireSession, unauthorized, forbidden, badRequest, notFound, todayCorte } from "@/lib/apiAuth";
+import { zonaHorariaDeSucursal } from "@/lib/credito";
 
 /** Paga una devolución que quedó pendiente porque el corte de su día ya estaba cerrado. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   devolucion.estado = "pagada";
   devolucion.cajaSesionId = sesionCaja._id;
-  devolucion.cortePago = todayCorte();
+  devolucion.cortePago = todayCorte(await zonaHorariaDeSucursal(session.sucursalId));
   devolucion.pagadaEn = new Date();
   devolucion.pagadaPorId = session.userId;
   await devolucion.save();

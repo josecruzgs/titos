@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Banknote, CalendarClock, Check, Clock, MessageCircleWarning, RefreshCw, SquareCheckBig } from "lucide-react";
 import { Button, Card, EmptyState, FormField, Input, formatMoney } from "@/components/ui";
+import { formatFechaHora, ZONA_HORARIA_DEFAULT } from "@/lib/zonasHorarias";
 
 type Sucursal = {
   _id: string;
@@ -43,8 +44,7 @@ function datetimeLocal(fecha: Date) {
 }
 
 function formatoFecha(value: string | null) {
-  if (!value) return "-";
-  return new Date(value).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
+  return formatFechaHora(value, ZONA_HORARIA_DEFAULT, "-");
 }
 
 function estadoClase(estado: string) {

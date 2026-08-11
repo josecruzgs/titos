@@ -8,6 +8,7 @@ import "@/models/Proveedor"; // necesario para que populate("proveedorId") funci
 import { requireSession, unauthorized, forbidden, badRequest, notFound } from "@/lib/apiAuth";
 import { generarPdfPedido, generarPdfOrdenCompra } from "@/lib/pdf";
 import { enviarWhatsAppDocumento } from "@/lib/evolutionApi";
+import { formatFechaLarga, ZONA_HORARIA_DEFAULT } from "@/lib/zonasHorarias";
 
 export async function POST(req: NextRequest) {
   const session = await requireSession(req);
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
       folio: orden.folio,
       estado: orden.estado,
       proveedorNombre: (orden.proveedorId as unknown as { nombre?: string })?.nombre ?? "Proveedor",
-      fecha: new Date(fecha).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" }),
+      fecha: formatFechaLarga(fecha, ZONA_HORARIA_DEFAULT),
       items: orden.items,
     });
     fileName = `Orden-${orden.folio}.pdf`;

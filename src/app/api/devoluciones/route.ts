@@ -7,6 +7,7 @@ import InventarioSucursal from "@/models/InventarioSucursal";
 import MovimientoInventario from "@/models/MovimientoInventario";
 import CuentaPorCobrar from "@/models/CuentaPorCobrar";
 import { requireSession, unauthorized, forbidden, badRequest, conflict, generateFolio, todayCorte } from "@/lib/apiAuth";
+import { zonaHorariaDeSucursal } from "@/lib/credito";
 import { calcularDevolvible, dentroDeVentana, HORAS_LIMITE_DEVOLUCION } from "@/lib/devoluciones";
 import { EPSILON, recalcularSaldoCliente, redondear } from "@/lib/credito";
 
@@ -112,6 +113,7 @@ export async function POST(req: NextRequest) {
   // del día ya se cerró, la devolución queda pendiente de pago.
   const sesionCaja = await CajaSesion.findOne({ sucursalId: session.sucursalId, estado: "abierta" });
   const sePagaAhora = montoEfectivo <= EPSILON || !!sesionCaja;
+  const corteDelDia = todayCorte(await zonaHorariaDeSucursal(session.sucursalId));
 
   const devolucion = await Devolucion.create({
     folio: generateFolio("DEV"),
@@ -129,9 +131,9 @@ export async function POST(req: NextRequest) {
     motivo,
     usuarioId: session.userId,
     fecha: ahora,
-    corte: todayCorte(),
+    corte: corteDelDia,
     cajaSesionId: sePagaAhora && sesionCaja ? sesionCaja._id : null,
-    cortePago: sePagaAhora ? todayCorte() : null,
+    cortePago: sePagaAhora ? corteDelDia : null,
     pagadaEn: sePagaAhora ? ahora : null,
     pagadaPorId: sePagaAhora ? session.userId : null,
   });

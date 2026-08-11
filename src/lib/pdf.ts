@@ -2,6 +2,7 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { montoLineaPedido } from "@/lib/montoPedido";
+import { formatFechaLarga, formatHora, ZONA_HORARIA_DEFAULT } from "@/lib/zonasHorarias";
 
 const PAGE_WIDTH = 595.28; // A4 portrait, en puntos
 const PAGE_HEIGHT = 841.89;
@@ -24,10 +25,10 @@ function formatMoney(value: number) {
   return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(value);
 }
 
-function formatFechaHoraGeneracion(fecha: Date) {
-  const f = fecha.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
-  const h = fecha.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
-  return `Generado el ${f} · ${h}`;
+// El PDF se genera en el servidor (UTC en producción), así que el sello de
+// generación se fija explícitamente en la zona de la operación.
+function formatFechaHoraGeneracion(fecha: Date, zona: string = ZONA_HORARIA_DEFAULT) {
+  return `Generado el ${formatFechaLarga(fecha, zona)} · ${formatHora(fecha, zona)}`;
 }
 
 // Se lee una sola vez por instancia del servidor y se reutiliza en cada PDF.

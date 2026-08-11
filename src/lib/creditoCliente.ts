@@ -1,6 +1,8 @@
 // Tipos y helpers de crédito compartidos por el módulo de clientes y el punto
 // de venta. Sin dependencias de servidor para que ambos los puedan importar.
 
+import { formatFechaLarga, ZONA_HORARIA_DEFAULT } from "@/lib/zonasHorarias";
+
 export type ResumenCredito = {
   creditoActivo: boolean;
   limite: number;
@@ -35,9 +37,8 @@ export type ClienteConCredito = {
   resumen: ResumenCredito;
 };
 
-export function formatFecha(iso: string | null | undefined) {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
+export function formatFecha(iso: string | null | undefined, zona: string = ZONA_HORARIA_DEFAULT) {
+  return formatFechaLarga(iso, zona);
 }
 
 export function estadoCredito(resumen: ResumenCredito) {

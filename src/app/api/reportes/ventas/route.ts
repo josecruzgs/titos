@@ -3,33 +3,41 @@ import { connectDB } from "@/lib/db";
 import Pedido from "@/models/Pedido";
 import { requireSession, unauthorized, forbidden, badRequest } from "@/lib/apiAuth";
 import { montoLineaPedido } from "@/lib/montoPedido";
+import { fechaEnZona, sumarDias, sumarMeses, ZONA_HORARIA_DEFAULT } from "@/lib/zonasHorarias";
 
 const PERIODOS = ["diario", "semanal", "mensual"] as const;
 type Periodo = (typeof PERIODOS)[number];
 
 const CANTIDAD_BUCKETS: Record<Periodo, number> = { diario: 14, semanal: 12, mensual: 12 };
 
-type Bucket = { inicio: Date; fin: Date; label: string };
+// Los buckets se manejan como fechas YYYY-MM-DD y no como Date: el campo
+// `corte` de los pedidos ya viene en ese formato y en la zona de la sucursal,
+// así que compararlos como texto evita reinterpretarlos en la zona del servidor
+// (UTC en producción), que desplazaba un día los cortes de la tarde.
+type Bucket = { desde: string; hasta: string; label: string }; // [desde, hasta)
 
-function generarBuckets(periodo: Periodo, cantidad: number, hoy: Date): Bucket[] {
+function etiquetaFecha(ymd: string, opciones: Intl.DateTimeFormatOptions) {
+  return new Intl.DateTimeFormat("es-MX", { timeZone: "UTC", ...opciones }).format(new Date(`${ymd}T12:00:00Z`));
+}
+
+function generarBuckets(periodo: Periodo, cantidad: number, hoy: string): Bucket[] {
   const buckets: Bucket[] = [];
 
   if (periodo === "mensual") {
-    const inicioMesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
     for (let i = cantidad - 1; i >= 0; i--) {
-      const inicio = new Date(inicioMesActual.getFullYear(), inicioMesActual.getMonth() - i, 1);
-      const fin = new Date(inicioMesActual.getFullYear(), inicioMesActual.getMonth() - i + 1, 1);
-      buckets.push({ inicio, fin, label: inicio.toLocaleDateString("es-MX", { month: "short", year: "2-digit" }) });
+      const desde = sumarMeses(hoy, -i);
+      const hasta = sumarMeses(hoy, -i + 1);
+      buckets.push({ desde, hasta, label: etiquetaFecha(desde, { month: "short", year: "2-digit" }) });
     }
     return buckets;
   }
 
   const diasPorBucket = periodo === "semanal" ? 7 : 1;
-  const finHoy = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + 1);
+  const finHoy = sumarDias(hoy, 1);
   for (let i = cantidad - 1; i >= 0; i--) {
-    const fin = new Date(finHoy.getTime() - i * diasPorBucket * 86400000);
-    const inicio = new Date(fin.getTime() - diasPorBucket * 86400000);
-    buckets.push({ inicio, fin, label: inicio.toLocaleDateString("es-MX", { day: "2-digit", month: "short" }) });
+    const hasta = sumarDias(finHoy, -i * diasPorBucket);
+    const desde = sumarDias(hasta, -diasPorBucket);
+    buckets.push({ desde, hasta, label: etiquetaFecha(desde, { day: "2-digit", month: "short" }) });
   }
   return buckets;
 }
@@ -70,7 +78,7 @@ export async function GET(req: NextRequest) {
   await connectDB();
 
   const cantidad = CANTIDAD_BUCKETS[periodo];
-  const buckets = generarBuckets(periodo, cantidad * 2, new Date());
+  const buckets = generarBuckets(periodo, cantidad * 2, fechaEnZona(new Date(), ZONA_HORARIA_DEFAULT));
   const totales = new Array(buckets.length).fill(0);
 
   // Sólo cuentan como venta los pedidos que ya salieron del almacén: aún no
@@ -80,14 +88,14 @@ export async function GET(req: NextRequest) {
     .lean();
 
   for (const pedido of pedidos) {
-    const fecha = new Date(`${pedido.corte}T00:00:00`);
-    if (Number.isNaN(fecha.getTime())) continue;
+    const corte = pedido.corte;
+    if (!corte) continue;
 
     type PedidoItemLean = (typeof pedido.items)[number];
     const total = pedido.items.reduce((sum: number, item: PedidoItemLean) => sum + montoLineaPedido(item), 0);
 
     for (let i = 0; i < buckets.length; i++) {
-      if (fecha >= buckets[i].inicio && fecha < buckets[i].fin) {
+      if (corte >= buckets[i].desde && corte < buckets[i].hasta) {
         totales[i] += total;
         break;
       }

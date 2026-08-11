@@ -96,6 +96,8 @@ export async function POST(req: NextRequest) {
 
   // El cliente es opcional en una venta de contado, pero obligatorio (y validado
   // contra su límite y sus vencidos) cuando parte del pago va a crédito.
+  const zonaHoraria = await zonaHorariaDeSucursal(session.sucursalId);
+
   const cliente = clienteIdBody ? await Cliente.findById(clienteIdBody) : null;
   if (clienteIdBody) {
     if (!cliente || String(cliente.sucursalId) !== String(session.sucursalId)) {
@@ -106,7 +108,6 @@ export async function POST(req: NextRequest) {
   let vencimientoCredito: Date | null = null;
   if (pagoCredito && cliente) {
     const cuentasAbiertas = await CuentaPorCobrar.find({ clienteId: cliente._id, estado: "pendiente" }).lean();
-    const zonaHoraria = await zonaHorariaDeSucursal(session.sucursalId);
     const resumen = resumenCredito(cliente, cuentasAbiertas as unknown as CuentaLike[], zonaHoraria);
     const motivo = motivoRechazoCredito(cliente, resumen, pagoCredito.monto);
     if (motivo) return conflict(motivo);
@@ -178,7 +179,7 @@ export async function POST(req: NextRequest) {
     cajaSesionId: sesionCaja._id,
     usuarioId: session.userId,
     fecha: fechaVenta,
-    corte: todayCorte(),
+    corte: todayCorte(zonaHoraria),
     items: ventaItems,
     total,
     pagos,

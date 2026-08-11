@@ -5,6 +5,7 @@ import * as XLSX from "xlsx";
 import { FileSpreadsheet, FileDown, PencilLine, Upload, RefreshCw, Download } from "lucide-react";
 import { Button, Card, Input, FormField, EmptyState, formatMoney } from "@/components/ui";
 import { ProductoCombobox } from "@/components/ProductoCombobox";
+import { ZONA_HORARIA_DEFAULT } from "@/lib/zonasHorarias";
 
 type Producto = {
   _id: string;
@@ -440,12 +441,13 @@ export function ActualizacionPreciosManager() {
                       <td className="py-2 pr-2 text-right font-semibold text-titos-green-700">{formatMoney(c.precioNuevo)}</td>
                       <td className="py-2 pr-2 text-black/50">{c.origen === "excel" ? "Excel" : "Manual"}</td>
                       <td className="py-2 pr-2 text-black/50">
-                        {new Date(c.fecha).toLocaleString("es-MX", {
+                        {new Intl.DateTimeFormat("es-MX", {
+                          timeZone: ZONA_HORARIA_DEFAULT,
                           day: "2-digit",
                           month: "short",
                           hour: "2-digit",
                           minute: "2-digit",
-                        })}
+                        }).format(new Date(c.fecha))}
                       </td>
                     </tr>
                   ))}

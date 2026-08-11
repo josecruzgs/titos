@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Search, TriangleAlert, Clock, Wallet } from "lucide-react";
 import { Button, Card, EmptyState, FormField, Input, formatMoney } from "@/components/ui";
+import { useZonaHoraria } from "@/components/ZonaHorariaProvider";
+import { formatFechaHora } from "@/lib/zonasHorarias";
 
 type ItemDevolvible = {
   productoId: string;
@@ -38,11 +40,8 @@ type Devolucion = {
   items: { nombreProducto: string; cantidad: number; unidad: string; subtotal: number }[];
 };
 
-function formatFechaHora(iso: string) {
-  return new Date(iso).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
-}
-
 export function DevolucionesManager() {
+  const zonaHoraria = useZonaHoraria();
   const [folio, setFolio] = useState("");
   const [buscando, setBuscando] = useState(false);
   const [resultado, setResultado] = useState<BusquedaVenta | null>(null);
@@ -222,7 +221,7 @@ export function DevolucionesManager() {
               <div>
                 <p className="font-semibold text-titos-green-900">Venta {resultado.venta.folio}</p>
                 <p className="text-black/50">
-                  {formatFechaHora(resultado.venta.fecha)} · {formatMoney(resultado.venta.total)}
+                  {formatFechaHora(resultado.venta.fecha, zonaHoraria)} · {formatMoney(resultado.venta.total)}
                   {resultado.venta.clienteNombre ? ` · ${resultado.venta.clienteNombre}` : ""}
                 </p>
               </div>
@@ -353,7 +352,7 @@ export function DevolucionesManager() {
                   <tr key={d._id} className="border-b border-black/5">
                     <td className="py-2 pr-2 font-mono text-xs">{d.folio}</td>
                     <td className="py-2 pr-2 font-mono text-xs text-black/50">{d.ventaFolio}</td>
-                    <td className="py-2 pr-2 text-black/60">{formatFechaHora(d.fecha)}</td>
+                    <td className="py-2 pr-2 text-black/60">{formatFechaHora(d.fecha, zonaHoraria)}</td>
                     <td className="py-2 pr-2 text-black/60">
                       {d.items.map((i) => `${i.nombreProducto} ×${i.cantidad}`).join(", ")}
                     </td>
