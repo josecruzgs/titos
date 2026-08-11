@@ -37,7 +37,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-type NavItem = { href: string; label: string; icon: LucideIcon };
+// "exact" es para las rutas que son padre de otras (el punto de venta del
+// mostrador) y no deben marcarse activas mientras se navega en sus hijas.
+type NavItem = { href: string; label: string; icon: LucideIcon; exact?: boolean };
 type NavCategory = { label: string; icon: LucideIcon; items: NavItem[] };
 
 const MATRIZ_NAV: NavCategory[] = [
@@ -45,6 +47,16 @@ const MATRIZ_NAV: NavCategory[] = [
     label: "Central",
     icon: LayoutDashboard,
     items: [{ href: "/matriz", label: "Dashboard", icon: LayoutDashboard }],
+  },
+  {
+    label: "Mostrador",
+    icon: ShoppingCart,
+    items: [
+      { href: "/matriz/mostrador", label: "Punto de venta", icon: ShoppingCart, exact: true },
+      { href: "/matriz/mostrador/ventas", label: "Historial de ventas", icon: Receipt },
+      { href: "/matriz/mostrador/clientes", label: "Clientes", icon: Users },
+      { href: "/matriz/mostrador/devoluciones", label: "Devoluciones", icon: RotateCcw },
+    ],
   },
   {
     label: "Reportes",
@@ -122,8 +134,10 @@ const SUCURSAL_NAV_SOLO_VENTAS = ["/sucursal", "/sucursal/ventas"];
 
 const STORAGE_KEY = "titos-sidebar-collapsed";
 
-function isNavItemActive(pathname: string, role: string, href: string) {
-  return pathname === href || (href !== `/${role}` && pathname.startsWith(href));
+function isNavItemActive(pathname: string, role: string, item: NavItem) {
+  if (pathname === item.href) return true;
+  if (item.exact || item.href === `/${role}`) return false;
+  return pathname.startsWith(item.href);
 }
 
 function initials(nombre: string) {
@@ -157,7 +171,7 @@ export function Sidebar({
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
     for (const category of MATRIZ_NAV) {
-      initial[category.label] = category.items.some((item) => isNavItemActive(pathname, role, item.href));
+      initial[category.label] = category.items.some((item) => isNavItemActive(pathname, role, item));
     }
     return initial;
   });
@@ -178,7 +192,7 @@ export function Sidebar({
 
   useEffect(() => {
     const activeCategory = MATRIZ_NAV.find((category) =>
-      category.items.some((item) => isNavItemActive(pathname, role, item.href))
+      category.items.some((item) => isNavItemActive(pathname, role, item))
     );
     if (!activeCategory) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- abre la categoría de la ruta activa al navegar
@@ -307,7 +321,7 @@ export function Sidebar({
                     {hasItems && isOpen ? (
                       <div className={collapsed ? "space-y-1" : "space-y-1 pl-4"}>
                         {category.items.map((item) => {
-                          const active = isNavItemActive(pathname, role, item.href);
+                          const active = isNavItemActive(pathname, role, item);
                           const Icon = item.icon;
                           return (
                             <Link
@@ -336,7 +350,7 @@ export function Sidebar({
                 ? SUCURSAL_NAV.filter((item) => SUCURSAL_NAV_SOLO_VENTAS.includes(item.href))
                 : SUCURSAL_NAV
               ).map((item) => {
-                const active = isNavItemActive(pathname, role, item.href);
+                const active = isNavItemActive(pathname, role, item);
                 const Icon = item.icon;
                 return (
                   <Link

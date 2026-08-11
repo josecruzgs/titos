@@ -13,12 +13,11 @@ import {
   zonaHorariaDeSucursal,
   type CuentaLike,
 } from "@/lib/credito";
+import { contextoPuntoVenta } from "@/lib/puntoVenta";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
-  if (session.role !== "sucursal" || !session.sucursalId) return forbidden();
-
   const { id } = await params;
   const body = await req.json().catch(() => null);
   const monto = redondear(Number(body?.monto));
@@ -32,8 +31,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   await connectDB();
 
+  const ctx = await contextoPuntoVenta(session);
+  if (!ctx) return forbidden();
+
   const cliente = await Cliente.findById(id);
-  if (!cliente || String(cliente.sucursalId) !== String(session.sucursalId)) {
+  if (!cliente || String(cliente.sucursalId) !== String(ctx.sucursalId)) {
     return notFound("Cliente no encontrado");
   }
 
@@ -53,7 +55,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // para que aparezca en el corte.
   let cajaSesionId: unknown = null;
   if (metodoPago === "efectivo") {
-    const sesionCaja = await CajaSesion.findOne({ sucursalId: session.sucursalId, estado: "abierta" });
+    const sesionCaja = await CajaSesion.findOne({ sucursalId: ctx.sucursalId, estado: "abierta" });
     if (!sesionCaja) return badRequest("Debes abrir la caja antes de recibir un abono en efectivo");
     cajaSesionId = sesionCaja._id;
   }
@@ -74,11 +76,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const abono = await AbonoCliente.create({
     clienteId: cliente._id,
-    sucursalId: session.sucursalId,
+    sucursalId: ctx.sucursalId,
     cajaSesionId,
     usuarioId: session.userId,
     fecha: new Date(),
-    corte: todayCorte(await zonaHorariaDeSucursal(session.sucursalId)),
+    corte: todayCorte(await zonaHorariaDeSucursal(ctx.sucursalId)),
     monto,
     metodoPago,
     aplicaciones: aplicaciones.map((a) => ({ cuentaId: a.cuentaId, folio: a.folio, monto: a.monto })),

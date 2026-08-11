@@ -62,6 +62,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
   const sucursal = await Sucursal.findById(id);
   if (!sucursal) return notFound("Sucursal no encontrada");
+  if (sucursal.esMatriz) {
+    return conflict("El mostrador de matriz no se puede eliminar. Desactívalo si dejas de vender en matriz.");
+  }
 
   const [tienePedidos, tieneVentas, tieneCortes] = await Promise.all([
     Pedido.exists({ sucursalId: id }),

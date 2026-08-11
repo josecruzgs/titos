@@ -1,23 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import Venta from "@/models/Venta";
-import InventarioSucursal from "@/models/InventarioSucursal";
 import MovimientoInventario from "@/models/MovimientoInventario";
 import CuentaPorCobrar from "@/models/CuentaPorCobrar";
 import { requireSession, unauthorized, forbidden, badRequest, notFound, conflict } from "@/lib/apiAuth";
 import { EPSILON, recalcularSaldoCliente } from "@/lib/credito";
+import { ajustarStockPuntoVenta, contextoPuntoVenta, ubicacionDeMovimiento } from "@/lib/puntoVenta";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
-  if (session.role !== "sucursal" || !session.sucursalId) return forbidden();
 
   const { id } = await params;
   await connectDB();
 
+  const ctx = await contextoPuntoVenta(session);
+  if (!ctx) return forbidden();
+
   const venta = await Venta.findById(id);
   if (!venta) return notFound("Venta no encontrada");
-  if (String(venta.sucursalId) !== session.sucursalId) return forbidden();
+  if (String(venta.sucursalId) !== ctx.sucursalId) return forbidden();
   if (venta.estado === "cancelada") return badRequest("Esta venta ya está cancelada");
 
   // Si la venta fue a crédito, su cuenta por cobrar se cancela junto con ella.
@@ -38,16 +40,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   type VentaItemDoc = (typeof venta.items)[number];
 
   for (const item of venta.items as VentaItemDoc[]) {
-    await InventarioSucursal.findOneAndUpdate(
-      { sucursalId: session.sucursalId, productoId: item.productoId },
-      { $inc: { stockActual: item.cantidad } },
-      { upsert: true }
-    );
+    await ajustarStockPuntoVenta(ctx, item.productoId, item.cantidad);
     await MovimientoInventario.create({
       tipo: "entrada_sucursal",
       productoId: item.productoId,
       nombreProducto: item.nombreProducto,
-      ubicacion: session.sucursalId,
+      ubicacion: ubicacionDeMovimiento(ctx),
       cantidad: item.cantidad,
       ventaId: venta._id,
       usuarioId: session.userId,

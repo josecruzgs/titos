@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import Venta, { METODOS_PAGO } from "@/models/Venta";
 import Producto from "@/models/Producto";
-import InventarioSucursal from "@/models/InventarioSucursal";
 import MovimientoInventario from "@/models/MovimientoInventario";
 import CajaSesion from "@/models/CajaSesion";
 import Cliente from "@/models/Cliente";
@@ -10,6 +9,12 @@ import CuentaPorCobrar from "@/models/CuentaPorCobrar";
 import "@/models/Sucursal"; // necesario para que populate("sucursalId") funcione
 import { requireSession, unauthorized, forbidden, badRequest, conflict, generateFolio, todayCorte } from "@/lib/apiAuth";
 import { resolverVentas2ParaVenta } from "@/lib/ventas2";
+import {
+  ajustarStockPuntoVenta,
+  contextoPuntoVenta,
+  stockPuntoVenta,
+  ubicacionDeMovimiento,
+} from "@/lib/puntoVenta";
 import {
   calcularVencimiento,
   motivoRechazoCredito,
@@ -49,7 +54,6 @@ type PagoVenta = { metodoPago: string; monto: number };
 export async function POST(req: NextRequest) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
-  if (session.role !== "sucursal" || !session.sucursalId) return forbidden();
 
   const body = await req.json().catch(() => null);
   const items: ItemVenta[] = body?.items ?? [];
@@ -91,16 +95,21 @@ export async function POST(req: NextRequest) {
 
   await connectDB();
 
-  const sesionCaja = await CajaSesion.findOne({ sucursalId: session.sucursalId, estado: "abierta" });
+  // La matriz vende de mostrador con su propia caja y descontando la existencia
+  // del CEDIS; una sucursal descuenta su inventario.
+  const ctx = await contextoPuntoVenta(session);
+  if (!ctx) return forbidden();
+
+  const sesionCaja = await CajaSesion.findOne({ sucursalId: ctx.sucursalId, estado: "abierta" });
   if (!sesionCaja) return badRequest("Debes abrir la caja antes de registrar ventas");
 
   // El cliente es opcional en una venta de contado, pero obligatorio (y validado
   // contra su límite y sus vencidos) cuando parte del pago va a crédito.
-  const zonaHoraria = await zonaHorariaDeSucursal(session.sucursalId);
+  const zonaHoraria = await zonaHorariaDeSucursal(ctx.sucursalId);
 
   const cliente = clienteIdBody ? await Cliente.findById(clienteIdBody) : null;
   if (clienteIdBody) {
-    if (!cliente || String(cliente.sucursalId) !== String(session.sucursalId)) {
+    if (!cliente || String(cliente.sucursalId) !== String(ctx.sucursalId)) {
       return badRequest("El cliente no existe en esta sucursal");
     }
   }
@@ -117,11 +126,7 @@ export async function POST(req: NextRequest) {
   const productos = await Producto.find({ _id: { $in: productoIds }, activo: true });
   const productoMap = new Map(productos.map((p) => [String(p._id), p]));
 
-  const inventarios = await InventarioSucursal.find({
-    sucursalId: session.sucursalId,
-    productoId: { $in: productoIds },
-  });
-  const inventarioMap = new Map(inventarios.map((i) => [String(i.productoId), i]));
+  const stockPorProducto = await stockPuntoVenta(ctx, productoIds);
 
   const ventaItems = [];
   const sinStock: string[] = [];
@@ -134,7 +139,7 @@ export async function POST(req: NextRequest) {
       return badRequest("Producto inválido o cantidad inválida en la venta");
     }
 
-    const stockActual = inventarioMap.get(item.productoId)?.stockActual ?? 0;
+    const stockActual = stockPorProducto.get(item.productoId) ?? 0;
     if (stockActual < cantidad) {
       sinStock.push(`${producto.nombre} (disponible: ${stockActual})`);
       continue;
@@ -168,14 +173,14 @@ export async function POST(req: NextRequest) {
   }
 
   const ventas2 = await resolverVentas2ParaVenta({
-    sucursalId: session.sucursalId,
+    sucursalId: ctx.sucursalId,
     pagos,
     fecha: fechaVenta,
   });
 
   const venta = await Venta.create({
     folio: generateFolio(ventas2.esVentas2 ? "V2" : "VTA"),
-    sucursalId: session.sucursalId,
+    sucursalId: ctx.sucursalId,
     cajaSesionId: sesionCaja._id,
     usuarioId: session.userId,
     fecha: fechaVenta,
@@ -197,7 +202,7 @@ export async function POST(req: NextRequest) {
   if (pagoCredito && cliente && vencimientoCredito) {
     await CuentaPorCobrar.create({
       clienteId: cliente._id,
-      sucursalId: session.sucursalId,
+      sucursalId: ctx.sucursalId,
       ventaId: venta._id,
       folio: venta.folio,
       fecha: fechaVenta,
@@ -210,15 +215,12 @@ export async function POST(req: NextRequest) {
   }
 
   for (const item of ventaItems) {
-    await InventarioSucursal.findOneAndUpdate(
-      { sucursalId: session.sucursalId, productoId: item.productoId },
-      { $inc: { stockActual: -item.cantidad } }
-    );
+    await ajustarStockPuntoVenta(ctx, item.productoId, -item.cantidad);
     await MovimientoInventario.create({
       tipo: "salida_venta",
       productoId: item.productoId,
       nombreProducto: item.nombreProducto,
-      ubicacion: session.sucursalId,
+      ubicacion: ubicacionDeMovimiento(ctx),
       cantidad: item.cantidad,
       ventaId: venta._id,
       usuarioId: session.userId,

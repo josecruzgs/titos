@@ -3,21 +3,23 @@ import { connectDB } from "@/lib/db";
 import Venta from "@/models/Venta";
 import { requireSession, unauthorized, forbidden, badRequest, notFound } from "@/lib/apiAuth";
 import { calcularDevolvible, dentroDeVentana, horasRestantes, HORAS_LIMITE_DEVOLUCION } from "@/lib/devoluciones";
+import { contextoPuntoVenta } from "@/lib/puntoVenta";
 
 /** Busca una venta por folio y devuelve qué se le puede devolver todavía. */
 export async function GET(req: NextRequest) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
-  if (session.role !== "sucursal" || !session.sucursalId) return forbidden();
-
   const folio = (new URL(req.url).searchParams.get("folio") ?? "").trim();
   if (!folio) return badRequest("Captura el folio de la venta");
 
   await connectDB();
 
+  const ctx = await contextoPuntoVenta(session);
+  if (!ctx) return forbidden();
+
   const venta = await Venta.findOne({
     folio: new RegExp(`^${folio.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"),
-    sucursalId: session.sucursalId,
+    sucursalId: ctx.sucursalId,
   });
   if (!venta) return notFound("No se encontró una venta con ese folio en esta sucursal");
 

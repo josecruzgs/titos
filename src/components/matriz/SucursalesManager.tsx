@@ -12,6 +12,9 @@ type Sucursal = {
   whatsapp: string;
   zonaHoraria?: string;
   activo: boolean;
+  // El mostrador de matriz aparece aquí porque también cobra y hace corte, pero
+  // no es una sucursal que se administre ni se pueda eliminar.
+  esMatriz?: boolean;
   usuario: { email: string; nombre: string } | null;
 };
 
@@ -353,6 +356,11 @@ export function SucursalesManager() {
                   <tr key={s._id} className={`border-b border-black/5 ${!s.activo ? "opacity-50" : ""}`}>
                     <td className="py-2 pr-2 font-medium">
                       {s.nombre}
+                      {s.esMatriz ? (
+                        <span className="ml-1.5 rounded-full bg-titos-green-100 px-2 py-0.5 text-xs font-semibold text-titos-green-700">
+                          Mostrador
+                        </span>
+                      ) : null}
                       {!s.activo ? <span className="ml-1 text-xs text-black/40">(inactiva)</span> : null}
                     </td>
                     <td className="py-2 pr-2 text-black/60">{s.direccion || "—"}</td>
@@ -364,9 +372,11 @@ export function SucursalesManager() {
                         <Button size="sm" variant="ghost" className="w-24" onClick={() => setSucursalModal(s)}>
                           Ver / Editar
                         </Button>
-                        <Button size="sm" variant="danger" className="w-20" onClick={() => setSucursalAEliminar(s)}>
-                          Eliminar
-                        </Button>
+                        {s.esMatriz ? null : (
+                          <Button size="sm" variant="danger" className="w-20" onClick={() => setSucursalAEliminar(s)}>
+                            Eliminar
+                          </Button>
+                        )}
                       </div>
                     </td>
                   </tr>

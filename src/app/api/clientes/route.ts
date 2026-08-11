@@ -5,21 +5,20 @@ import CuentaPorCobrar from "@/models/CuentaPorCobrar";
 import { requireSession, unauthorized, forbidden, badRequest } from "@/lib/apiAuth";
 import { parseClienteBody } from "@/lib/clientes";
 import { resumenCredito, zonaHorariaDeSucursal, type CuentaLike } from "@/lib/credito";
+import { contextoPuntoVenta, sucursalConsultada } from "@/lib/puntoVenta";
 
 export async function GET(req: NextRequest) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
 
   const url = new URL(req.url);
-  // La sucursal solo ve su cartera; matriz puede consultar la de cualquiera.
-  let sucursalId: string | null = session.sucursalId;
-  if (session.role === "matriz") {
-    sucursalId = url.searchParams.get("sucursalId");
-    if (!sucursalId) return badRequest("Indica la sucursal de la que quieres ver los clientes");
-  }
-  if (!sucursalId) return forbidden();
 
   await connectDB();
+
+  // La sucursal solo ve su cartera; matriz la de la sucursal que indique o, si
+  // no indica ninguna, la de su propio mostrador.
+  const sucursalId = await sucursalConsultada(session, url);
+  if (!sucursalId) return forbidden();
 
   const filtro: Record<string, unknown> = { sucursalId };
   if (url.searchParams.get("soloActivos") === "1") filtro.activo = true;
@@ -52,7 +51,6 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
-  if (session.role !== "sucursal" || !session.sucursalId) return forbidden();
 
   const body = await req.json().catch(() => null);
   if (!body) return badRequest("Cuerpo inválido");
@@ -62,6 +60,9 @@ export async function POST(req: NextRequest) {
 
   await connectDB();
 
-  const cliente = await Cliente.create({ ...parsed.data, sucursalId: session.sucursalId, saldo: 0 });
+  const ctx = await contextoPuntoVenta(session);
+  if (!ctx) return forbidden();
+
+  const cliente = await Cliente.create({ ...parsed.data, sucursalId: ctx.sucursalId, saldo: 0 });
   return NextResponse.json(cliente, { status: 201 });
 }

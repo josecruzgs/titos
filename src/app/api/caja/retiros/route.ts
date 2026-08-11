@@ -7,6 +7,7 @@ import { requireSession, unauthorized, forbidden, badRequest, generateFolio, tod
 import { zonaHorariaDeSucursal } from "@/lib/credito";
 import { verifyPassword } from "@/lib/auth";
 import { calcularResumenSesion, calcularEfectivoEsperado, calcularEfectivoEsperadoUsd } from "@/lib/caja";
+import { contextoPuntoVenta, sucursalConsultada } from "@/lib/puntoVenta";
 
 /** Log de retiros de la sucursal, del más reciente al más viejo. */
 export async function GET(req: NextRequest) {
@@ -14,11 +15,11 @@ export async function GET(req: NextRequest) {
   if (!session) return unauthorized();
 
   const url = new URL(req.url);
-  let sucursalId: string | null = session.sucursalId;
-  if (session.role === "matriz") sucursalId = url.searchParams.get("sucursalId");
-  if (!sucursalId) return badRequest("Indica la sucursal");
 
   await connectDB();
+
+  const sucursalId = await sucursalConsultada(session, url);
+  if (!sucursalId) return badRequest("Indica la sucursal");
 
   const filtro: Record<string, unknown> = { sucursalId };
   const corte = url.searchParams.get("corte");
@@ -37,7 +38,6 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
-  if (session.role !== "sucursal" || !session.sucursalId) return forbidden();
 
   const body = await req.json().catch(() => null);
   const monto = Number(body?.monto);
@@ -52,6 +52,9 @@ export async function POST(req: NextRequest) {
 
   await connectDB();
 
+  const ctx = await contextoPuntoVenta(session);
+  if (!ctx) return forbidden();
+
   // La clave que autoriza es la del usuario que está capturando el retiro, así
   // el folio queda ligado a quién lo sacó.
   const usuario = await UserModel.findById(session.userId);
@@ -59,7 +62,7 @@ export async function POST(req: NextRequest) {
   const claveValida = await verifyPassword(password, usuario.passwordHash);
   if (!claveValida) return badRequest("Clave incorrecta");
 
-  const sesion = await CajaSesion.findOne({ sucursalId: session.sucursalId, estado: "abierta" });
+  const sesion = await CajaSesion.findOne({ sucursalId: ctx.sucursalId, estado: "abierta" });
   if (!sesion) return badRequest("Debes abrir la caja antes de retirar efectivo");
 
   // No se puede retirar más de lo que hay en el cajón correspondiente.
@@ -78,7 +81,7 @@ export async function POST(req: NextRequest) {
   const movimiento = await MovimientoCaja.create({
     folio: generateFolio("RET"),
     cajaSesionId: sesion._id,
-    sucursalId: session.sucursalId,
+    sucursalId: ctx.sucursalId,
     tipo: "retiro",
     moneda,
     monto,
@@ -86,7 +89,7 @@ export async function POST(req: NextRequest) {
     usuarioId: session.userId,
     usuarioNombre: usuario.nombre,
     fecha: new Date(),
-    corte: todayCorte(await zonaHorariaDeSucursal(session.sucursalId)),
+    corte: todayCorte(await zonaHorariaDeSucursal(ctx.sucursalId)),
   });
 
   return NextResponse.json(movimiento, { status: 201 });

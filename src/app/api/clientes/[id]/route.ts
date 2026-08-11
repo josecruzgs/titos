@@ -6,6 +6,7 @@ import AbonoCliente from "@/models/AbonoCliente";
 import { requireSession, unauthorized, forbidden, notFound, badRequest, conflict } from "@/lib/apiAuth";
 import { parseClienteBody } from "@/lib/clientes";
 import { estaVencida, resumenCredito, zonaHorariaDeSucursal, type CuentaLike } from "@/lib/credito";
+import { contextoPuntoVenta } from "@/lib/puntoVenta";
 
 /** Carga el cliente verificando que pertenezca a la sucursal de la sesión. */
 async function clienteDeLaSesion(id: string, sucursalId: string) {
@@ -17,12 +18,13 @@ async function clienteDeLaSesion(id: string, sucursalId: string) {
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
-  if (session.role !== "sucursal" || !session.sucursalId) return forbidden();
-
   const { id } = await params;
   await connectDB();
 
-  const cliente = await clienteDeLaSesion(id, session.sucursalId);
+  const ctx = await contextoPuntoVenta(session);
+  if (!ctx) return forbidden();
+
+  const cliente = await clienteDeLaSesion(id, ctx.sucursalId);
   if (!cliente) return notFound("Cliente no encontrado");
 
   const [cuentas, abonos] = await Promise.all([
@@ -30,7 +32,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     AbonoCliente.find({ clienteId: id }).sort({ fecha: -1 }).limit(100).lean(),
   ]);
 
-  const zonaHoraria = await zonaHorariaDeSucursal(session.sucursalId);
+  const zonaHoraria = await zonaHorariaDeSucursal(ctx.sucursalId);
   const ahora = new Date();
   const pendientes = cuentas.filter((c) => c.estado === "pendiente") as unknown as CuentaLike[];
 
@@ -49,8 +51,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
-  if (session.role !== "sucursal" || !session.sucursalId) return forbidden();
-
   const { id } = await params;
   const body = await req.json().catch(() => null);
   if (!body) return badRequest("Cuerpo inválido");
@@ -60,7 +60,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   await connectDB();
 
-  const cliente = await clienteDeLaSesion(id, session.sucursalId);
+  const ctx = await contextoPuntoVenta(session);
+  if (!ctx) return forbidden();
+
+  const cliente = await clienteDeLaSesion(id, ctx.sucursalId);
   if (!cliente) return notFound("Cliente no encontrado");
 
   // Bajar el límite por debajo de lo que el cliente ya debe dejaría una cuenta
@@ -81,12 +84,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
-  if (session.role !== "sucursal" || !session.sucursalId) return forbidden();
-
   const { id } = await params;
   await connectDB();
 
-  const cliente = await clienteDeLaSesion(id, session.sucursalId);
+  const ctx = await contextoPuntoVenta(session);
+  if (!ctx) return forbidden();
+
+  const cliente = await clienteDeLaSesion(id, ctx.sucursalId);
   if (!cliente) return notFound("Cliente no encontrado");
 
   const conMovimientos = await CuentaPorCobrar.exists({ clienteId: id });

@@ -1,17 +1,27 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/getSession";
 import { Sidebar } from "@/components/Sidebar";
+import { MatrizMain } from "@/components/matriz/MatrizMain";
+import { connectDB } from "@/lib/db";
+import { obtenerMostradorMatriz } from "@/lib/puntoVenta";
+import { ZonaHorariaProvider } from "@/components/ZonaHorariaProvider";
+import { ZONA_HORARIA_DEFAULT } from "@/lib/zonasHorarias";
 
 export default async function MatrizLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
   if (!session || session.role !== "matriz") redirect("/login");
 
+  // El mostrador define la zona horaria con la que matriz cobra y hace su corte.
+  await connectDB();
+  const mostrador = await obtenerMostradorMatriz();
+  const zonaHoraria = mostrador?.zonaHoraria || ZONA_HORARIA_DEFAULT;
+
   return (
-    <div className="flex min-h-screen flex-col md:flex-row">
-      <Sidebar role="matriz" nombre={session.nombre} />
-      <main className="min-w-0 flex-1 overflow-x-hidden px-4 py-6 sm:px-6 lg:px-10">
-        <div className="mx-auto w-full max-w-6xl">{children}</div>
-      </main>
-    </div>
+    <ZonaHorariaProvider zona={zonaHoraria}>
+      <div className="flex min-h-screen flex-col md:flex-row">
+        <Sidebar role="matriz" nombre={session.nombre} />
+        <MatrizMain>{children}</MatrizMain>
+      </div>
+    </ZonaHorariaProvider>
   );
 }

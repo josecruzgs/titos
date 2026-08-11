@@ -3,24 +3,29 @@ import { connectDB } from "@/lib/db";
 import Devolucion from "@/models/Devolucion";
 import Venta from "@/models/Venta";
 import CajaSesion from "@/models/CajaSesion";
-import InventarioSucursal from "@/models/InventarioSucursal";
 import MovimientoInventario from "@/models/MovimientoInventario";
 import CuentaPorCobrar from "@/models/CuentaPorCobrar";
 import { requireSession, unauthorized, forbidden, badRequest, conflict, generateFolio, todayCorte } from "@/lib/apiAuth";
 import { zonaHorariaDeSucursal } from "@/lib/credito";
 import { calcularDevolvible, dentroDeVentana, HORAS_LIMITE_DEVOLUCION } from "@/lib/devoluciones";
 import { EPSILON, recalcularSaldoCliente, redondear } from "@/lib/credito";
+import {
+  ajustarStockPuntoVenta,
+  contextoPuntoVenta,
+  sucursalConsultada,
+  ubicacionDeMovimiento,
+} from "@/lib/puntoVenta";
 
 export async function GET(req: NextRequest) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
 
   const url = new URL(req.url);
-  let sucursalId: string | null = session.sucursalId;
-  if (session.role === "matriz") sucursalId = url.searchParams.get("sucursalId");
-  if (!sucursalId) return badRequest("Indica la sucursal");
 
   await connectDB();
+
+  const sucursalId = await sucursalConsultada(session, url);
+  if (!sucursalId) return badRequest("Indica la sucursal");
 
   const filtro: Record<string, unknown> = { sucursalId };
   const estado = url.searchParams.get("estado");
@@ -35,8 +40,6 @@ type ItemDevolucion = { productoId: string; cantidad: number };
 export async function POST(req: NextRequest) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
-  if (session.role !== "sucursal" || !session.sucursalId) return forbidden();
-
   const body = await req.json().catch(() => null);
   const ventaId = String(body?.ventaId ?? "");
   const itemsBody: ItemDevolucion[] = body?.items ?? [];
@@ -47,8 +50,11 @@ export async function POST(req: NextRequest) {
 
   await connectDB();
 
+  const ctx = await contextoPuntoVenta(session);
+  if (!ctx) return forbidden();
+
   const venta = await Venta.findById(ventaId);
-  if (!venta || String(venta.sucursalId) !== String(session.sucursalId)) {
+  if (!venta || String(venta.sucursalId) !== String(ctx.sucursalId)) {
     return badRequest("La venta no existe en esta sucursal");
   }
   if (venta.estado === "cancelada") return badRequest("Esta venta está cancelada, no admite devoluciones");
@@ -111,13 +117,13 @@ export async function POST(req: NextRequest) {
 
   // El reembolso en efectivo solo puede salir de una caja abierta. Si el corte
   // del día ya se cerró, la devolución queda pendiente de pago.
-  const sesionCaja = await CajaSesion.findOne({ sucursalId: session.sucursalId, estado: "abierta" });
+  const sesionCaja = await CajaSesion.findOne({ sucursalId: ctx.sucursalId, estado: "abierta" });
   const sePagaAhora = montoEfectivo <= EPSILON || !!sesionCaja;
-  const corteDelDia = todayCorte(await zonaHorariaDeSucursal(session.sucursalId));
+  const corteDelDia = todayCorte(await zonaHorariaDeSucursal(ctx.sucursalId));
 
   const devolucion = await Devolucion.create({
     folio: generateFolio("DEV"),
-    sucursalId: session.sucursalId,
+    sucursalId: ctx.sucursalId,
     ventaId: venta._id,
     ventaFolio: venta.folio,
     ventaFecha: venta.fecha,
@@ -138,19 +144,15 @@ export async function POST(req: NextRequest) {
     pagadaPorId: sePagaAhora ? session.userId : null,
   });
 
-  // El producto regresa al inventario de la sucursal al capturar la devolución,
-  // independientemente de cuándo se le pague al cliente.
+  // El producto regresa al inventario del punto de venta al capturar la
+  // devolución, independientemente de cuándo se le pague al cliente.
   for (const item of items) {
-    await InventarioSucursal.findOneAndUpdate(
-      { sucursalId: session.sucursalId, productoId: item.productoId },
-      { $inc: { stockActual: item.cantidad } },
-      { upsert: true }
-    );
+    await ajustarStockPuntoVenta(ctx, item.productoId, item.cantidad);
     await MovimientoInventario.create({
       tipo: "entrada_devolucion",
       productoId: item.productoId,
       nombreProducto: item.nombreProducto,
-      ubicacion: session.sucursalId,
+      ubicacion: ubicacionDeMovimiento(ctx),
       cantidad: item.cantidad,
       ventaId: venta._id,
       devolucionId: devolucion._id,

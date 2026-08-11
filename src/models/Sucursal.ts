@@ -8,6 +8,10 @@ const SucursalSchema = new Schema(
     direccion: { type: String, default: "" },
     whatsapp: { type: String, default: "" },
     zonaHoraria: { type: String, enum: ZONAS_HORARIAS.map((z) => z.value), default: ZONA_HORARIA_DEFAULT },
+    // El mostrador de la matriz: la matriz también vende al público que llega al
+    // CEDIS. Es una sucursal más para caja/ventas/cortes, pero su inventario es
+    // la existencia del CEDIS (Producto.existenciaMatriz), no un InventarioSucursal.
+    esMatriz: { type: Boolean, default: false },
     activo: { type: Boolean, default: true },
   },
   { timestamps: true }
