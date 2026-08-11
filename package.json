@@ -10,7 +10,8 @@
     "seed": "tsx scripts/seed.ts",
     "seed:ventas-demo": "tsx scripts/seed-ventas-demo.ts",
     "clear:productos": "tsx scripts/clear-productos.ts",
-    "import:sucursal": "tsx scripts/importar-inventario-sucursal.ts"
+    "import:sucursal": "tsx scripts/importar-inventario-sucursal.ts",
+    "presentacion:capturas": "node scripts/capturar-presentacion.mjs"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -33,6 +34,7 @@
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
+    "playwright": "^1.62.1",
     "tailwindcss": "^4",
     "tsx": "^4.22.5",
     "typescript": "^5"

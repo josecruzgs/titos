@@ -33,6 +33,7 @@ import {
   RotateCcw,
   ArrowLeftRight,
   ClipboardCheck,
+  Presentation,
   type LucideIcon,
 } from "lucide-react";
 
@@ -190,6 +191,10 @@ export function Sidebar({
       window.localStorage.setItem(STORAGE_KEY, next ? "1" : "0");
       return next;
     });
+  }
+
+  function abrirPresentacion() {
+    window.open("/presentacion/index.html", "presentacion-davinci", "noopener,noreferrer");
   }
 
   function toggleCategory(label: string) {
@@ -352,6 +357,21 @@ export function Sidebar({
                 );
               })}
         </nav>
+
+        {/* Presentación de avances para el cliente; abre en una ventana aparte
+            para no perder la pantalla en la que se está trabajando. */}
+        {role === "matriz" ? (
+          <button
+            onClick={abrirPresentacion}
+            title={collapsed ? "Presentación de avances" : undefined}
+            className={`flex items-center gap-2 border-t border-black/5 bg-titos-orange-100/50 px-5 py-3 text-xs font-semibold text-titos-orange-700 transition-colors hover:bg-titos-orange-100 ${
+              collapsed ? "md:justify-center md:px-0" : ""
+            }`}
+          >
+            <Presentation className="h-4 w-4 shrink-0" />
+            <span className={collapsed ? "md:hidden" : ""}>Presentación de avances</span>
+          </button>
+        ) : null}
 
         <button
           onClick={toggleCollapsed}
