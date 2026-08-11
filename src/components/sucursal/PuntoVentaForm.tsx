@@ -16,12 +16,14 @@ import {
   Wifi,
   CreditCard,
   TriangleAlert,
+  Clock,
 } from "lucide-react";
 import { Button, Card, Input, Select, Modal, FormField, formatMoney } from "@/components/ui";
 import { ProductoCombobox } from "@/components/ProductoCombobox";
 import { estadoCredito, formatFecha, type ClienteConCredito } from "@/lib/creditoCliente";
 import { imprimirHTML } from "@/lib/print";
 import { useZonaHoraria } from "@/components/ZonaHorariaProvider";
+import { RelojZona } from "@/components/RelojZona";
 import { formatFechaHora, formatHora, formatFechaLarga } from "@/lib/zonasHorarias";
 import {
   leerProductosCache,
@@ -998,9 +1000,13 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
           <div className="flex items-center gap-2 pr-1 text-xs text-black/50">
             {badgeConexion}
             <span>
-              Caja abierta {sesion.offline ? "(sin sincronizar)" : ""} · {formatMoney(sesion.efectivoInicial)} ·{" "}
-              {formatHora(sesion.fechaApertura, zonaHoraria)}
+              Caja abierta {sesion.offline ? "(sin sincronizar)" : ""} · {formatMoney(sesion.efectivoInicial)} · desde
+              las {formatHora(sesion.fechaApertura, zonaHoraria)}
               {nombreCajero(sesion) ? ` · ${nombreCajero(sesion)}` : ""}
+            </span>
+            <span className="flex items-center gap-1 border-l border-black/10 pl-2 font-medium tabular-nums text-black/70">
+              <Clock size={13} className="text-black/35" />
+              <RelojZona />
             </span>
           </div>
         </div>
