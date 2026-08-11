@@ -64,11 +64,13 @@ export function EstadoBadge({ estado }: { estado: string }) {
 export function Button({
   children,
   variant = "primary",
+  size = "md",
   className = "",
   ...props
 }: {
   children: ReactNode;
   variant?: "primary" | "secondary" | "danger" | "ghost";
+  size?: "sm" | "md";
   className?: string;
 } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   const variants: Record<string, string> = {
@@ -77,9 +79,14 @@ export function Button({
     danger: "bg-red-600 text-white hover:bg-red-700",
     ghost: "bg-transparent text-titos-green-700 hover:bg-titos-green-100",
   };
+  // "sm" es para acciones dentro de tablas, donde el tamaño normal domina la fila.
+  const sizes: Record<string, string> = {
+    sm: "rounded-md px-2.5 py-1 text-xs",
+    md: "rounded-lg px-4 py-2 text-sm",
+  };
   return (
     <button
-      className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${variants[variant]} ${className}`}
+      className={`font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${sizes[size]} ${variants[variant]} ${className}`}
       {...props}
     >
       {children}

@@ -1,0 +1,160 @@
+import { NextRequest, NextResponse } from "next/server";
+import { connectDB } from "@/lib/db";
+import Devolucion from "@/models/Devolucion";
+import Venta from "@/models/Venta";
+import CajaSesion from "@/models/CajaSesion";
+import InventarioSucursal from "@/models/InventarioSucursal";
+import MovimientoInventario from "@/models/MovimientoInventario";
+import CuentaPorCobrar from "@/models/CuentaPorCobrar";
+import { requireSession, unauthorized, forbidden, badRequest, conflict, generateFolio, todayCorte } from "@/lib/apiAuth";
+import { calcularDevolvible, dentroDeVentana, HORAS_LIMITE_DEVOLUCION } from "@/lib/devoluciones";
+import { EPSILON, recalcularSaldoCliente, redondear } from "@/lib/credito";
+
+export async function GET(req: NextRequest) {
+  const session = await requireSession(req);
+  if (!session) return unauthorized();
+
+  const url = new URL(req.url);
+  let sucursalId: string | null = session.sucursalId;
+  if (session.role === "matriz") sucursalId = url.searchParams.get("sucursalId");
+  if (!sucursalId) return badRequest("Indica la sucursal");
+
+  await connectDB();
+
+  const filtro: Record<string, unknown> = { sucursalId };
+  const estado = url.searchParams.get("estado");
+  if (estado) filtro.estado = estado;
+
+  const devoluciones = await Devolucion.find(filtro).sort({ fecha: -1 }).limit(200).lean();
+  return NextResponse.json(devoluciones);
+}
+
+type ItemDevolucion = { productoId: string; cantidad: number };
+
+export async function POST(req: NextRequest) {
+  const session = await requireSession(req);
+  if (!session) return unauthorized();
+  if (session.role !== "sucursal" || !session.sucursalId) return forbidden();
+
+  const body = await req.json().catch(() => null);
+  const ventaId = String(body?.ventaId ?? "");
+  const itemsBody: ItemDevolucion[] = body?.items ?? [];
+  const motivo = String(body?.motivo ?? "").trim();
+
+  if (!ventaId) return badRequest("Indica la venta que se está devolviendo");
+  if (itemsBody.length === 0) return badRequest("Selecciona al menos un producto a devolver");
+
+  await connectDB();
+
+  const venta = await Venta.findById(ventaId);
+  if (!venta || String(venta.sucursalId) !== String(session.sucursalId)) {
+    return badRequest("La venta no existe en esta sucursal");
+  }
+  if (venta.estado === "cancelada") return badRequest("Esta venta está cancelada, no admite devoluciones");
+
+  const ahora = new Date();
+  if (!dentroDeVentana(venta.fecha, ahora)) {
+    return conflict(
+      `Ya pasaron más de ${HORAS_LIMITE_DEVOLUCION} horas desde la venta ${venta.folio}. No se puede devolver.`
+    );
+  }
+
+  const devolvible = await calcularDevolvible(venta._id, venta.items);
+  const porProducto = new Map(devolvible.map((d) => [d.productoId, d]));
+
+  const items = [];
+  let total = 0;
+
+  for (const item of itemsBody) {
+    const linea = porProducto.get(String(item.productoId));
+    const cantidad = Number(item.cantidad);
+    if (!linea) return badRequest("Uno de los productos no pertenece a esta venta");
+    if (!Number.isFinite(cantidad) || cantidad <= 0) continue;
+    if (cantidad - linea.cantidadDisponible > 0.0005) {
+      return badRequest(
+        `De ${linea.nombreProducto} solo quedan ${linea.cantidadDisponible} por devolver de esta venta`
+      );
+    }
+
+    const subtotal = redondear(cantidad * linea.precioUnitario);
+    total += subtotal;
+    items.push({
+      productoId: linea.productoId,
+      sku: linea.sku,
+      nombreProducto: linea.nombreProducto,
+      unidad: linea.unidad,
+      cantidad,
+      precioUnitario: linea.precioUnitario,
+      subtotal,
+    });
+  }
+
+  if (items.length === 0) return badRequest("Captura las cantidades a devolver");
+  total = redondear(total);
+
+  // Si la venta fue a crédito, la devolución abate primero lo que el cliente
+  // todavía debe por ella; solo el resto se le reembolsa en efectivo.
+  const cuenta = await CuentaPorCobrar.findOne({ ventaId: venta._id, estado: "pendiente" });
+  const montoCredito = cuenta ? redondear(Math.min(total, cuenta.saldo)) : 0;
+  const montoEfectivo = redondear(total - montoCredito);
+
+  if (cuenta && montoCredito > 0) {
+    cuenta.saldo = redondear(cuenta.saldo - montoCredito);
+    if (cuenta.saldo <= EPSILON) {
+      cuenta.saldo = 0;
+      cuenta.estado = "pagada";
+    }
+    await cuenta.save();
+    await recalcularSaldoCliente(cuenta.clienteId);
+  }
+
+  // El reembolso en efectivo solo puede salir de una caja abierta. Si el corte
+  // del día ya se cerró, la devolución queda pendiente de pago.
+  const sesionCaja = await CajaSesion.findOne({ sucursalId: session.sucursalId, estado: "abierta" });
+  const sePagaAhora = montoEfectivo <= EPSILON || !!sesionCaja;
+
+  const devolucion = await Devolucion.create({
+    folio: generateFolio("DEV"),
+    sucursalId: session.sucursalId,
+    ventaId: venta._id,
+    ventaFolio: venta.folio,
+    ventaFecha: venta.fecha,
+    clienteId: venta.clienteId ?? null,
+    clienteNombre: venta.clienteNombre ?? "",
+    items,
+    total,
+    montoCredito,
+    montoEfectivo,
+    estado: sePagaAhora ? "pagada" : "pendiente",
+    motivo,
+    usuarioId: session.userId,
+    fecha: ahora,
+    corte: todayCorte(),
+    cajaSesionId: sePagaAhora && sesionCaja ? sesionCaja._id : null,
+    cortePago: sePagaAhora ? todayCorte() : null,
+    pagadaEn: sePagaAhora ? ahora : null,
+    pagadaPorId: sePagaAhora ? session.userId : null,
+  });
+
+  // El producto regresa al inventario de la sucursal al capturar la devolución,
+  // independientemente de cuándo se le pague al cliente.
+  for (const item of items) {
+    await InventarioSucursal.findOneAndUpdate(
+      { sucursalId: session.sucursalId, productoId: item.productoId },
+      { $inc: { stockActual: item.cantidad } },
+      { upsert: true }
+    );
+    await MovimientoInventario.create({
+      tipo: "entrada_devolucion",
+      productoId: item.productoId,
+      nombreProducto: item.nombreProducto,
+      ubicacion: session.sucursalId,
+      cantidad: item.cantidad,
+      ventaId: venta._id,
+      devolucionId: devolucion._id,
+      usuarioId: session.userId,
+    });
+  }
+
+  return NextResponse.json(devolucion, { status: 201 });
+}

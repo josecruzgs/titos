@@ -90,10 +90,10 @@ export async function sincronizarVentas2(ahora = new Date()) {
   for (const activacion of paraInicio) {
     const sucursal = await Sucursal.findById(activacion.sucursalId).select("nombre").lean();
     const mensaje = [
-      `Ventas 2 activado para ${sucursal?.nombre ?? "la sucursal"}.`,
+      `Notas de venta activado para ${sucursal?.nombre ?? "la sucursal"}.`,
       `Lapso: ${formatoFecha(activacion.inicio)} a ${formatoFecha(activacion.fin)}.`,
-      `Regla: 1 de cada ${activacion.frecuencia} ventas 100% en efectivo se registrara en Ventas 2.`,
-      "Revisa el apartado Ventas 2 para separar el efectivo correspondiente.",
+      `Regla: 1 de cada ${activacion.frecuencia} ventas 100% en efectivo se registrara en Notas de venta.`,
+      "Revisa el apartado Notas de venta para separar el efectivo correspondiente.",
     ].join("\n");
     await registrarNotificacion(activacion, "inicio", mensaje, ahora);
   }
@@ -108,7 +108,7 @@ export async function sincronizarVentas2(ahora = new Date()) {
     const sucursal = await Sucursal.findById(activacion.sucursalId).select("nombre").lean();
     const totales = await totalesActivacion(String(activacion._id));
     const mensaje = [
-      `Ventas 2 finalizo para ${sucursal?.nombre ?? "la sucursal"}.`,
+      `Notas de venta finalizo para ${sucursal?.nombre ?? "la sucursal"}.`,
       `Lapso: ${formatoFecha(activacion.inicio)} a ${formatoFecha(activacion.fin)}.`,
       `Total recaudado: ${formatMoney(totales.total)} en ${totales.cantidad} movimientos.`,
       "Separa el efectivo para que matriz pueda retirarlo.",

@@ -30,6 +30,9 @@ import {
   Tag,
   Banknote,
   BadgeDollarSign,
+  RotateCcw,
+  ArrowLeftRight,
+  ClipboardCheck,
   type LucideIcon,
 } from "lucide-react";
 
@@ -47,7 +50,8 @@ const MATRIZ_NAV: NavCategory[] = [
     icon: FileText,
     items: [
       { href: "/matriz/reportes", label: "Reportes", icon: BarChart3 },
-      { href: "/matriz/ventas-2", label: "Ventas 2", icon: Banknote },
+      { href: "/matriz/cortes", label: "Corte global", icon: ClipboardCheck },
+      { href: "/matriz/notas-de-venta", label: "Notas de venta", icon: Banknote },
       { href: "/matriz/actualizacion-precios", label: "Actualización de precios", icon: BadgeDollarSign },
     ],
   },
@@ -100,13 +104,20 @@ const MATRIZ_NAV: NavCategory[] = [
 const SUCURSAL_NAV: NavItem[] = [
   { href: "/sucursal", label: "Punto de venta", icon: ShoppingCart },
   { href: "/sucursal/productos", label: "Productos", icon: Package },
+  { href: "/sucursal/clientes", label: "Clientes", icon: Users },
   { href: "/sucursal/ventas", label: "Historial de ventas", icon: Receipt },
-  { href: "/sucursal/ventas-2", label: "Ventas 2", icon: Banknote },
+  { href: "/sucursal/devoluciones", label: "Devoluciones", icon: RotateCcw },
+  { href: "/sucursal/notas-de-venta", label: "Notas de venta", icon: Banknote },
+  { href: "/sucursal/prestamos", label: "Préstamos", icon: ArrowLeftRight },
   { href: "/sucursal/nuevo-pedido", label: "Nuevo pedido", icon: PlusCircle },
   { href: "/sucursal/pedidos", label: "Mis pedidos", icon: ClipboardList },
   { href: "/sucursal/usuarios", label: "Usuarios", icon: Users },
   { href: "/sucursal/ajustes", label: "Ajustes", icon: Settings },
 ];
+
+// El rol "ventas" solo ve el punto de venta y el historial, para poder consultar
+// ventas pasadas sin acceder al resto de la administración de la sucursal.
+const SUCURSAL_NAV_SOLO_VENTAS = ["/sucursal", "/sucursal/ventas"];
 
 const STORAGE_KEY = "titos-sidebar-collapsed";
 
@@ -316,7 +327,10 @@ export function Sidebar({
                   </div>
                 );
               })
-            : (soloVentas ? SUCURSAL_NAV.filter((item) => item.href === "/sucursal") : SUCURSAL_NAV).map((item) => {
+            : (soloVentas
+                ? SUCURSAL_NAV.filter((item) => SUCURSAL_NAV_SOLO_VENTAS.includes(item.href))
+                : SUCURSAL_NAV
+              ).map((item) => {
                 const active = isNavItemActive(pathname, role, item.href);
                 const Icon = item.icon;
                 return (

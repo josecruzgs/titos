@@ -14,6 +14,11 @@ export async function POST(req: NextRequest) {
     return badRequest("Captura el efectivo inicial con el que abres la caja");
   }
 
+  const efectivoInicialUsd = Number(body?.efectivoInicialUsd ?? 0);
+  if (!Number.isFinite(efectivoInicialUsd) || efectivoInicialUsd < 0) {
+    return badRequest("El fondo en dólares debe ser un monto válido");
+  }
+
   await connectDB();
 
   const existente = await CajaSesion.findOne({ sucursalId: session.sucursalId, estado: "abierta" });
@@ -24,6 +29,7 @@ export async function POST(req: NextRequest) {
     usuarioAperturaId: session.userId,
     fechaApertura: new Date(),
     efectivoInicial,
+    efectivoInicialUsd,
   });
 
   return NextResponse.json(sesion, { status: 201 });

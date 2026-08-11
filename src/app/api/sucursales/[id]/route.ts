@@ -9,6 +9,7 @@ import CajaSesion from "@/models/CajaSesion";
 import { requireSession, unauthorized, forbidden, notFound, badRequest, conflict } from "@/lib/apiAuth";
 import { normalizarWhatsAppMX } from "@/lib/whatsapp";
 import { verifyPassword } from "@/lib/auth";
+import { esZonaHorariaValida } from "@/lib/zonasHorarias";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireSession(req);
@@ -24,7 +25,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   await connectDB();
 
   const updatableComun = ["direccion", "whatsapp"];
-  const updatableMatriz = ["nombre", "activo"];
+  // La zona horaria define las horas de la sucursal (corte de pedidos, cortes de caja), solo matriz la ajusta.
+  const updatableMatriz = ["nombre", "activo", "zonaHoraria"];
   const permitidos = session.role === "matriz" ? [...updatableComun, ...updatableMatriz] : updatableComun;
 
   const update: Record<string, unknown> = {};
@@ -32,6 +34,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (key in body) update[key] = body[key];
   }
   if (update.whatsapp) update.whatsapp = normalizarWhatsAppMX(update.whatsapp as string);
+  if ("zonaHoraria" in update && !esZonaHorariaValida(update.zonaHoraria)) return badRequest("Zona horaria inválida");
 
   const sucursal = await Sucursal.findByIdAndUpdate(id, update, { new: true });
   if (!sucursal) return notFound("Sucursal no encontrada");

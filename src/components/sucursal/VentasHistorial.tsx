@@ -4,11 +4,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { EstadoBadge, Button, formatMoney } from "@/components/ui";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { formatFecha } from "@/lib/creditoCliente";
 
 const ETIQUETAS_METODO: Record<string, string> = {
   efectivo: "Efectivo",
   tarjeta: "Tarjeta",
   transferencia: "Transferencia",
+  credito: "Crédito del cliente",
 };
 
 type VentaItem = { nombreProducto: string; cantidad: number; unidad: string; precioUnitario: number; subtotal: number };
@@ -23,6 +25,9 @@ type Venta = {
   montoRecibido: number | null;
   cambio: number | null;
   estado: "completada" | "cancelada";
+  clienteNombre?: string;
+  creditoMonto?: number | null;
+  creditoFechaVencimiento?: string | null;
 };
 
 function resumenPagos(pagos: PagoVenta[] | null | undefined) {
@@ -58,6 +63,7 @@ export function VentasHistorial({ ventas }: { ventas: Venta[] }) {
                   {abierto ? <ChevronDown className="h-4 w-4 text-black/30" /> : <ChevronRight className="h-4 w-4 text-black/30" />}
                   {v.folio}
                 </span>
+                <span className="truncate text-xs text-black/50">{v.clienteNombre || "Público en general"}</span>
                 <span className="text-xs text-black/40">
                   {new Date(v.createdAt).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" })}
                 </span>
@@ -98,6 +104,13 @@ export function VentasHistorial({ ventas }: { ventas: Venta[] }) {
                       </>
                     ) : null}
                   </ul>
+                  {v.creditoMonto ? (
+                    <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                      {formatMoney(v.creditoMonto)} a crédito de{" "}
+                      <strong>{v.clienteNombre || "el cliente"}</strong> — fecha máxima de pago{" "}
+                      <strong>{formatFecha(v.creditoFechaVencimiento)}</strong>
+                    </p>
+                  ) : null}
                   {v.estado === "completada" ? (
                     <Button variant="danger" onClick={() => cancelarVenta(v._id)} disabled={cancelando === v._id}>
                       {cancelando === v._id ? "Cancelando..." : "Cancelar venta"}

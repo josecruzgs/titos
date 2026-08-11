@@ -5,6 +5,7 @@ import UserModel from "@/models/User";
 import { requireSession, unauthorized, forbidden, badRequest } from "@/lib/apiAuth";
 import { hashPassword } from "@/lib/auth";
 import { normalizarWhatsAppMX } from "@/lib/whatsapp";
+import { ZONA_HORARIA_DEFAULT, esZonaHorariaValida } from "@/lib/zonasHorarias";
 
 export async function GET(req: NextRequest) {
   const session = await requireSession(req);
@@ -40,12 +41,17 @@ export async function POST(req: NextRequest) {
     return badRequest("Faltan campos requeridos (nombre, email, password para el usuario de la sucursal)");
   }
 
+  if ("zonaHoraria" in body && !esZonaHorariaValida(body.zonaHoraria)) {
+    return badRequest("Zona horaria inválida");
+  }
+
   await connectDB();
 
   const sucursal = await Sucursal.create({
     nombre: body.nombre,
     direccion: body.direccion || "",
     whatsapp: body.whatsapp ? normalizarWhatsAppMX(body.whatsapp) : "",
+    zonaHoraria: body.zonaHoraria || ZONA_HORARIA_DEFAULT,
   });
 
   const passwordHash = await hashPassword(body.password);

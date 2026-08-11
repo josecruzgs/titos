@@ -50,8 +50,8 @@ export default async function Ventas2SucursalPage() {
   return (
     <div>
       <PageHeader
-        title="Ventas 2"
-        description="Movimientos separados por el protocolo Ventas 2"
+        title="Notas de venta"
+        description="Movimientos separados por el protocolo Notas de venta"
         icon={Banknote}
       />
 
@@ -61,7 +61,7 @@ export default async function Ventas2SucursalPage() {
           <p className="mt-1 text-2xl font-bold text-titos-green-900">{activa ? "Activo" : "Sin activar"}</p>
         </Card>
         <Card>
-          <p className="text-sm text-black/50">Ventas 2 de hoy</p>
+          <p className="text-sm text-black/50">Notas de venta de hoy</p>
           <p className="mt-1 text-2xl font-bold text-titos-green-900">{formatMoney(totalHoy)}</p>
         </Card>
         <Card>
@@ -72,7 +72,7 @@ export default async function Ventas2SucursalPage() {
 
       {resumen.length === 0 ? (
         <Card>
-          <EmptyState message="No hay movimientos ni activaciones de Ventas 2 para esta sucursal." />
+          <EmptyState message="No hay movimientos ni activaciones de Notas de venta para esta sucursal." />
         </Card>
       ) : (
         <div className="space-y-5">
@@ -98,7 +98,7 @@ export default async function Ventas2SucursalPage() {
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm text-black/50">Total Ventas 2</p>
+                  <p className="text-sm text-black/50">Total Notas de venta</p>
                   <p className="text-2xl font-bold text-titos-green-900">{formatMoney(activacion.totalRecaudado)}</p>
                 </div>
               </div>

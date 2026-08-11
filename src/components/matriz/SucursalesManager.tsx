@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, Card, Input, EmptyState, Modal, FormGrid, FormField } from "@/components/ui";
-import { Store, MapPin, MessageCircle, User, Mail, Lock, TriangleAlert } from "lucide-react";
+import { Button, Card, Input, Select, EmptyState, Modal, FormGrid, FormField } from "@/components/ui";
+import { Store, MapPin, MessageCircle, User, Mail, Lock, TriangleAlert, Clock } from "lucide-react";
+import { ZONAS_HORARIAS, ZONA_HORARIA_DEFAULT, zonaHorariaLabel } from "@/lib/zonasHorarias";
 
 type Sucursal = {
   _id: string;
   nombre: string;
   direccion: string;
   whatsapp: string;
+  zonaHoraria?: string;
   activo: boolean;
   usuario: { email: string; nombre: string } | null;
 };
@@ -17,10 +19,28 @@ const emptyForm = {
   nombre: "",
   direccion: "",
   whatsapp: "",
+  zonaHoraria: ZONA_HORARIA_DEFAULT,
   usuarioNombre: "",
   email: "",
   password: "",
 };
+
+function ZonaHorariaField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return (
+    <FormField label="Zona horaria" className="sm:col-span-2">
+      <Select icon={Clock} value={value} onChange={(e) => onChange(e.target.value)}>
+        {ZONAS_HORARIAS.map((z) => (
+          <option key={z.value} value={z.value}>
+            {z.label}
+          </option>
+        ))}
+      </Select>
+      <p className="mt-1 text-xs text-black/40">
+        Define las horas locales de la sucursal (corte de pedidos, cortes de caja y reportes por día).
+      </p>
+    </FormField>
+  );
+}
 
 function CrearSucursalModal({ onClose, onCreada }: { onClose: () => void; onCreada: () => void }) {
   const [form, setForm] = useState(emptyForm);
@@ -72,6 +92,7 @@ function CrearSucursalModal({ onClose, onCreada }: { onClose: () => void; onCrea
           <FormField label="WhatsApp (opcional)" className="sm:col-span-2">
             <Input icon={MessageCircle} value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} />
           </FormField>
+          <ZonaHorariaField value={form.zonaHoraria} onChange={(zonaHoraria) => setForm({ ...form, zonaHoraria })} />
         </FormGrid>
 
         <div className="rounded-xl border border-black/10 p-4">
@@ -109,6 +130,7 @@ function SucursalModal({
   const [nombre, setNombre] = useState(sucursal.nombre);
   const [direccion, setDireccion] = useState(sucursal.direccion);
   const [whatsapp, setWhatsapp] = useState(sucursal.whatsapp);
+  const [zonaHoraria, setZonaHoraria] = useState(sucursal.zonaHoraria || ZONA_HORARIA_DEFAULT);
   const [activo, setActivo] = useState(sucursal.activo);
   const [email, setEmail] = useState(sucursal.usuario?.email ?? "");
   const [nuevaPassword, setNuevaPassword] = useState("");
@@ -122,7 +144,7 @@ function SucursalModal({
     const resSucursal = await fetch(`/api/sucursales/${sucursal._id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nombre, direccion, whatsapp, activo }),
+      body: JSON.stringify({ nombre, direccion, whatsapp, zonaHoraria, activo }),
     });
 
     if (!resSucursal.ok) {
@@ -177,6 +199,7 @@ function SucursalModal({
           <FormField label="WhatsApp" className="sm:col-span-2">
             <Input icon={MessageCircle} value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />
           </FormField>
+          <ZonaHorariaField value={zonaHoraria} onChange={setZonaHoraria} />
         </FormGrid>
 
         <label className="flex items-center gap-2 text-sm text-black/70">
@@ -319,9 +342,10 @@ export function SucursalesManager() {
                 <tr className="border-b border-black/10 text-black/50">
                   <th className="py-2 pr-2">Nombre</th>
                   <th className="py-2 pr-2">Dirección</th>
+                  <th className="py-2 pr-2">Zona horaria</th>
                   <th className="py-2 pr-2">WhatsApp</th>
                   <th className="py-2 pr-2">Correo</th>
-                  <th className="py-2 pr-2" />
+                  <th className="w-px py-2 pl-2" />
                 </tr>
               </thead>
               <tbody>
@@ -332,14 +356,15 @@ export function SucursalesManager() {
                       {!s.activo ? <span className="ml-1 text-xs text-black/40">(inactiva)</span> : null}
                     </td>
                     <td className="py-2 pr-2 text-black/60">{s.direccion || "—"}</td>
+                    <td className="py-2 pr-2 text-black/60">{zonaHorariaLabel(s.zonaHoraria)}</td>
                     <td className="py-2 pr-2 text-black/60">{s.whatsapp || "—"}</td>
                     <td className="py-2 pr-2 text-black/60">{s.usuario?.email || "—"}</td>
-                    <td className="py-2 pr-2">
-                      <div className="flex gap-1">
-                        <Button variant="ghost" onClick={() => setSucursalModal(s)}>
+                    <td className="py-2 pl-2 text-right whitespace-nowrap">
+                      <div className="flex justify-end gap-1.5">
+                        <Button size="sm" variant="ghost" className="w-24" onClick={() => setSucursalModal(s)}>
                           Ver / Editar
                         </Button>
-                        <Button variant="danger" onClick={() => setSucursalAEliminar(s)}>
+                        <Button size="sm" variant="danger" className="w-20" onClick={() => setSucursalAEliminar(s)}>
                           Eliminar
                         </Button>
                       </div>

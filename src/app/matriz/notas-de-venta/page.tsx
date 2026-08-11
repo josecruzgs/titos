@@ -8,7 +8,7 @@ export default function Ventas2MatrizPage() {
   return (
     <div>
       <PageHeader
-        title="Ventas 2"
+        title="Notas de venta"
         description="Activa el protocolo por sucursal, define el lapso y consulta lo recaudado"
         icon={Banknote}
       />

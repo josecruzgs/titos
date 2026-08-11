@@ -126,7 +126,7 @@ export function Ventas2Manager() {
 
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      setError(data.error || "No se pudo activar Ventas 2");
+      setError(data.error || "No se pudo activar Notas de venta");
       return;
     }
 
@@ -149,7 +149,7 @@ export function Ventas2Manager() {
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card>
-          <p className="text-sm text-black/50">Total Ventas 2</p>
+          <p className="text-sm text-black/50">Total Notas de venta</p>
           <p className="mt-1 text-2xl font-bold text-titos-green-900">{formatMoney(totalRecaudado)}</p>
         </Card>
         <Card>
@@ -218,11 +218,11 @@ export function Ventas2Manager() {
               />
             </FormField>
             <p className="text-xs text-black/45">
-              La regla aplica solo a ventas pagadas 100% en efectivo: 1 de cada {Number(frecuencia) || "X"} se registra en Ventas 2.
+              La regla aplica solo a ventas pagadas 100% en efectivo: 1 de cada {Number(frecuencia) || "X"} se registra en Notas de venta.
             </p>
             {error ? <p className="text-sm text-red-600">{error}</p> : null}
             <Button onClick={activar} disabled={saving || seleccionadas.size === 0} className="w-full justify-center">
-              {saving ? "Activando..." : "Activar Ventas 2"}
+              {saving ? "Activando..." : "Activar Notas de venta"}
             </Button>
           </div>
         </div>
@@ -240,7 +240,7 @@ export function Ventas2Manager() {
         {loading ? (
           <p className="text-sm text-black/50">Cargando...</p>
         ) : activaciones.length === 0 ? (
-          <EmptyState message="Todavia no hay activaciones de Ventas 2." />
+          <EmptyState message="Todavia no hay activaciones de Notas de venta." />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">

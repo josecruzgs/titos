@@ -5,9 +5,19 @@ import Producto from "@/models/Producto";
 import InventarioSucursal from "@/models/InventarioSucursal";
 import MovimientoInventario from "@/models/MovimientoInventario";
 import CajaSesion from "@/models/CajaSesion";
+import Cliente from "@/models/Cliente";
+import CuentaPorCobrar from "@/models/CuentaPorCobrar";
 import "@/models/Sucursal"; // necesario para que populate("sucursalId") funcione
 import { requireSession, unauthorized, forbidden, badRequest, conflict, generateFolio, todayCorte } from "@/lib/apiAuth";
 import { resolverVentas2ParaVenta } from "@/lib/ventas2";
+import {
+  calcularVencimiento,
+  motivoRechazoCredito,
+  recalcularSaldoCliente,
+  resumenCredito,
+  zonaHorariaDeSucursal,
+  type CuentaLike,
+} from "@/lib/credito";
 
 export async function GET(req: NextRequest) {
   const session = await requireSession(req);
@@ -73,10 +83,34 @@ export async function POST(req: NextRequest) {
     return badRequest("No debes capturar efectivo recibido si no hay un pago en efectivo");
   }
 
+  const pagoCredito = pagos.find((p) => p.metodoPago === "credito");
+  const clienteIdBody = body?.clienteId ? String(body.clienteId) : null;
+  if (pagoCredito && !clienteIdBody) {
+    return badRequest("Selecciona al cliente para poder registrar la venta a crédito");
+  }
+
   await connectDB();
 
   const sesionCaja = await CajaSesion.findOne({ sucursalId: session.sucursalId, estado: "abierta" });
   if (!sesionCaja) return badRequest("Debes abrir la caja antes de registrar ventas");
+
+  // El cliente es opcional en una venta de contado, pero obligatorio (y validado
+  // contra su límite y sus vencidos) cuando parte del pago va a crédito.
+  const cliente = clienteIdBody ? await Cliente.findById(clienteIdBody) : null;
+  if (clienteIdBody) {
+    if (!cliente || String(cliente.sucursalId) !== String(session.sucursalId)) {
+      return badRequest("El cliente no existe en esta sucursal");
+    }
+  }
+
+  let vencimientoCredito: Date | null = null;
+  if (pagoCredito && cliente) {
+    const cuentasAbiertas = await CuentaPorCobrar.find({ clienteId: cliente._id, estado: "pendiente" }).lean();
+    const zonaHoraria = await zonaHorariaDeSucursal(session.sucursalId);
+    const resumen = resumenCredito(cliente, cuentasAbiertas as unknown as CuentaLike[], zonaHoraria);
+    const motivo = motivoRechazoCredito(cliente, resumen, pagoCredito.monto);
+    if (motivo) return conflict(motivo);
+  }
 
   const productoIds = items.map((i) => i.productoId);
   const productos = await Producto.find({ _id: { $in: productoIds }, activo: true });
@@ -128,6 +162,10 @@ export async function POST(req: NextRequest) {
   }
 
   const fechaVenta = new Date();
+  if (pagoCredito && cliente) {
+    vencimientoCredito = calcularVencimiento(fechaVenta, cliente.credito?.diasCredito ?? 30);
+  }
+
   const ventas2 = await resolverVentas2ParaVenta({
     sucursalId: session.sucursalId,
     pagos,
@@ -149,7 +187,26 @@ export async function POST(req: NextRequest) {
     esVentas2: ventas2.esVentas2,
     ventas2ActivacionId: ventas2.activacionId,
     ventas2SecuenciaEfectivo: ventas2.secuenciaEfectivo,
+    clienteId: cliente?._id ?? null,
+    clienteNombre: cliente?.nombre ?? "",
+    creditoMonto: pagoCredito?.monto ?? null,
+    creditoFechaVencimiento: vencimientoCredito,
   });
+
+  if (pagoCredito && cliente && vencimientoCredito) {
+    await CuentaPorCobrar.create({
+      clienteId: cliente._id,
+      sucursalId: session.sucursalId,
+      ventaId: venta._id,
+      folio: venta.folio,
+      fecha: fechaVenta,
+      fechaVencimiento: vencimientoCredito,
+      diasCredito: cliente.credito?.diasCredito ?? 30,
+      monto: pagoCredito.monto,
+      saldo: pagoCredito.monto,
+    });
+    await recalcularSaldoCliente(cliente._id);
+  }
 
   for (const item of ventaItems) {
     await InventarioSucursal.findOneAndUpdate(

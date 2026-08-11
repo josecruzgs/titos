@@ -14,9 +14,13 @@ import {
   X,
   DollarSign,
   Wifi,
+  CreditCard,
+  TriangleAlert,
 } from "lucide-react";
-import { Button, Card, Input, Modal, FormField, formatMoney } from "@/components/ui";
+import { Button, Card, Input, Select, Modal, FormField, formatMoney } from "@/components/ui";
 import { ProductoCombobox } from "@/components/ProductoCombobox";
+import { estadoCredito, formatFecha, type ClienteConCredito } from "@/lib/creditoCliente";
+import { imprimirHTML } from "@/lib/print";
 import {
   leerProductosCache,
   guardarProductosCache,
@@ -51,12 +55,13 @@ type LineaVenta = {
   cantidad: string;
 };
 
-type MetodoPago = "efectivo" | "tarjeta" | "transferencia";
+type MetodoPago = "efectivo" | "tarjeta" | "transferencia" | "credito";
 
 const ETIQUETAS_METODO: Record<MetodoPago, string> = {
   efectivo: "Efectivo",
   tarjeta: "Tarjeta",
   transferencia: "Transferencia",
+  credito: "Crédito del cliente",
 };
 
 const TIPO_CAMBIO_CACHE_KEY = "titos-pos-tipo-cambio";
@@ -73,11 +78,26 @@ type VentaResp = {
   esVentas2?: boolean;
   ventas2SecuenciaEfectivo?: number | null;
   offline?: boolean;
+  clienteNombre?: string;
+  creditoMonto?: number | null;
+  creditoFechaVencimiento?: string | null;
+};
+
+type MonedaCaja = "MXN" | "USD";
+
+type RetiroResp = {
+  folio: string;
+  monto: number;
+  moneda: MonedaCaja;
+  motivo: string;
+  usuarioNombre: string;
+  fecha: string;
 };
 
 type SesionCaja = {
   _id: string;
   efectivoInicial: number;
+  efectivoInicialUsd?: number;
   fechaApertura: string;
   usuarioAperturaId?: { nombre?: string } | string | null;
   offline?: boolean;
@@ -87,11 +107,18 @@ type ResumenCaja = {
   sesion: SesionCaja;
   cantidadVentas: number;
   cantidadRetiros: number;
+  cantidadAbonos: number;
+  cantidadDevoluciones: number;
   totalVentasEfectivo: number;
   totalVentasTarjeta: number;
   totalVentasTransferencia: number;
+  totalVentasCredito: number;
+  totalAbonosEfectivo: number;
+  totalDevoluciones: number;
   totalRetiros: number;
+  totalRetirosUsd: number;
   efectivoEsperado: number;
+  efectivoEsperadoUsd: number;
 };
 
 function nombreCajero(sesion: SesionCaja | null) {
@@ -114,7 +141,10 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
   const [montoEfectivo, setMontoEfectivo] = useState("");
   const [montoTarjeta, setMontoTarjeta] = useState("");
   const [montoTransferencia, setMontoTransferencia] = useState("");
+  const [montoCredito, setMontoCredito] = useState("");
   const [efectivoRecibido, setEfectivoRecibido] = useState("");
+  const [clientes, setClientes] = useState<ClienteConCredito[]>([]);
+  const [clienteId, setClienteId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [procesando, setProcesando] = useState(false);
   const [ventaCompletada, setVentaCompletada] = useState<VentaResp | null>(null);
@@ -125,25 +155,35 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
   // --- Caja: apertura, retiro de efectivo y corte ---
   const [sesion, setSesion] = useState<SesionCaja | null | undefined>(undefined);
   const [efectivoInicialInput, setEfectivoInicialInput] = useState("");
+  const [efectivoInicialUsdInput, setEfectivoInicialUsdInput] = useState("");
   const [abriendoCaja, setAbriendoCaja] = useState(false);
   const [errorCaja, setErrorCaja] = useState<string | null>(null);
 
   const [modalRetiro, setModalRetiro] = useState(false);
   const [retiroMonto, setRetiroMonto] = useState("");
   const [retiroMotivo, setRetiroMotivo] = useState("");
+  const [retiroMoneda, setRetiroMoneda] = useState<MonedaCaja>("MXN");
+  const [retiroClave, setRetiroClave] = useState("");
   const [retirando, setRetirando] = useState(false);
   const [errorRetiro, setErrorRetiro] = useState<string | null>(null);
+  const [ultimoRetiro, setUltimoRetiro] = useState<RetiroResp | null>(null);
 
   const [modalCorte, setModalCorte] = useState(false);
   const [resumenCorte, setResumenCorte] = useState<ResumenCaja | null>(null);
   const [cargandoResumen, setCargandoResumen] = useState(false);
   const [efectivoContado, setEfectivoContado] = useState("");
+  const [efectivoContadoUsd, setEfectivoContadoUsd] = useState("");
   const [notasCorte, setNotasCorte] = useState("");
   const [cerrandoCaja, setCerrandoCaja] = useState(false);
   const [errorCorte, setErrorCorte] = useState<string | null>(null);
-  const [corteCerrado, setCorteCerrado] = useState<{ efectivoEsperado: number; efectivoContado: number; diferencia: number } | null>(
-    null
-  );
+  const [corteCerrado, setCorteCerrado] = useState<{
+    efectivoEsperado: number;
+    efectivoContado: number;
+    diferencia: number;
+    efectivoEsperadoUsd: number;
+    efectivoContadoUsd: number;
+    diferenciaUsd: number;
+  } | null>(null);
 
   const [modalPrecio, setModalPrecio] = useState(false);
   const [precioCodigo, setPrecioCodigo] = useState("");
@@ -194,6 +234,8 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
             erroresNuevos.push(`Apertura de caja: ${data.error || "no se pudo sincronizar"}`);
           }
         } else {
+          // Los retiros ya no se encolan (necesitan la clave del usuario), pero
+          // puede quedar alguno de una versión anterior en la cola.
           const res = await fetch("/api/caja/retiros", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -255,6 +297,13 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
         guardarInventarioCache(obj);
       })
       .catch(() => setInventario(new Map(Object.entries(leerInventarioCache()))));
+
+    // Los clientes no se cachean para offline a propósito: sin conexión no se
+    // puede validar el crédito contra su saldo real, así que no se fía.
+    fetch("/api/clientes?soloActivos=1")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("http-error"))))
+      .then((data: ClienteConCredito[]) => setClientes(data))
+      .catch(() => setClientes([]));
 
     fetch("/api/configuracion")
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("http-error"))))
@@ -320,10 +369,7 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
         setModalPrecio(true);
       } else if (key === "r" && sesion) {
         e.preventDefault();
-        setErrorRetiro(null);
-        setRetiroMonto("");
-        setRetiroMotivo("");
-        setModalRetiro(true);
+        abrirModalRetiro();
       } else if (key === "t" && sesion) {
         e.preventDefault();
         setEfectivoContado("");
@@ -347,26 +393,54 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
   const nEfectivo = Number(montoEfectivo) || 0;
   const nTarjeta = Number(montoTarjeta) || 0;
   const nTransferencia = Number(montoTransferencia) || 0;
-  const sumaPagos = nEfectivo + nTarjeta + nTransferencia;
+  const nCredito = Number(montoCredito) || 0;
+  const sumaPagos = nEfectivo + nTarjeta + nTransferencia + nCredito;
   const restante = Number((total - sumaPagos).toFixed(2));
 
   const cambio = nEfectivo > 0 ? (Number(efectivoRecibido) || 0) - nEfectivo : null;
 
   const carritoValido = carrito.length > 0 && carrito.every((l) => Number(l.cantidad) > 0);
 
+  const cliente = useMemo(() => clientes.find((c) => c._id === clienteId) ?? null, [clientes, clienteId]);
+
+  const creditoDisponibleParaCobro =
+    !!cliente && cliente.resumen.creditoActivo && !cliente.resumen.tieneVencidos && cliente.resumen.disponible > 0 && isOnline;
+
+  // Mismas reglas que valida el servidor, para avisar antes de intentar cobrar.
+  const errorCredito = useMemo(() => {
+    if (nCredito <= 0) return null;
+    if (!cliente) return "Selecciona al cliente para poder vender a crédito.";
+    if (!cliente.resumen.creditoActivo) return `${cliente.nombre} no tiene crédito autorizado.`;
+    if (cliente.resumen.tieneVencidos) {
+      return `${cliente.nombre} tiene ${formatMoney(cliente.resumen.saldoVencido)} vencidos. Debe liquidarlos antes de volver a comprar a crédito.`;
+    }
+    if (nCredito - cliente.resumen.disponible > 0.005) {
+      return `El monto excede su crédito disponible (${formatMoney(cliente.resumen.disponible)} de un límite de ${formatMoney(cliente.resumen.limite)}).`;
+    }
+    if (!isOnline) return "Sin conexión no se pueden registrar ventas a crédito.";
+    return null;
+  }, [nCredito, cliente, isOnline]);
+
   const puedeCobrar =
     carritoValido &&
     Math.abs(restante) < 0.01 &&
     sumaPagos > 0 &&
+    !errorCredito &&
     (nEfectivo <= 0 || (Number(efectivoRecibido) || 0) >= nEfectivo);
 
   function completarCon(metodo: MetodoPago) {
     const otros =
-      total - (metodo === "efectivo" ? 0 : nEfectivo) - (metodo === "tarjeta" ? 0 : nTarjeta) - (metodo === "transferencia" ? 0 : nTransferencia);
+      total -
+      (metodo === "efectivo" ? 0 : nEfectivo) -
+      (metodo === "tarjeta" ? 0 : nTarjeta) -
+      (metodo === "transferencia" ? 0 : nTransferencia) -
+      (metodo === "credito" ? 0 : nCredito);
     const valor = Math.max(0, Number(otros.toFixed(2)));
-    if (metodo === "efectivo") setMontoEfectivo(valor ? String(valor) : "");
-    else if (metodo === "tarjeta") setMontoTarjeta(valor ? String(valor) : "");
-    else setMontoTransferencia(valor ? String(valor) : "");
+    const texto = valor ? String(valor) : "";
+    if (metodo === "efectivo") setMontoEfectivo(texto);
+    else if (metodo === "tarjeta") setMontoTarjeta(texto);
+    else if (metodo === "transferencia") setMontoTransferencia(texto);
+    else setMontoCredito(texto);
   }
 
   function agregarAlCarrito(producto: Producto, cantidad: number) {
@@ -462,7 +536,19 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
     setMontoEfectivo("");
     setMontoTarjeta("");
     setMontoTransferencia("");
+    setMontoCredito("");
     setEfectivoRecibido("");
+    setClienteId("");
+  }
+
+  /** Tras una venta a crédito o un abono, el disponible del cliente cambió. */
+  async function recargarClientes() {
+    try {
+      const res = await fetch("/api/clientes?soloActivos=1");
+      if (res.ok) setClientes(await res.json());
+    } catch {
+      // sin conexión el crédito ya está bloqueado, no pasa nada si falla
+    }
   }
 
   function cancelarVenta() {
@@ -515,14 +601,22 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
       ...(nEfectivo > 0 ? [{ metodoPago: "efectivo" as const, monto: nEfectivo }] : []),
       ...(nTarjeta > 0 ? [{ metodoPago: "tarjeta" as const, monto: nTarjeta }] : []),
       ...(nTransferencia > 0 ? [{ metodoPago: "transferencia" as const, monto: nTransferencia }] : []),
+      ...(nCredito > 0 ? [{ metodoPago: "credito" as const, monto: nCredito }] : []),
     ];
     const payload: VentaPayload = {
       items: carrito.map((l) => ({ productoId: l.productoId, cantidad: Number(l.cantidad) })),
       pagos,
       montoRecibido: nEfectivo > 0 ? Number(efectivoRecibido) : undefined,
+      clienteId: clienteId || undefined,
     };
 
     if (!isOnline) {
+      // El crédito nunca se encola: sin servidor no hay forma de saber si el
+      // cliente sigue dentro de su límite o si ya se le venció algo.
+      if (nCredito > 0) {
+        setError("Sin conexión no se puede vender a crédito. Cobra de contado o espera a que vuelva el servicio.");
+        return;
+      }
       registrarVentaOffline(payload);
       return;
     }
@@ -545,9 +639,16 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
       aplicarDescuentoInventario();
       setModalCobro(false);
       setVentaCompletada(venta);
+      const eraCredito = nCredito > 0;
       limpiarCarritoYPago();
+      if (eraCredito) recargarClientes();
     } catch {
-      // se perdió la conexión justo al cobrar: no se pierde la venta, se guarda para sincronizar después
+      // se perdió la conexión justo al cobrar: no se pierde la venta, se guarda
+      // para sincronizar después. El crédito se descarta por la misma razón.
+      if (nCredito > 0) {
+        setError("Se perdió la conexión y la venta es a crédito. Vuelve a intentarla cuando regrese el servicio.");
+        return;
+      }
       registrarVentaOffline(payload);
     } finally {
       setProcesando(false);
@@ -558,18 +659,25 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
     setVentaCompletada(null);
   }
 
-  function abrirCajaOffline(efectivoInicial: number) {
-    agregarACola({ id: generarIdLocal(), tipo: "abrir_caja", creadaEn: new Date().toISOString(), payload: { efectivoInicial } });
+  function abrirCajaOffline(efectivoInicial: number, efectivoInicialUsd: number) {
+    agregarACola({
+      id: generarIdLocal(),
+      tipo: "abrir_caja",
+      creadaEn: new Date().toISOString(),
+      payload: { efectivoInicial, efectivoInicialUsd },
+    });
     setPendientes(leerCola().length);
     const sesionLocal: SesionCaja = {
       _id: `local-${generarIdLocal()}`,
       efectivoInicial,
+      efectivoInicialUsd,
       fechaApertura: new Date().toISOString(),
       offline: true,
     };
     setSesion(sesionLocal);
     guardarSesionCache(sesionLocal);
     setEfectivoInicialInput("");
+    setEfectivoInicialUsdInput("");
   }
 
   async function abrirCaja() {
@@ -579,9 +687,14 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
       setErrorCaja("Captura el efectivo inicial con el que abres la caja");
       return;
     }
+    const efectivoInicialUsd = Number(efectivoInicialUsdInput) || 0;
+    if (efectivoInicialUsd < 0) {
+      setErrorCaja("El fondo en dólares no puede ser negativo");
+      return;
+    }
 
     if (!isOnline) {
-      abrirCajaOffline(efectivoInicial);
+      abrirCajaOffline(efectivoInicial, efectivoInicialUsd);
       return;
     }
 
@@ -590,7 +703,7 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
       const res = await fetch("/api/caja/abrir", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ efectivoInicial }),
+        body: JSON.stringify({ efectivoInicial, efectivoInicialUsd }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -601,17 +714,22 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
       setSesion(data);
       guardarSesionCache(data);
       setEfectivoInicialInput("");
+      setEfectivoInicialUsdInput("");
     } catch {
-      abrirCajaOffline(efectivoInicial);
+      abrirCajaOffline(efectivoInicial, efectivoInicialUsd);
     } finally {
       setAbriendoCaja(false);
     }
   }
 
-  function registrarRetiroOffline(monto: number, motivo: string) {
-    agregarACola({ id: generarIdLocal(), tipo: "retiro", creadaEn: new Date().toISOString(), payload: { monto, motivo } });
-    setPendientes(leerCola().length);
-    setModalRetiro(false);
+  function abrirModalRetiro() {
+    setRetiroMonto("");
+    setRetiroMotivo("");
+    setRetiroMoneda("MXN");
+    setRetiroClave("");
+    setErrorRetiro(null);
+    setUltimoRetiro(null);
+    setModalRetiro(true);
   }
 
   async function registrarRetiro() {
@@ -626,9 +744,13 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
       setErrorRetiro("Captura el motivo del retiro");
       return;
     }
-
+    if (!retiroClave) {
+      setErrorRetiro("Confirma tu clave de acceso para autorizar el retiro");
+      return;
+    }
+    // El retiro exige validar la clave contra el servidor, así que no se encola.
     if (!isOnline) {
-      registrarRetiroOffline(monto, motivo);
+      setErrorRetiro("Sin conexión no se pueden registrar retiros: la clave se valida en el servidor.");
       return;
     }
 
@@ -637,19 +759,49 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
       const res = await fetch("/api/caja/retiros", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ monto, motivo }),
+        body: JSON.stringify({ monto, motivo, moneda: retiroMoneda, password: retiroClave }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setErrorRetiro(data.error || "No se pudo registrar el retiro");
         return;
       }
-      setModalRetiro(false);
+      const retiro: RetiroResp = await res.json();
+      setRetiroClave("");
+      setUltimoRetiro(retiro);
     } catch {
-      registrarRetiroOffline(monto, motivo);
+      setErrorRetiro("Se perdió la conexión. El retiro no se registró, inténtalo de nuevo.");
     } finally {
       setRetirando(false);
     }
+  }
+
+  function imprimirTicketRetiro(retiro: RetiroResp) {
+    const simbolo = retiro.moneda === "USD" ? "USD" : "MXN";
+    const monto = retiro.moneda === "USD" ? formatDolares(retiro.monto) : formatMoney(retiro.monto);
+    imprimirHTML(
+      `Retiro ${retiro.folio}`,
+      `
+        <h1>Comprobante de retiro de efectivo</h1>
+        <p class="subtitulo">Folio ${retiro.folio}</p>
+        <table>
+          <tbody>
+            <tr><th>Sucursal</th><td>${sucursalNombre || "—"}</td></tr>
+            <tr><th>Fecha y hora</th><td>${new Date(retiro.fecha).toLocaleString("es-MX", {
+              dateStyle: "long",
+              timeStyle: "short",
+            })}</td></tr>
+            <tr><th>Autorizó</th><td>${retiro.usuarioNombre || "—"}</td></tr>
+            <tr><th>Moneda</th><td>${simbolo}</td></tr>
+            <tr><th>Monto</th><td><strong>${monto} ${simbolo}</strong></td></tr>
+            <tr><th>Motivo</th><td>${retiro.motivo}</td></tr>
+          </tbody>
+        </table>
+        <p class="subtitulo" style="margin-top:32px">
+          Firma de quien recibe: ______________________________
+        </p>
+      `
+    );
   }
 
   async function confirmarCorte() {
@@ -663,12 +815,21 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
       setErrorCorte("Captura el efectivo contado");
       return;
     }
+    const contadoUsd = Number(efectivoContadoUsd) || 0;
+    if (contadoUsd < 0) {
+      setErrorCorte("Los dólares contados no pueden ser negativos");
+      return;
+    }
     setCerrandoCaja(true);
     try {
       const res = await fetch("/api/caja/cerrar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ efectivoContado: contado, notas: notasCorte.trim() }),
+        body: JSON.stringify({
+          efectivoContado: contado,
+          efectivoContadoUsd: contadoUsd,
+          notas: notasCorte.trim(),
+        }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -680,6 +841,9 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
         efectivoEsperado: cerrada.efectivoEsperado,
         efectivoContado: cerrada.efectivoContado,
         diferencia: cerrada.diferencia,
+        efectivoEsperadoUsd: cerrada.efectivoEsperadoUsd ?? 0,
+        efectivoContadoUsd: cerrada.efectivoContadoUsd ?? 0,
+        diferenciaUsd: cerrada.diferenciaUsd ?? 0,
       });
       setSesion(null);
       guardarSesionCache(null);
@@ -752,7 +916,7 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
             Antes de registrar ventas, captura el efectivo con el que inicias esta caja.
             {!isOnline ? " Puedes abrirla sin conexión: se sincronizará en cuanto vuelva la señal." : ""}
           </p>
-          <FormField label="Efectivo inicial">
+          <FormField label="Efectivo inicial (pesos)" className="mb-3">
             <Input
               type="number"
               min="0"
@@ -760,6 +924,19 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
               autoFocus
               value={efectivoInicialInput}
               onChange={(e) => setEfectivoInicialInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") abrirCaja();
+              }}
+              placeholder="0.00"
+            />
+          </FormField>
+          <FormField label="Fondo en dólares (opcional)">
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              value={efectivoInicialUsdInput}
+              onChange={(e) => setEfectivoInicialUsdInput(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") abrirCaja();
               }}
@@ -795,10 +972,7 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
             </button>
             <button
               onClick={() => {
-                setErrorRetiro(null);
-                setRetiroMonto("");
-                setRetiroMotivo("");
-                setModalRetiro(true);
+                abrirModalRetiro();
               }}
               className="rounded px-2.5 py-1 text-sm text-black/70 hover:bg-black/5"
             >
@@ -1029,6 +1203,62 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
             <div className="mb-3" />
           )}
 
+          <FormField label="Cliente (opcional)" className="mb-2">
+            <Select
+              icon={ShoppingCart}
+              value={clienteId}
+              onChange={(e) => {
+                setClienteId(e.target.value);
+                setMontoCredito("");
+              }}
+            >
+              <option value="">Público en general</option>
+              {clientes.map((c) => (
+                <option key={c._id} value={c._id}>
+                  {c.nombre}
+                  {c.resumen.creditoActivo ? ` — disponible ${formatMoney(c.resumen.disponible)}` : ""}
+                </option>
+              ))}
+            </Select>
+          </FormField>
+
+          {cliente ? (
+            <div
+              className={`mb-2 rounded-lg p-2.5 text-xs ${
+                cliente.resumen.tieneVencidos ? "bg-red-50 text-red-700" : "bg-black/3 text-black/60"
+              }`}
+            >
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span className={`rounded-full px-2 py-0.5 font-semibold ${estadoCredito(cliente.resumen).className}`}>
+                  {estadoCredito(cliente.resumen).label}
+                </span>
+                {cliente.resumen.creditoActivo ? (
+                  <>
+                    <span>
+                      Debe <strong>{formatMoney(cliente.resumen.saldo)}</strong> de {formatMoney(cliente.resumen.limite)}
+                    </span>
+                    <span>
+                      Disponible <strong>{formatMoney(cliente.resumen.disponible)}</strong>
+                    </span>
+                    <span>Plazo {cliente.resumen.diasCredito} días</span>
+                    {cliente.resumen.proximoVencimiento && !cliente.resumen.tieneVencidos ? (
+                      <span>Próximo pago {formatFecha(cliente.resumen.proximoVencimiento)}</span>
+                    ) : null}
+                  </>
+                ) : (
+                  <span>Sin crédito autorizado — solo contado</span>
+                )}
+              </div>
+              {cliente.resumen.tieneVencidos ? (
+                <p className="mt-1.5 flex items-start gap-1.5 font-semibold">
+                  <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  Tiene {formatMoney(cliente.resumen.saldoVencido)} vencidos. Debe liquidarlos para volver a comprar a
+                  crédito.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
           <p className="mb-2 text-xs font-medium text-black/40">
             Puedes dividir el pago entre varias formas (ej. una parte en efectivo y otra con tarjeta).
           </p>
@@ -1086,7 +1316,38 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
                 Completar
               </button>
             </div>
+            <div className="flex items-center gap-1.5">
+              <Input
+                icon={CreditCard}
+                type="number"
+                min="0"
+                step="0.01"
+                disabled={!creditoDisponibleParaCobro}
+                value={montoCredito}
+                onChange={(e) => setMontoCredito(e.target.value)}
+                placeholder={
+                  creditoDisponibleParaCobro
+                    ? `Crédito (hasta ${formatMoney(cliente!.resumen.disponible)})`
+                    : "Crédito — elige un cliente con crédito vigente"
+                }
+              />
+              <button
+                type="button"
+                onClick={() => completarCon("credito")}
+                disabled={!creditoDisponibleParaCobro}
+                className="whitespace-nowrap text-xs font-medium text-titos-green-700 hover:underline disabled:cursor-not-allowed disabled:text-black/25 disabled:no-underline"
+              >
+                Completar
+              </button>
+            </div>
           </div>
+
+          {errorCredito ? (
+            <p className="mb-2 flex items-start gap-1.5 rounded-lg bg-red-50 p-2.5 text-xs font-semibold text-red-700">
+              <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              {errorCredito}
+            </p>
+          ) : null}
 
           <p className={`mb-3 text-sm font-semibold ${restante > 0 ? "text-red-600" : "text-black/40"}`}>
             {restante > 0
@@ -1205,6 +1466,18 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
               </>
             ) : null}
           </div>
+
+          {ventaCompletada.creditoMonto ? (
+            <div className="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+              <p className="font-semibold">
+                {formatMoney(ventaCompletada.creditoMonto)} a crédito de {ventaCompletada.clienteNombre || "el cliente"}
+              </p>
+              <p className="text-xs">
+                Fecha máxima de pago: <strong>{formatFecha(ventaCompletada.creditoFechaVencimiento ?? null)}</strong>. Si
+                no liquida para esa fecha, se le bloquea el crédito.
+              </p>
+            </div>
+          ) : null}
         </Modal>
       ) : null}
 
@@ -1243,32 +1516,95 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
 
       {modalRetiro ? (
         <Modal open onClose={() => setModalRetiro(false)} title="Retirar efectivo" icon={Banknote}>
-          <p className="mb-3 text-sm text-black/50">
-            Registra un retiro de efectivo de la caja (por ejemplo, para pagar a un proveedor o resguardar dinero).
-          </p>
-          <FormField label="Monto" className="mb-3">
-            <Input
-              type="number"
-              min="0"
-              step="0.01"
-              autoFocus
-              value={retiroMonto}
-              onChange={(e) => setRetiroMonto(e.target.value)}
-              placeholder="0.00"
-            />
-          </FormField>
-          <FormField label="Motivo">
-            <Input value={retiroMotivo} onChange={(e) => setRetiroMotivo(e.target.value)} placeholder="Ej. pago a proveedor" />
-          </FormField>
-          {errorRetiro ? <p className="mt-2 text-sm text-red-600">{errorRetiro}</p> : null}
-          <div className="mt-5 flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setModalRetiro(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={registrarRetiro} disabled={retirando}>
-              {retirando ? "Registrando..." : "Registrar retiro"}
-            </Button>
-          </div>
+          {ultimoRetiro ? (
+            <div>
+              <p className="mb-3 rounded-xl bg-titos-green-100 px-3 py-2 text-sm font-semibold text-titos-green-800">
+                Retiro registrado con folio {ultimoRetiro.folio}
+              </p>
+              <div className="space-y-1 rounded-xl bg-black/3 p-4 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-black/50">Monto</span>
+                  <span className="font-semibold">
+                    {ultimoRetiro.moneda === "USD" ? formatDolares(ultimoRetiro.monto) : formatMoney(ultimoRetiro.monto)}{" "}
+                    {ultimoRetiro.moneda}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-black/50">Motivo</span>
+                  <span className="font-medium">{ultimoRetiro.motivo}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-black/50">Autorizó</span>
+                  <span className="font-medium">{ultimoRetiro.usuarioNombre || "—"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-black/50">Fecha y hora</span>
+                  <span className="font-medium">
+                    {new Date(ultimoRetiro.fecha).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" })}
+                  </span>
+                </div>
+              </div>
+              <div className="mt-5 flex justify-end gap-2">
+                <Button variant="ghost" onClick={() => setModalRetiro(false)}>
+                  Cerrar
+                </Button>
+                <Button onClick={() => imprimirTicketRetiro(ultimoRetiro)}>Imprimir ticket</Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <p className="mb-3 text-sm text-black/50">
+                Registra un retiro de efectivo de la caja (por ejemplo, para pagar a un proveedor o resguardar dinero).
+                Se genera un folio y queda en el log con fecha y hora.
+              </p>
+              <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <FormField label="Moneda">
+                  <Select value={retiroMoneda} onChange={(e) => setRetiroMoneda(e.target.value as MonedaCaja)}>
+                    <option value="MXN">Efectivo (pesos)</option>
+                    <option value="USD">Dólares</option>
+                  </Select>
+                </FormField>
+                <FormField label={retiroMoneda === "USD" ? "Monto en dólares" : "Monto en pesos"}>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    autoFocus
+                    value={retiroMonto}
+                    onChange={(e) => setRetiroMonto(e.target.value)}
+                    placeholder="0.00"
+                  />
+                </FormField>
+              </div>
+              <FormField label="Motivo" className="mb-3">
+                <Input
+                  value={retiroMotivo}
+                  onChange={(e) => setRetiroMotivo(e.target.value)}
+                  placeholder="Ej. pago a proveedor"
+                />
+              </FormField>
+              <FormField label="Tu clave de acceso">
+                <Input
+                  type="password"
+                  value={retiroClave}
+                  onChange={(e) => setRetiroClave(e.target.value)}
+                  placeholder="Confirma tu contraseña para autorizar"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !retirando) registrarRetiro();
+                  }}
+                />
+              </FormField>
+              {errorRetiro ? <p className="mt-2 text-sm text-red-600">{errorRetiro}</p> : null}
+              <div className="mt-5 flex justify-end gap-2">
+                <Button variant="ghost" onClick={() => setModalRetiro(false)}>
+                  Cancelar
+                </Button>
+                <Button onClick={registrarRetiro} disabled={retirando}>
+                  {retirando ? "Registrando..." : "Registrar retiro"}
+                </Button>
+              </div>
+            </>
+          )}
         </Modal>
       ) : null}
 
@@ -1290,6 +1626,18 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
                   <span>{corteCerrado.diferencia < 0 ? "Faltante" : "Sobrante"}</span>
                   <span className={corteCerrado.diferencia < 0 ? "text-red-600" : "text-titos-green-700"}>
                     {formatMoney(Math.abs(corteCerrado.diferencia))}
+                  </span>
+                </div>
+                <div className="mt-2 flex justify-between border-t border-black/10 pt-2">
+                  <span className="text-black/50">Dólares esperados / contados</span>
+                  <span className="font-medium">
+                    {formatDolares(corteCerrado.efectivoEsperadoUsd)} / {formatDolares(corteCerrado.efectivoContadoUsd)}
+                  </span>
+                </div>
+                <div className="flex justify-between font-semibold">
+                  <span>{corteCerrado.diferenciaUsd < 0 ? "Faltante en dólares" : "Sobrante en dólares"}</span>
+                  <span className={corteCerrado.diferenciaUsd < 0 ? "text-red-600" : "text-titos-green-700"}>
+                    {formatDolares(Math.abs(corteCerrado.diferenciaUsd))}
                   </span>
                 </div>
               </div>
@@ -1331,6 +1679,24 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
                   <span className="text-black/50">Ventas por transferencia</span>
                   <span className="font-medium">{formatMoney(resumenCorte.totalVentasTransferencia)}</span>
                 </div>
+                {resumenCorte.totalVentasCredito > 0 ? (
+                  <div className="flex justify-between">
+                    <span className="text-black/50">Ventas a crédito (no es efectivo)</span>
+                    <span className="font-medium">{formatMoney(resumenCorte.totalVentasCredito)}</span>
+                  </div>
+                ) : null}
+                {resumenCorte.totalAbonosEfectivo > 0 ? (
+                  <div className="flex justify-between">
+                    <span className="text-black/50">+ Abonos de clientes en efectivo ({resumenCorte.cantidadAbonos})</span>
+                    <span className="font-medium">{formatMoney(resumenCorte.totalAbonosEfectivo)}</span>
+                  </div>
+                ) : null}
+                {resumenCorte.totalDevoluciones > 0 ? (
+                  <div className="flex justify-between">
+                    <span className="text-black/50">− Devoluciones pagadas ({resumenCorte.cantidadDevoluciones})</span>
+                    <span className="font-medium">{formatMoney(resumenCorte.totalDevoluciones)}</span>
+                  </div>
+                ) : null}
                 <div className="flex justify-between">
                   <span className="text-black/50">− Retiros de efectivo ({resumenCorte.cantidadRetiros})</span>
                   <span className="font-medium">{formatMoney(resumenCorte.totalRetiros)}</span>
@@ -1341,17 +1707,45 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
                 </div>
               </div>
 
-              <FormField label="Efectivo contado" className="mb-3">
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  autoFocus
-                  value={efectivoContado}
-                  onChange={(e) => setEfectivoContado(e.target.value)}
-                  placeholder="0.00"
-                />
-              </FormField>
+              {/* El cajón de dólares se cuadra por separado del de pesos */}
+              <div className="mb-4 space-y-1 rounded-xl bg-sky-50 p-4 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-black/50">Fondo inicial en dólares</span>
+                  <span className="font-medium">{formatDolares(resumenCorte.sesion.efectivoInicialUsd ?? 0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-black/50">− Retiros en dólares</span>
+                  <span className="font-medium">{formatDolares(resumenCorte.totalRetirosUsd)}</span>
+                </div>
+                <div className="flex justify-between border-t border-black/10 pt-1.5 font-semibold text-sky-800">
+                  <span>= Dólares esperados en caja</span>
+                  <span>{formatDolares(resumenCorte.efectivoEsperadoUsd)}</span>
+                </div>
+              </div>
+
+              <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <FormField label="Efectivo contado (pesos)">
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    autoFocus
+                    value={efectivoContado}
+                    onChange={(e) => setEfectivoContado(e.target.value)}
+                    placeholder="0.00"
+                  />
+                </FormField>
+                <FormField label="Dólares contados">
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={efectivoContadoUsd}
+                    onChange={(e) => setEfectivoContadoUsd(e.target.value)}
+                    placeholder="0.00"
+                  />
+                </FormField>
+              </div>
 
               {efectivoContado ? (
                 (() => {

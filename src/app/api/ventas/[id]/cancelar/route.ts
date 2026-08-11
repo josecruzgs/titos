@@ -3,7 +3,9 @@ import { connectDB } from "@/lib/db";
 import Venta from "@/models/Venta";
 import InventarioSucursal from "@/models/InventarioSucursal";
 import MovimientoInventario from "@/models/MovimientoInventario";
-import { requireSession, unauthorized, forbidden, badRequest, notFound } from "@/lib/apiAuth";
+import CuentaPorCobrar from "@/models/CuentaPorCobrar";
+import { requireSession, unauthorized, forbidden, badRequest, notFound, conflict } from "@/lib/apiAuth";
+import { EPSILON, recalcularSaldoCliente } from "@/lib/credito";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireSession(req);
@@ -17,6 +19,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!venta) return notFound("Venta no encontrada");
   if (String(venta.sucursalId) !== session.sucursalId) return forbidden();
   if (venta.estado === "cancelada") return badRequest("Esta venta ya está cancelada");
+
+  // Si la venta fue a crédito, su cuenta por cobrar se cancela junto con ella.
+  // No se puede si el cliente ya abonó algo: eso requiere una nota de crédito.
+  const cuenta = await CuentaPorCobrar.findOne({ ventaId: venta._id, estado: { $ne: "cancelada" } });
+  if (cuenta) {
+    if (cuenta.monto - cuenta.saldo > EPSILON) {
+      return conflict(
+        "No se puede cancelar: el cliente ya abonó a esta venta a crédito. Ajusta su estado de cuenta con un abono en su lugar."
+      );
+    }
+    cuenta.estado = "cancelada";
+    cuenta.saldo = 0;
+    await cuenta.save();
+    await recalcularSaldoCliente(cuenta.clienteId);
+  }
 
   type VentaItemDoc = (typeof venta.items)[number];
 

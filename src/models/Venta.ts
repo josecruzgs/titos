@@ -1,6 +1,8 @@
 import { Schema, model, models, type InferSchemaType } from "mongoose";
 
-export const METODOS_PAGO = ["efectivo", "tarjeta", "transferencia"] as const;
+// "credito" no entra dinero a la caja: genera una cuenta por cobrar del cliente.
+export const METODOS_PAGO = ["efectivo", "tarjeta", "transferencia", "credito"] as const;
+export const METODOS_PAGO_CONTADO = ["efectivo", "tarjeta", "transferencia"] as const;
 export const ESTADOS_VENTA = ["completada", "cancelada"] as const;
 
 const VentaItemSchema = new Schema(
@@ -39,6 +41,12 @@ const VentaSchema = new Schema(
     pagos: { type: [PagoVentaSchema], required: true, default: [] },
     montoRecibido: { type: Number, default: null }, // efectivo entregado por el cliente (solo si hay un pago en efectivo)
     cambio: { type: Number, default: null },
+    // Cliente frecuente al que se le facturó/fió la venta. Obligatorio cuando
+    // hay un pago con método "credito".
+    clienteId: { type: Schema.Types.ObjectId, ref: "Cliente", default: null },
+    clienteNombre: { type: String, default: "" },
+    creditoMonto: { type: Number, default: null },
+    creditoFechaVencimiento: { type: Date, default: null },
     esVentas2: { type: Boolean, default: false },
     ventas2ActivacionId: { type: Schema.Types.ObjectId, ref: "Ventas2Activacion", default: null },
     ventas2SecuenciaEfectivo: { type: Number, default: null },
@@ -50,6 +58,7 @@ const VentaSchema = new Schema(
 VentaSchema.index({ sucursalId: 1, createdAt: -1 });
 VentaSchema.index({ sucursalId: 1, esVentas2: 1, corte: 1 });
 VentaSchema.index({ ventas2ActivacionId: 1, estado: 1 });
+VentaSchema.index({ clienteId: 1, createdAt: -1 });
 
 export type Venta = InferSchemaType<typeof VentaSchema> & { _id: string };
 

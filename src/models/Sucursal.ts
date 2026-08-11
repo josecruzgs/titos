@@ -1,4 +1,5 @@
 import { Schema, model, models, type InferSchemaType } from "mongoose";
+import { ZONA_HORARIA_DEFAULT, ZONAS_HORARIAS } from "@/lib/zonasHorarias";
 
 const SucursalSchema = new Schema(
   {
@@ -6,6 +7,7 @@ const SucursalSchema = new Schema(
     clave: { type: String, trim: true, unique: true, sparse: true },
     direccion: { type: String, default: "" },
     whatsapp: { type: String, default: "" },
+    zonaHoraria: { type: String, enum: ZONAS_HORARIAS.map((z) => z.value), default: ZONA_HORARIA_DEFAULT },
     activo: { type: Boolean, default: true },
   },
   { timestamps: true }

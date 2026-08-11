@@ -4,7 +4,19 @@ const MovimientoInventarioSchema = new Schema(
   {
     tipo: {
       type: String,
-      enum: ["entrada_proveedor", "salida_matriz_a_sucursal", "entrada_sucursal", "salida_venta"],
+      enum: [
+        "entrada_proveedor",
+        "salida_matriz_a_sucursal",
+        "entrada_sucursal",
+        "salida_venta",
+        "entrada_devolucion",
+        // Préstamos entre sucursales: el stock sale de quien presta y entra a
+        // quien recibe; al devolver se hace el movimiento inverso.
+        "salida_prestamo",
+        "entrada_prestamo",
+        "salida_devolucion_prestamo",
+        "entrada_devolucion_prestamo",
+      ],
       required: true,
     },
     productoId: { type: Schema.Types.ObjectId, ref: "Producto", required: true },
@@ -15,6 +27,8 @@ const MovimientoInventarioSchema = new Schema(
     pedidoId: { type: Schema.Types.ObjectId, ref: "Pedido", default: null },
     ordenCompraId: { type: Schema.Types.ObjectId, ref: "OrdenCompra", default: null },
     ventaId: { type: Schema.Types.ObjectId, ref: "Venta", default: null },
+    devolucionId: { type: Schema.Types.ObjectId, ref: "Devolucion", default: null },
+    prestamoId: { type: Schema.Types.ObjectId, ref: "PrestamoSucursal", default: null },
     usuarioId: { type: Schema.Types.ObjectId, ref: "User", default: null },
     fecha: { type: Date, default: Date.now },
   },
