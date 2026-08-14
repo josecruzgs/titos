@@ -1,8 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Banknote, CalendarClock, Check, Clock, MessageCircleWarning, RefreshCw, SquareCheckBig } from "lucide-react";
-import { Button, Card, EmptyState, FormField, Input, formatMoney } from "@/components/ui";
+import {
+  Banknote,
+  CalendarClock,
+  Check,
+  Clock,
+  MessageCircleWarning,
+  OctagonX,
+  RefreshCw,
+  SquareCheckBig,
+} from "lucide-react";
+import { Button, Card, EmptyState, FormField, Input, Modal, formatMoney } from "@/components/ui";
 import { formatFechaHora, ZONA_HORARIA_DEFAULT } from "@/lib/zonasHorarias";
 
 type Sucursal = {
@@ -72,8 +81,15 @@ export function Ventas2Manager() {
   const [saving, setSaving] = useState(false);
   const [accionando, setAccionando] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [porDetener, setPorDetener] = useState<ActivacionVentas2 | null>(null);
 
   const sucursalesActivas = useMemo(() => sucursales.filter((s) => s.activo), [sucursales]);
+  // "En curso" incluye las programadas: detenerlas antes de que arranquen también
+  // debe ser posible sin esperar a que corra el lapso.
+  const enCurso = useMemo(
+    () => activaciones.filter((a) => a.estado === "activa" || a.estado === "programada"),
+    [activaciones]
+  );
   const totalRecaudado = useMemo(() => activaciones.reduce((sum, a) => sum + a.totalRecaudado, 0), [activaciones]);
   const pendientesRetiro = useMemo(
     () => activaciones.filter((a) => a.estado === "finalizada" && a.totalRecaudado > 0 && !a.retiradoEn).length,
@@ -142,7 +158,22 @@ export function Ventas2Manager() {
       body: JSON.stringify({ accion }),
     });
     setAccionando(null);
-    if (res.ok) await cargar();
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error || "No se pudo completar la acción");
+      return;
+    }
+    await cargar();
+  }
+
+  /**
+   * Detener corta el protocolo en el momento, sin esperar a que se cumpla el
+   * lapso: si ya arrancó se finaliza (conservando lo recaudado) y si todavía no
+   * empieza se cancela.
+   */
+  async function detener(activacion: ActivacionVentas2) {
+    setPorDetener(null);
+    await accionar(activacion.id, activacion.estado === "activa" ? "terminar" : "cancelar");
   }
 
   return (
@@ -163,6 +194,46 @@ export function Ventas2Manager() {
           <p className="mt-1 text-2xl font-bold text-titos-orange-600">{pendientesRetiro}</p>
         </Card>
       </div>
+
+      {enCurso.length > 0 ? (
+        <Card className="border-titos-orange-600/30 bg-titos-orange-100/30">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-titos-green-900">Notas de venta en curso</h2>
+              <p className="text-sm text-black/55">
+                Puedes detenerlas en cualquier momento, sin esperar a que termine el lapso programado.
+              </p>
+            </div>
+          </div>
+          <ul className="space-y-2">
+            {enCurso.map((a) => (
+              <li
+                key={a.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-black/10 bg-white px-3 py-2.5"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium text-titos-green-900">
+                    {a.sucursalNombre}{" "}
+                    <span className={`ml-1 inline-block rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${estadoClase(a.estado)}`}>
+                      {a.estado}
+                    </span>
+                  </p>
+                  <p className="text-xs text-black/50">
+                    {formatoFecha(a.inicio)} → {formatoFecha(a.fin)} · 1 de cada {a.frecuencia} · {a.cantidadMovimientos}{" "}
+                    mov. · {formatMoney(a.totalRecaudado)}
+                  </p>
+                </div>
+                <Button variant="danger" onClick={() => setPorDetener(a)} disabled={accionando?.startsWith(a.id)}>
+                  <span className="flex items-center gap-1.5">
+                    <OctagonX className="h-4 w-4" />
+                    {accionando?.startsWith(a.id) ? "Deteniendo..." : "Detener notas de venta"}
+                  </span>
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
 
       <Card>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -297,22 +368,12 @@ export function Ventas2Manager() {
                     </td>
                     <td className="py-2 pr-3">
                       <div className="flex flex-wrap justify-end gap-1">
-                        {a.estado === "activa" ? (
-                          <Button
-                            variant="ghost"
-                            onClick={() => accionar(a.id, "terminar")}
-                            disabled={accionando === `${a.id}:terminar`}
-                          >
-                            Terminar
-                          </Button>
-                        ) : null}
-                        {a.estado === "programada" ? (
-                          <Button
-                            variant="danger"
-                            onClick={() => accionar(a.id, "cancelar")}
-                            disabled={accionando === `${a.id}:cancelar`}
-                          >
-                            Cancelar
+                        {a.estado === "activa" || a.estado === "programada" ? (
+                          <Button variant="danger" onClick={() => setPorDetener(a)} disabled={accionando?.startsWith(a.id)}>
+                            <span className="flex items-center gap-1.5">
+                              <OctagonX className="h-4 w-4" />
+                              Detener
+                            </span>
                           </Button>
                         ) : null}
                         {a.estado === "finalizada" && a.totalRecaudado > 0 && !a.retiradoEn ? (
@@ -334,6 +395,34 @@ export function Ventas2Manager() {
           </div>
         )}
       </Card>
+
+      {porDetener ? (
+        <Modal open onClose={() => setPorDetener(null)} title="Detener notas de venta" icon={OctagonX}>
+          <p className="text-sm text-black/70">
+            Se detiene el protocolo en <strong>{porDetener.sucursalNombre}</strong> ahora mismo. A partir de este
+            momento ninguna venta nueva se marcará como nota de venta.
+          </p>
+          {porDetener.estado === "activa" ? (
+            <p className="mt-3 rounded-lg bg-black/2 px-3 py-2 text-sm text-black/60">
+              Lo ya recaudado se conserva: {porDetener.cantidadMovimientos} movimiento(s) por{" "}
+              {formatMoney(porDetener.totalRecaudado)}. La activación queda como finalizada y lista para marcar el
+              retiro del efectivo.
+            </p>
+          ) : (
+            <p className="mt-3 rounded-lg bg-black/2 px-3 py-2 text-sm text-black/60">
+              Todavía no arranca, así que la activación se cancela y no llegará a aplicar.
+            </p>
+          )}
+          <div className="mt-6 flex justify-end gap-2 border-t border-black/5 pt-4">
+            <Button variant="ghost" onClick={() => setPorDetener(null)}>
+              Cancelar
+            </Button>
+            <Button variant="danger" onClick={() => detener(porDetener)}>
+              Sí, detener ahora
+            </Button>
+          </div>
+        </Modal>
+      ) : null}
     </div>
   );
 }

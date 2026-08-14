@@ -1,0 +1,1166 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>DaVinci · Semana 6 · Avances Mercados Titos</title>
+    <link rel="icon" href="img/logo-davinci.png" />
+    <style>
+      /* ── Paleta tomada del logo DaVinci ─────────────────────────────── */
+      :root {
+        --naranja: #f58634;
+        --naranja-claro: #ffa365;
+        --naranja-suave: #fff1e6;
+        --carbon: #373435;
+        --carbon-medio: #575253;
+        --carbon-suave: #f4f2f2;
+        --blanco: #ffffff;
+        --gris-linea: rgba(55, 52, 53, 0.12);
+        --gris-texto: rgba(55, 52, 53, 0.62);
+        --verde: #2f9e5f;
+        --sombra: 0 18px 50px rgba(55, 52, 53, 0.16);
+        --radio: 18px;
+      }
+
+      * { box-sizing: border-box; }
+
+      html { scroll-behavior: smooth; }
+
+      body {
+        margin: 0;
+        font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+        color: var(--carbon);
+        background: var(--blanco);
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      h1, h2, h3 { line-height: 1.2; margin: 0; letter-spacing: -0.02em; }
+      p { margin: 0; }
+
+      /* ── Barra de progreso de lectura ───────────────────────────────── */
+      .progreso {
+        position: fixed;
+        inset: 0 auto auto 0;
+        height: 4px;
+        width: 0;
+        background: linear-gradient(90deg, var(--naranja), var(--naranja-claro));
+        z-index: 100;
+        transition: width 0.1s linear;
+      }
+
+      /* ── Navegación superior ────────────────────────────────────────── */
+      .nav {
+        position: sticky;
+        top: 0;
+        z-index: 90;
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        padding: 14px 32px;
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(12px);
+        border-bottom: 1px solid var(--gris-linea);
+      }
+      .nav img { height: 34px; width: auto; display: block; }
+      .nav-marca { display: flex; align-items: center; gap: 12px; }
+      .nav-marca span {
+        font-weight: 700;
+        font-size: 15px;
+        letter-spacing: -0.01em;
+      }
+      .nav-marca small {
+        display: block;
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--gris-texto);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+      /* ── Selector de semana ─────────────────────────────────────────── */
+      .semanas {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        padding: 3px;
+        border-radius: 999px;
+        background: var(--carbon-suave);
+        border: 1px solid var(--gris-linea);
+      }
+      .semanas a {
+        padding: 5px 12px;
+        border-radius: 999px;
+        font-size: 12.5px;
+        font-weight: 700;
+        color: var(--carbon-medio);
+        text-decoration: none;
+        white-space: nowrap;
+        transition: background 0.18s, color 0.18s;
+      }
+      .semanas a:hover { background: var(--naranja-suave); color: var(--naranja); }
+      .semanas a.actual { background: var(--carbon); color: #fff; }
+      .semanas .indice {
+        display: grid;
+        place-items: center;
+        width: 26px; height: 26px;
+        border-radius: 50%;
+        color: var(--carbon-medio);
+        text-decoration: none;
+        transition: background 0.18s, color 0.18s;
+      }
+      .semanas .indice:hover { background: var(--naranja); color: #fff; }
+
+      .nav-links { margin-left: auto; display: flex; gap: 4px; flex-wrap: wrap; }
+      .nav-links a {
+        padding: 7px 13px;
+        border-radius: 999px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--carbon-medio);
+        text-decoration: none;
+        transition: background 0.18s, color 0.18s;
+        white-space: nowrap;
+      }
+      .nav-links a:hover { background: var(--naranja-suave); color: var(--naranja); }
+      .nav-links a.activo { background: var(--naranja); color: #fff; }
+
+      /* ── Portada ────────────────────────────────────────────────────── */
+      .portada {
+        position: relative;
+        overflow: hidden;
+        padding: 90px 32px 80px;
+        background: var(--carbon);
+        color: #fff;
+        text-align: center;
+      }
+      .portada::before,
+      .portada::after {
+        content: "";
+        position: absolute;
+        border-radius: 50%;
+        pointer-events: none;
+      }
+      .portada::before {
+        width: 460px; height: 460px;
+        top: -220px; right: -140px;
+        background: radial-gradient(circle, rgba(245, 134, 52, 0.42), transparent 68%);
+      }
+      .portada::after {
+        width: 380px; height: 380px;
+        bottom: -200px; left: -120px;
+        background: radial-gradient(circle, rgba(245, 134, 52, 0.26), transparent 68%);
+      }
+      .portada > * { position: relative; z-index: 1; }
+      .portada .escudo {
+        display: inline-grid;
+        place-items: center;
+        width: 96px; height: 96px;
+        border-radius: 26px;
+        background: #fff;
+        box-shadow: var(--sombra);
+        margin-bottom: 26px;
+      }
+      .portada .escudo img { width: 60px; height: auto; display: block; }
+      .portada h1 { font-size: clamp(32px, 5.2vw, 54px); font-weight: 800; }
+      .portada h1 em { font-style: normal; color: var(--naranja-claro); }
+      .portada .bajada {
+        max-width: 640px;
+        margin: 18px auto 0;
+        font-size: 17px;
+        color: rgba(255, 255, 255, 0.76);
+      }
+      .etiqueta {
+        display: inline-block;
+        padding: 6px 15px;
+        border-radius: 999px;
+        background: rgba(245, 134, 52, 0.18);
+        border: 1px solid rgba(245, 134, 52, 0.42);
+        color: var(--naranja-claro);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        margin-bottom: 22px;
+      }
+
+      .metricas {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 14px;
+        max-width: 880px;
+        margin: 44px auto 0;
+      }
+      .metrica {
+        padding: 20px 16px;
+        border-radius: var(--radio);
+        background: rgba(255, 255, 255, 0.07);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+      }
+      .metrica strong {
+        display: block;
+        font-size: 30px;
+        font-weight: 800;
+        color: var(--naranja-claro);
+        line-height: 1.1;
+      }
+      .metrica span {
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.66);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      /* ── Secciones ──────────────────────────────────────────────────── */
+      .seccion { padding: 76px 32px; max-width: 1180px; margin: 0 auto; }
+      .seccion.alterna { background: var(--carbon-suave); max-width: none; }
+      .seccion.alterna > .interior { max-width: 1180px; margin: 0 auto; }
+
+      .encabezado { margin-bottom: 38px; max-width: 720px; }
+      .numero {
+        display: inline-block;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        color: var(--naranja);
+        text-transform: uppercase;
+        margin-bottom: 10px;
+      }
+      .encabezado h2 { font-size: clamp(26px, 3.4vw, 36px); font-weight: 800; }
+      .encabezado p { margin-top: 12px; font-size: 16px; color: var(--gris-texto); }
+
+      /* ── Tarjetas de funcionalidad ──────────────────────────────────── */
+      .tarjetas {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 18px;
+        margin-bottom: 36px;
+      }
+      .tarjeta {
+        padding: 24px;
+        border-radius: var(--radio);
+        background: #fff;
+        border: 1px solid var(--gris-linea);
+        transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+      }
+      .tarjeta:hover {
+        transform: translateY(-3px);
+        box-shadow: var(--sombra);
+        border-color: rgba(245, 134, 52, 0.4);
+      }
+      .tarjeta .icono {
+        display: grid;
+        place-items: center;
+        width: 42px; height: 42px;
+        border-radius: 12px;
+        background: var(--naranja-suave);
+        color: var(--naranja);
+        margin-bottom: 14px;
+      }
+      .tarjeta h3 { font-size: 17px; font-weight: 700; margin-bottom: 7px; }
+      .tarjeta p { font-size: 14.5px; color: var(--gris-texto); }
+
+      /* ── Visor de capturas ──────────────────────────────────────────── */
+      .visor {
+        border-radius: var(--radio);
+        overflow: hidden;
+        border: 1px solid var(--gris-linea);
+        background: #fff;
+        box-shadow: var(--sombra);
+      }
+      .pestanas {
+        display: flex;
+        gap: 4px;
+        padding: 10px 12px;
+        background: var(--carbon);
+        overflow-x: auto;
+      }
+      .pestanas button {
+        flex: 0 0 auto;
+        padding: 8px 15px;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.68);
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background 0.18s, color 0.18s;
+      }
+      .pestanas button:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+      .pestanas button[aria-selected="true"] { background: var(--naranja); color: #fff; }
+
+      .lamina { display: none; }
+      .lamina.visible { display: block; }
+      .lamina figure { margin: 0; }
+      .lamina img {
+        display: block;
+        width: 100%;
+        height: auto;
+        cursor: zoom-in;
+        border-bottom: 1px solid var(--gris-linea);
+      }
+      .lamina figcaption {
+        padding: 16px 22px;
+        font-size: 14.5px;
+        color: var(--gris-texto);
+        background: #fff;
+      }
+      .lamina figcaption strong { color: var(--carbon); font-weight: 700; }
+
+      /* ── Flujo de préstamos ─────────────────────────────────────────── */
+      .flujo {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        gap: 14px;
+        margin-top: 30px;
+      }
+      .paso {
+        position: relative;
+        padding: 20px;
+        border-radius: var(--radio);
+        background: #fff;
+        border: 1px solid var(--gris-linea);
+      }
+      .paso .orden {
+        display: grid;
+        place-items: center;
+        width: 30px; height: 30px;
+        border-radius: 50%;
+        background: var(--naranja);
+        color: #fff;
+        font-size: 14px;
+        font-weight: 800;
+        margin-bottom: 12px;
+      }
+      .paso h4 { margin: 0 0 5px; font-size: 15px; font-weight: 700; }
+      .paso p { font-size: 13.5px; color: var(--gris-texto); }
+
+      /* ── Reglas destacadas ──────────────────────────────────────────── */
+      .reglas { display: grid; gap: 12px; margin-top: 28px; }
+      .regla {
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+        padding: 17px 20px;
+        border-radius: 14px;
+        background: var(--naranja-suave);
+        border-left: 4px solid var(--naranja);
+      }
+      .regla svg { flex: 0 0 auto; margin-top: 2px; color: var(--naranja); }
+      .regla p { font-size: 14.5px; }
+      .regla strong { font-weight: 700; }
+
+      /* ── Lightbox ───────────────────────────────────────────────────── */
+      .lightbox {
+        position: fixed;
+        inset: 0;
+        z-index: 200;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 28px;
+        background: rgba(55, 52, 53, 0.93);
+        cursor: zoom-out;
+      }
+      .lightbox.abierto { display: flex; }
+      .lightbox img {
+        max-width: 100%;
+        max-height: 100%;
+        border-radius: 12px;
+        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+      }
+      .lightbox .cerrar {
+        position: absolute;
+        top: 20px; right: 26px;
+        width: 42px; height: 42px;
+        border: 0;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.14);
+        color: #fff;
+        font-size: 22px;
+        cursor: pointer;
+      }
+      .lightbox .cerrar:hover { background: var(--naranja); }
+
+      /* ── Cierre ─────────────────────────────────────────────────────── */
+      .cierre {
+        padding: 70px 32px;
+        background: var(--carbon);
+        color: #fff;
+        text-align: center;
+      }
+      .cierre h2 { font-size: clamp(24px, 3.4vw, 34px); font-weight: 800; }
+      .cierre p { margin-top: 14px; color: rgba(255, 255, 255, 0.7); }
+      .cierre img { height: 44px; width: auto; margin-bottom: 24px; filter: brightness(0) invert(1); }
+      .pie {
+        padding: 22px 32px;
+        text-align: center;
+        font-size: 12.5px;
+        color: var(--gris-texto);
+        border-top: 1px solid var(--gris-linea);
+      }
+
+      .revelar {
+        opacity: 0;
+        transform: translateY(18px);
+        transition: opacity 0.5s ease, transform 0.5s ease;
+      }
+      .revelar.visible { opacity: 1; transform: none; }
+
+      @media (max-width: 720px) {
+        .nav { padding: 12px 18px; }
+        .nav-links { width: 100%; margin-left: 0; }
+        .seccion { padding: 52px 18px; }
+        .portada { padding: 60px 18px 56px; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html { scroll-behavior: auto; }
+        .revelar { opacity: 1; transform: none; transition: none; }
+      }
+    </style>
+    <style>
+      /* ── Tabla de costos (exclusiva de esta entrega) ─────────────────── */
+      .tabla-envoltura {
+        overflow-x: auto;
+        border-radius: var(--radio);
+        border: 1px solid var(--gris-linea);
+        background: #fff;
+        margin-top: 26px;
+      }
+      .tabla {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14.5px;
+        min-width: 620px;
+      }
+      .tabla th {
+        text-align: left;
+        padding: 14px 18px;
+        background: var(--carbon);
+        color: #fff;
+        font-weight: 700;
+        font-size: 13px;
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+      }
+      .tabla td { padding: 13px 18px; border-bottom: 1px solid var(--gris-linea); }
+      .tabla tbody tr:last-child td { border-bottom: 0; }
+      .tabla tbody tr:nth-child(odd) { background: rgba(55, 52, 53, 0.022); }
+      .tabla td strong { font-weight: 700; }
+      .tabla .destacado { color: var(--naranja); font-weight: 700; }
+
+      /* ── Bloque de pendientes del cliente ───────────────────────────── */
+      .pendientes {
+        display: grid;
+        gap: 10px;
+        margin-top: 24px;
+        padding: 22px 24px;
+        border-radius: var(--radio);
+        background: var(--carbon);
+        color: #fff;
+      }
+      .pendientes h4 {
+        margin: 0 0 6px;
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--naranja-claro);
+      }
+      .pendientes ul { margin: 0; padding-left: 20px; }
+      .pendientes li {
+        font-size: 14.5px;
+        color: rgba(255, 255, 255, 0.78);
+        margin-bottom: 7px;
+      }
+      .pendientes li:last-child { margin-bottom: 0; }
+      .pendientes li strong { color: #fff; font-weight: 700; }
+
+      .nota-pie {
+        margin-top: 18px;
+        font-size: 13.5px;
+        color: var(--gris-texto);
+        font-style: italic;
+      }
+
+      .boton-semana {
+        display: inline-block;
+        margin-top: 26px;
+        padding: 12px 26px;
+        border-radius: 999px;
+        background: var(--naranja);
+        color: #fff;
+        font-weight: 700;
+        font-size: 14.5px;
+        text-decoration: none;
+      }
+      .boton-semana:hover { background: var(--naranja-claro); }
+    </style>
+  </head>
+
+  <body>
+    <div class="progreso" id="progreso"></div>
+
+    <nav class="nav">
+      <div class="nav-marca">
+        <img src="img/logo-davinci.png" alt="DaVinci" />
+        <span>DaVinci<small>Avances Mercados Titos</small></span>
+      </div>
+      <div class="semanas">
+        <a class="indice" href="index.html" title="Todas las semanas" aria-label="Todas las semanas">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </a>
+        <a href="semana-5.html">Semana 5</a>
+        <a class="actual" href="semana-6.html">Semana 6</a>
+      </div>
+      <div class="nav-links">
+        <a href="#resumen">Resumen</a>
+        <a href="#mostrador">Venta en matriz</a>
+        <a href="#reporte">Ventas</a>
+        <a href="#facturas">Facturación</a>
+        <a href="#sat">Timbrado SAT</a>
+        <a href="#cancelaciones">Cancelaciones</a>
+        <a href="#constancia">Constancia</a>
+        <a href="#operacion">Operación</a>
+      </div>
+    </nav>
+
+    <header class="portada">
+      <span class="escudo"><img src="img/logo-davinci.png" alt="DaVinci" /></span>
+      <div><span class="etiqueta">Semana 6 · Entrega de avances</span></div>
+      <h1>Facturación, control de cancelaciones y <em>venta desde matriz</em></h1>
+      <p class="bajada">
+        Siete ajustes solicitados, entregados en una sola semana: matriz ya vende y descuenta de su
+        propio inventario, las ventas se convierten en facturas, y nadie puede cancelar un producto
+        sin dejar rastro.
+      </p>
+
+      <div class="metricas">
+        <div class="metrica"><strong>7</strong><span>Ajustes entregados</span></div>
+        <div class="metrica"><strong>33</strong><span>Archivos trabajados</span></div>
+        <div class="metrica"><strong>+3,900</strong><span>Líneas de código</span></div>
+        <div class="metrica"><strong>8</strong><span>Endpoints nuevos</span></div>
+      </div>
+    </header>
+
+    <!-- ── Resumen ──────────────────────────────────────────────────── -->
+    <section class="seccion" id="resumen">
+      <div class="encabezado revelar">
+        <span class="numero">01 · Resumen</span>
+        <h2>Los siete ajustes de esta semana</h2>
+        <p>
+          Tres de ellos cierran huecos de control (quién cancela, qué se vendió, cómo se factura) y
+          los otros cuatro quitan fricción del día a día en el mostrador.
+        </p>
+      </div>
+
+      <div class="tarjetas">
+        <article class="tarjeta revelar">
+          <span class="icono">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h3l2.6 12.4a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.6L21 7H6"/></svg>
+          </span>
+          <h3>Punto de venta en matriz</h3>
+          <p>El mostrador del CEDIS vende con la misma caja, cortes y clientes que una sucursal, descontando de la existencia de matriz.</p>
+        </article>
+
+        <article class="tarjeta revelar">
+          <span class="icono">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 7-7"/><path d="M14 8h6v6"/></svg>
+          </span>
+          <h3>Historial de ventas monetario</h3>
+          <p>Cuánto cobró cada sucursal, en qué días y con qué forma de pago. Con filtros por sucursal y fecha, y exportación a PDF.</p>
+        </article>
+
+        <article class="tarjeta revelar">
+          <span class="icono">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 3h16v18l-3-2-3 2-3-2-3 2-3-2z"/><path d="M8 8h8M8 12h5"/></svg>
+          </span>
+          <h3>Módulo de facturas</h3>
+          <p>Cualquier nota de venta se convierte en factura con los datos fiscales del cliente, comentarios de seguimiento y PDF.</p>
+        </article>
+
+        <article class="tarjeta revelar">
+          <span class="icono">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v4M12 16h.01"/></svg>
+          </span>
+          <h3>Cancelaciones con NIP</h3>
+          <p>Quitar un producto o cancelar una venta exige el NIP del supervisor y un motivo. Todo queda en una bitácora que revisa matriz.</p>
+        </article>
+
+        <article class="tarjeta revelar">
+          <span class="icono">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6M9 15l3-3 3 3"/></svg>
+          </span>
+          <h3>Alta con constancia fiscal</h3>
+          <p>Se sube el PDF del SAT y el sistema llena solo el RFC, la razón social, el régimen, el código postal y el domicilio.</p>
+        </article>
+
+        <article class="tarjeta revelar">
+          <span class="icono">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m7.9 7.9 8.2 8.2"/><circle cx="12" cy="12" r="9"/></svg>
+          </span>
+          <h3>Detener notas de venta</h3>
+          <p>El protocolo se corta en el momento, sin esperar a que se cumpla el lapso programado, conservando lo ya recaudado.</p>
+        </article>
+
+        <article class="tarjeta revelar">
+          <span class="icono">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/><path d="m6 10-1.5 2L6 14"/></svg>
+          </span>
+          <h3>Menú de matriz contraíble</h3>
+          <p>El menú se reduce a iconos y le devuelve casi 200 píxeles de ancho a las tablas, igual que ya lo hacían las sucursales.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ── Mostrador de matriz ──────────────────────────────────────── -->
+    <section class="seccion alterna" id="mostrador">
+      <div class="interior">
+        <div class="encabezado revelar">
+          <span class="numero">02 · Venta en matriz</span>
+          <h2>Matriz ya vende de mostrador</h2>
+          <p>
+            El almacén central también le vende al público que llega al CEDIS. Ahora lo hace con el
+            mismo punto de venta de las sucursales: abre su caja, cobra, imprime ticket, hace su
+            corte y atiende devoluciones. La diferencia está en el inventario: cada venta descuenta
+            de la <strong>existencia de matriz</strong>, no de la de una tienda.
+          </p>
+        </div>
+
+        <div class="visor revelar" data-visor>
+          <div class="pestanas" role="tablist">
+            <button role="tab" data-tab="pos-matriz" aria-selected="true">Caja del mostrador</button>
+            <button role="tab" data-tab="pos-venta">Punto de venta en operación</button>
+          </div>
+
+          <div class="lamina visible" data-panel="pos-matriz">
+            <figure>
+              <img src="img/s6-matriz-pos.png" alt="Apertura de caja del mostrador de matriz" />
+              <figcaption>
+                <strong>Mostrador → Punto de venta.</strong> Matriz abre su propia caja con su fondo
+                en pesos y en dólares. A partir de ahí opera igual que una sucursal, con su corte y
+                sus retiros independientes.
+              </figcaption>
+            </figure>
+          </div>
+
+          <div class="lamina" data-panel="pos-venta">
+            <figure>
+              <img src="img/s6-pos-cancelacion.png" alt="Punto de venta en operación" />
+              <figcaption>
+                <strong>La misma pantalla en las dos vistas.</strong> Escáner, búsqueda por nombre,
+                venta por peso, pago mixto y cobro en dólares. Es exactamente el punto de venta que
+                ya usan las sucursales, sin una segunda herramienta que aprender.
+              </figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="reglas revelar">
+          <div class="regla">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <p><strong>Inventario correcto:</strong> lo que se vende en el mostrador sale de la existencia del CEDIS y queda registrado como movimiento de matriz.</p>
+          </div>
+          <div class="regla">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <p><strong>Caja separada:</strong> el corte del mostrador no se mezcla con el de ninguna sucursal, pero sí aparece en el corte global.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Reporte de ventas ────────────────────────────────────────── -->
+    <section class="seccion" id="reporte">
+      <div class="encabezado revelar">
+        <span class="numero">03 · Historial de ventas</span>
+        <h2>Cuánto entró, dónde y cuándo</h2>
+        <p>
+          Un reporte de dinero, no de mercancía. Se elige la sucursal y el rango de fechas y de ahí
+          sale el total cobrado, cuántas ventas fueron, el ticket promedio y el desglose por forma
+          de pago, con el detalle venta por venta y su exportación a PDF.
+        </p>
+      </div>
+
+      <div class="visor revelar" data-visor>
+        <div class="pestanas" role="tablist">
+          <button role="tab" data-tab="reporte" aria-selected="true">Reporte completo</button>
+        </div>
+        <div class="lamina visible" data-panel="reporte">
+          <figure>
+            <img src="img/s6-reporte-ventas.png" alt="Historial de ventas con filtros" />
+            <figcaption>
+              <strong>Reportes → Ventas por sucursal.</strong> Los indicadores de arriba responden
+              "¿cuánto vendimos?"; el desglose por forma de pago y la participación por sucursal
+              responden "¿de dónde salió?". Las canceladas se cuentan aparte y nunca suman al total.
+            </figcaption>
+          </figure>
+        </div>
+      </div>
+
+      <div class="reglas revelar">
+        <div class="regla">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5l3 2"/></svg>
+          <p><strong>Cada venta cuenta en el día de su sucursal.</strong> Una venta de la tarde en Tijuana no se pasa al día siguiente por la diferencia de horario: el reporte usa el corte real de cada tienda.</p>
+        </div>
+        <div class="regla">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/></svg>
+          <p><strong>Se puede llevar impreso.</strong> El botón PDF genera el reporte del periodo filtrado, con el detalle y el resumen por sucursal.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Facturas ─────────────────────────────────────────────────── -->
+    <section class="seccion alterna" id="facturas">
+      <div class="interior">
+        <div class="encabezado revelar">
+          <span class="numero">04 · Facturación</span>
+          <h2>De nota de venta a factura</h2>
+          <p>
+            Cuando el cliente regresa con su ticket a pedir factura, matriz la busca en la bandeja de
+            ventas pendientes, captura o hereda sus datos fiscales y la convierte. La factura guarda
+            el desglose de IVA, las claves del SAT de cada producto, la forma y el método de pago, y
+            un historial de comentarios para las aclaraciones.
+          </p>
+        </div>
+
+        <div class="visor revelar" data-visor>
+          <div class="pestanas" role="tablist">
+            <button role="tab" data-tab="bandeja" aria-selected="true">Ventas por facturar</button>
+            <button role="tab" data-tab="modal">Captura de datos fiscales</button>
+            <button role="tab" data-tab="emitidas">Facturas emitidas</button>
+          </div>
+
+          <div class="lamina visible" data-panel="bandeja">
+            <figure>
+              <img src="img/s6-facturas-bandeja.png" alt="Bandeja de ventas por facturar" />
+              <figcaption>
+                <strong>Facturación → Facturas.</strong> Todas las ventas completadas que aún no
+                tienen factura, filtrables por sucursal, fecha, folio o nombre del cliente. En
+                cuanto una se factura, desaparece de esta lista.
+              </figcaption>
+            </figure>
+          </div>
+
+          <div class="lamina" data-panel="modal">
+            <figure>
+              <img src="img/s6-facturas-modal.png" alt="Formulario de datos fiscales de la factura" />
+              <figcaption>
+                <strong>Datos del receptor.</strong> Si el cliente ya está dado de alta, se eligen
+                sus datos y se llenan solos. Si llega nuevo, se capturan a mano. Los catálogos de
+                régimen fiscal y uso de CFDI son los oficiales del SAT.
+              </figcaption>
+            </figure>
+          </div>
+
+          <div class="lamina" data-panel="emitidas">
+            <figure>
+              <img src="img/s6-facturas-emitidas.png" alt="Listado de facturas emitidas" />
+              <figcaption>
+                <strong>Seguimiento.</strong> Cada factura muestra su receptor, conceptos, IVA
+                desglosado y estado de timbrado. Desde aquí se le agregan comentarios, se descarga
+                el PDF o se cancela dejando el motivo asentado.
+              </figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="reglas revelar">
+          <div class="regla">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <p><strong>Una venta, una factura.</strong> No se puede facturar dos veces lo mismo. Y si la factura se cancela, la venta regresa a la bandeja para volver a emitirse con los datos correctos.</p>
+          </div>
+          <div class="regla">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <p><strong>Una venta facturada ya no se cancela por error.</strong> El sistema lo impide: primero hay que cancelar la factura, para que nunca quede un documento fiscal amparando una venta que ya no existe.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Timbrado SAT ─────────────────────────────────────────────── -->
+    <section class="seccion" id="sat">
+      <div class="encabezado revelar">
+        <span class="numero">05 · Siguiente fase</span>
+        <h2>Qué falta para timbrar ante el SAT</h2>
+        <p>
+          Las facturas de hoy son documentos internos: ya llevan <strong>todos</strong> los datos que
+          exige el CFDI 4.0, pero les falta el sello del SAT y el folio fiscal (UUID). Para
+          conseguirlo hay que contratar un PAC, el proveedor autorizado que certifica los
+          comprobantes. Esto es lo que implicaría.
+        </p>
+      </div>
+
+      <div class="tabla-envoltura revelar">
+        <table class="tabla">
+          <thead>
+            <tr>
+              <th>Proveedor (PAC)</th>
+              <th>Costo por timbre</th>
+              <th>Comentario</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Facturama</strong></td>
+              <td class="destacado">$1.00 – $2.50 MXN</td>
+              <td>API muy documentada y ambiente de pruebas gratuito. La más rápida de integrar.</td>
+            </tr>
+            <tr>
+              <td><strong>SW Sapien</strong></td>
+              <td class="destacado">$0.80 – $2.00 MXN</td>
+              <td>Muy usado por sistemas administrativos, con buen soporte técnico.</td>
+            </tr>
+            <tr>
+              <td><strong>Finkok</strong></td>
+              <td class="destacado">$0.50 – $1.50 MXN</td>
+              <td>De los más económicos por volumen; su conexión es algo más laboriosa.</td>
+            </tr>
+            <tr>
+              <td><strong>Solución Factible</strong></td>
+              <td class="destacado">$1.00 – $2.00 MXN</td>
+              <td>Timbrado y cancelación en el mismo servicio.</td>
+            </tr>
+            <tr>
+              <td><strong>Facturapi</strong></td>
+              <td class="destacado">desde $500 MXN/mes</td>
+              <td>El más cómodo de operar, pero con un costo fijo mensual.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="tabla-envoltura revelar">
+        <table class="tabla">
+          <thead>
+            <tr>
+              <th>Facturas al mes</th>
+              <th>Costo estimado de timbrado</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>100</td><td class="destacado">$100 – $250 MXN</td></tr>
+            <tr><td>500</td><td class="destacado">$400 – $1,000 MXN</td></tr>
+            <tr><td>2,000</td><td class="destacado">$1,200 – $3,000 MXN</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="nota-pie revelar">
+        Los folios se compran por paquete y no caducan. Nuestra recomendación es arrancar con
+        Facturama o SW Sapien y un paquete de 1,000 folios: alrededor de <strong>$1,500 a $2,500
+        MXN</strong> de inversión inicial, suficiente para validar todo el flujo sin comprometerse a
+        una mensualidad.
+      </p>
+
+      <div class="pendientes revelar">
+        <h4>Lo que necesitamos de Mercados Titos</h4>
+        <ul>
+          <li><strong>e.firma vigente</strong> de la empresa emisora.</li>
+          <li><strong>Certificado de Sello Digital (CSD)</strong>, que se tramita en el portal del SAT con la e.firma. Vigencia de 4 años.</li>
+          <li><strong>Contrato con el PAC</strong> elegido.</li>
+          <li><strong>Series y folios fiscales</strong> con los que se numerarán las facturas.</li>
+          <li><strong>La tasa de IVA de cada producto</strong>: cuál va a 0%, cuál al 16% y cuál está exento. El SAT lo valida al timbrar.</li>
+        </ul>
+      </div>
+
+      <p class="nota-pie revelar">
+        Con eso en mano, el desarrollo del timbrado, la cancelación ante el SAT y el envío del XML y
+        el PDF por correo toma entre 2 y 3 semanas.
+      </p>
+    </section>
+
+    <!-- ── Cancelaciones ────────────────────────────────────────────── -->
+    <section class="seccion alterna" id="cancelaciones">
+      <div class="interior">
+        <div class="encabezado revelar">
+          <span class="numero">06 · Control de cancelaciones</span>
+          <h2>Nadie quita un producto sin dejar rastro</h2>
+          <p>
+            Quitar un artículo del carrito, tirar una venta antes de cobrarla o cancelar una venta ya
+            cobrada son ahora tres acciones controladas: piden el NIP del supervisor y el motivo, y
+            generan un registro que matriz revisa cuando quiera.
+          </p>
+        </div>
+
+        <div class="visor revelar" data-visor>
+          <div class="pestanas" role="tablist">
+            <button role="tab" data-tab="autorizar" aria-selected="true">Autorización en caja</button>
+            <button role="tab" data-tab="bitacora">Bitácora en matriz</button>
+            <button role="tab" data-tab="nip">Configuración del NIP</button>
+          </div>
+
+          <div class="lamina visible" data-panel="autorizar">
+            <figure>
+              <img src="img/s6-pos-cancelacion.png" alt="Modal de autorización de cancelación en el punto de venta" />
+              <figcaption>
+                <strong>En el mostrador.</strong> Al presionar el bote de basura, la caja pide el
+                motivo y el NIP antes de quitar nada. Se ve el importe exacto que se está
+                cancelando, para que el supervisor sepa qué está autorizando.
+              </figcaption>
+            </figure>
+          </div>
+
+          <div class="lamina" data-panel="bitacora">
+            <figure>
+              <img src="img/s6-cancelaciones.png" alt="Bitácora de cancelaciones en matriz" />
+              <figcaption>
+                <strong>Reportes → Cancelaciones.</strong> Cada movimiento con su folio, tipo,
+                sucursal, cajero, importe y motivo. Se filtra por sucursal, fecha y tipo, y el
+                contador de arriba avisa cuántas se hicieron sin autorización.
+              </figcaption>
+            </figure>
+          </div>
+
+          <div class="lamina" data-panel="nip">
+            <figure>
+              <img src="img/s6-configuracion-nip.png" alt="Configuración del NIP de supervisor" />
+              <figcaption>
+                <strong>Configuraciones → NIP de supervisor.</strong> Matriz define un NIP de 4 a 8
+                dígitos que aplica a todos los puntos de venta. Se guarda cifrado y se puede cambiar
+                cuando haga falta.
+              </figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="reglas revelar">
+          <div class="regla">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+            <p><strong>El sistema nunca se traba.</strong> Mientras no se configure el NIP, la caja puede seguir cancelando, pero cada movimiento queda marcado como "sin autorización" y matriz lo ve resaltado en la bitácora. El día que se define el NIP, empieza a exigirse.</p>
+          </div>
+          <div class="regla">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <p><strong>Sin internet no se autoriza.</strong> El NIP se valida contra el servidor, igual que ya pasa con los retiros de efectivo, para que nadie pueda cancelar desconectando la caja.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Constancia fiscal ────────────────────────────────────────── -->
+    <section class="seccion" id="constancia">
+      <div class="encabezado revelar">
+        <span class="numero">07 · Constancia fiscal</span>
+        <h2>El PDF del SAT llena el alta</h2>
+        <p>
+          Dar de alta a un cliente que va a pedir factura ya no es teclear un RFC de trece
+          caracteres. Se sube el PDF de su Constancia de Situación Fiscal y el sistema lo lee.
+        </p>
+      </div>
+
+      <div class="visor revelar" data-visor>
+        <div class="pestanas" role="tablist">
+          <button role="tab" data-tab="alta" aria-selected="true">Alta de cliente</button>
+        </div>
+        <div class="lamina visible" data-panel="alta">
+          <figure>
+            <img src="img/s6-cliente-constancia.png" alt="Alta de cliente con carga de constancia fiscal" />
+            <figcaption>
+              <strong>Clientes → Nuevo cliente.</strong> El bloque verde recibe el PDF y llena la
+              razón social, el RFC, el régimen fiscal, el código postal, el domicilio y el correo.
+              Nada se guarda hasta que el encargado revisa y confirma.
+            </figcaption>
+          </figure>
+        </div>
+      </div>
+
+      <div class="flujo revelar">
+        <div class="paso">
+          <span class="orden">1</span>
+          <h4>Se sube el PDF</h4>
+          <p>El cliente manda su constancia por WhatsApp o la trae en el celular.</p>
+        </div>
+        <div class="paso">
+          <span class="orden">2</span>
+          <h4>El sistema lo lee</h4>
+          <p>Reconoce personas físicas y morales, con o sin acentos en el documento.</p>
+        </div>
+        <div class="paso">
+          <span class="orden">3</span>
+          <h4>Se revisa</h4>
+          <p>Si algún dato no venía en el PDF, el sistema avisa exactamente cuál capturar.</p>
+        </div>
+        <div class="paso">
+          <span class="orden">4</span>
+          <h4>Queda listo para facturar</h4>
+          <p>Al facturarle, sus datos fiscales se heredan solos al documento.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Operación diaria ─────────────────────────────────────────── -->
+    <section class="seccion alterna" id="operacion">
+      <div class="interior">
+        <div class="encabezado revelar">
+          <span class="numero">08 · Operación diaria</span>
+          <h2>Dos detalles que estorbaban</h2>
+          <p>
+            Pequeños, pero se sentían todos los días: no poder detener el protocolo de notas de venta
+            y no poder recuperar espacio de pantalla en matriz.
+          </p>
+        </div>
+
+        <div class="visor revelar" data-visor>
+          <div class="pestanas" role="tablist">
+            <button role="tab" data-tab="notas" aria-selected="true">Detener notas de venta</button>
+            <button role="tab" data-tab="menu">Menú contraído</button>
+          </div>
+
+          <div class="lamina visible" data-panel="notas">
+            <figure>
+              <img src="img/s6-notas-de-venta.png" alt="Pantalla de notas de venta" />
+              <figcaption>
+                <strong>Reportes → Notas de venta.</strong> Las activaciones en curso aparecen arriba
+                con un botón para detenerlas en el momento. Antes había que esperar a que se cumpliera
+                el lapso programado.
+              </figcaption>
+            </figure>
+          </div>
+
+          <div class="lamina" data-panel="menu">
+            <figure>
+              <img src="img/s6-menu-contraido.png" alt="Menú de matriz contraído a iconos" />
+              <figcaption>
+                <strong>Contraer menú.</strong> El menú de matriz se reduce a una columna de iconos y
+                le devuelve el ancho a las tablas. La preferencia se recuerda para la siguiente vez
+                que se entre.
+              </figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="reglas revelar">
+          <div class="regla">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <p><strong>Al detener no se pierde nada.</strong> Lo ya recaudado se conserva y la activación queda lista para marcar el retiro del efectivo. Si todavía no arrancaba, simplemente se cancela.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="cierre">
+      <img src="img/logo-davinci.png" alt="DaVinci" />
+      <h2>Los siete puntos, entregados</h2>
+      <p>
+        Todo lo de esta semana está funcionando sobre el sistema en operación.<br />
+        Quedamos atentos a sus comentarios y a su decisión sobre el timbrado ante el SAT.
+      </p>
+      <p><a class="boton-semana" href="semana-5.html">← Repasar la semana 5</a></p>
+    </section>
+
+    <footer class="pie">
+      DaVinci · Presentación de avances para Mercados Titos · Semana 6
+      <span id="fecha"></span>
+    </footer>
+
+    <div class="lightbox" id="lightbox">
+      <button class="cerrar" id="cerrarLightbox" aria-label="Cerrar">×</button>
+      <img id="lightboxImg" alt="" />
+    </div>
+
+    <script>
+      // ── Pestañas de cada visor ────────────────────────────────────────
+      document.querySelectorAll("[data-visor]").forEach((visor) => {
+        const botones = visor.querySelectorAll("[data-tab]");
+        const paneles = visor.querySelectorAll("[data-panel]");
+
+        botones.forEach((boton) => {
+          boton.addEventListener("click", () => {
+            botones.forEach((b) => b.setAttribute("aria-selected", String(b === boton)));
+            paneles.forEach((p) =>
+              p.classList.toggle("visible", p.dataset.panel === boton.dataset.tab)
+            );
+          });
+        });
+      });
+
+      // ── Lightbox para ver la captura en grande ────────────────────────
+      const lightbox = document.getElementById("lightbox");
+      const lightboxImg = document.getElementById("lightboxImg");
+
+      function abrirLightbox(src, alt) {
+        lightboxImg.src = src;
+        lightboxImg.alt = alt;
+        lightbox.classList.add("abierto");
+        document.body.style.overflow = "hidden";
+      }
+      function cerrarLightbox() {
+        lightbox.classList.remove("abierto");
+        document.body.style.overflow = "";
+      }
+
+      document.querySelectorAll(".lamina img").forEach((img) => {
+        img.addEventListener("click", () => abrirLightbox(img.src, img.alt));
+      });
+      lightbox.addEventListener("click", cerrarLightbox);
+      document.getElementById("cerrarLightbox").addEventListener("click", cerrarLightbox);
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") cerrarLightbox();
+      });
+
+      // ── Barra de progreso ─────────────────────────────────────────────
+      const progreso = document.getElementById("progreso");
+      function actualizarProgreso() {
+        const alto = document.documentElement.scrollHeight - window.innerHeight;
+        const avance = alto > 0 ? (window.scrollY / alto) * 100 : 0;
+        progreso.style.width = avance + "%";
+      }
+      window.addEventListener("scroll", actualizarProgreso, { passive: true });
+      actualizarProgreso();
+
+      // ── Resaltado del enlace de la sección visible ────────────────────
+      const enlaces = [...document.querySelectorAll(".nav-links a")];
+      const secciones = enlaces
+        .map((a) => document.querySelector(a.getAttribute("href")))
+        .filter(Boolean);
+
+      const observadorNav = new IntersectionObserver(
+        (entradas) => {
+          entradas.forEach((entrada) => {
+            if (!entrada.isIntersecting) return;
+            enlaces.forEach((a) =>
+              a.classList.toggle("activo", a.getAttribute("href") === "#" + entrada.target.id)
+            );
+          });
+        },
+        { rootMargin: "-45% 0px -50% 0px" }
+      );
+      secciones.forEach((s) => observadorNav.observe(s));
+
+      // ── Aparición progresiva al hacer scroll ──────────────────────────
+      const observadorRevelar = new IntersectionObserver(
+        (entradas, obs) => {
+          entradas.forEach((entrada) => {
+            if (!entrada.isIntersecting) return;
+            entrada.target.classList.add("visible");
+            obs.unobserve(entrada.target);
+          });
+        },
+        { threshold: 0.12 }
+      );
+      document.querySelectorAll(".revelar").forEach((el, i) => {
+        el.style.transitionDelay = (i % 4) * 60 + "ms";
+        observadorRevelar.observe(el);
+      });
+
+      // ── Navegación con flechas entre secciones ────────────────────────
+      document.addEventListener("keydown", (e) => {
+        if (lightbox.classList.contains("abierto")) return;
+        if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+        if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)) return;
+
+        const actual = secciones.findIndex((s) => s.getBoundingClientRect().top > -80);
+        const destino = e.key === "ArrowDown" ? actual : actual - 2;
+        if (secciones[destino]) {
+          e.preventDefault();
+          secciones[destino].scrollIntoView({ behavior: "smooth" });
+        }
+      });
+
+      document.getElementById("fecha").textContent =
+        " · " + new Date().toLocaleDateString("es-MX", { day: "2-digit", month: "long", year: "numeric" });
+    </script>
+  </body>
+
+</html>

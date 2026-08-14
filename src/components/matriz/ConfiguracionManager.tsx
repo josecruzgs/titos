@@ -3,7 +3,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { Button, Card, FormGrid, FormField, Input, Modal } from "@/components/ui";
-import { Wifi, WifiOff, Loader2, RefreshCw, QrCode, Clock, CalendarCheck, DollarSign } from "lucide-react";
+import {
+  Wifi,
+  WifiOff,
+  Loader2,
+  RefreshCw,
+  QrCode,
+  Clock,
+  CalendarCheck,
+  DollarSign,
+  Percent,
+  KeyRound,
+  ShieldCheck,
+} from "lucide-react";
 import { DIAS_SEMANA, DIA_LABEL } from "@/lib/dias";
 
 type EstadoConexion = "open" | "connecting" | "close" | "desconocido";
@@ -107,9 +119,17 @@ export function ConfiguracionManager() {
   const [diasLaborales, setDiasLaborales] = useState<string[]>([]);
   const [horaCorte, setHoraCorte] = useState("16:00");
   const [tipoCambio, setTipoCambio] = useState("17");
+  const [tasaIvaFactura, setTasaIvaFactura] = useState("0");
   const [cargandoConfig, setCargandoConfig] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
+
+  const [nipConfigurado, setNipConfigurado] = useState(false);
+  const [nip, setNip] = useState("");
+  const [nipConfirmacion, setNipConfirmacion] = useState("");
+  const [guardandoNip, setGuardandoNip] = useState(false);
+  const [mensajeNip, setMensajeNip] = useState<string | null>(null);
+  const [errorNip, setErrorNip] = useState<string | null>(null);
 
   const cargado = useRef(false);
 
@@ -134,6 +154,8 @@ export function ConfiguracionManager() {
     setDiasLaborales(data.diasLaborales ?? []);
     setHoraCorte(data.horaCorte ?? "16:00");
     setTipoCambio(String(data.tipoCambio ?? 17));
+    setTasaIvaFactura(String(data.tasaIvaFactura ?? 0));
+    setNipConfigurado(!!data.nipSupervisorConfigurado);
   }, []);
 
   useEffect(() => {
@@ -153,7 +175,12 @@ export function ConfiguracionManager() {
     const res = await fetch("/api/configuracion", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ diasLaborales, horaCorte, tipoCambio: Number(tipoCambio) }),
+      body: JSON.stringify({
+        diasLaborales,
+        horaCorte,
+        tipoCambio: Number(tipoCambio),
+        tasaIvaFactura: Number(tasaIvaFactura),
+      }),
     });
     setGuardando(false);
 
@@ -164,6 +191,60 @@ export function ConfiguracionManager() {
     }
 
     setMensaje("Ajustes guardados.");
+  }
+
+  async function guardarNip() {
+    setErrorNip(null);
+    setMensajeNip(null);
+
+    if (!/^\d{4,8}$/.test(nip)) {
+      setErrorNip("El NIP debe tener de 4 a 8 dígitos");
+      return;
+    }
+    if (nip !== nipConfirmacion) {
+      setErrorNip("Los dos NIP no coinciden");
+      return;
+    }
+
+    setGuardandoNip(true);
+    const res = await fetch("/api/configuracion", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nipSupervisor: nip }),
+    });
+    setGuardandoNip(false);
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setErrorNip(data.error || "No se pudo guardar el NIP");
+      return;
+    }
+
+    setNip("");
+    setNipConfirmacion("");
+    setNipConfigurado(true);
+    setMensajeNip("NIP de supervisor actualizado.");
+  }
+
+  async function quitarNip() {
+    setErrorNip(null);
+    setMensajeNip(null);
+    setGuardandoNip(true);
+    const res = await fetch("/api/configuracion", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nipSupervisor: null }),
+    });
+    setGuardandoNip(false);
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setErrorNip(data.error || "No se pudo quitar el NIP");
+      return;
+    }
+
+    setNipConfigurado(false);
+    setMensajeNip("Se quitó el NIP. Las cancelaciones se seguirán registrando, pero ya no piden autorización.");
   }
 
   async function desconectar() {
@@ -257,6 +338,18 @@ export function ConfiguracionManager() {
                 placeholder="17.00"
               />
             </FormField>
+            <FormField label="Tasa de IVA para facturas (%)">
+              <Input
+                icon={Percent}
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                value={tasaIvaFactura}
+                onChange={(e) => setTasaIvaFactura(e.target.value)}
+                placeholder="0"
+              />
+            </FormField>
           </FormGrid>
         )}
 
@@ -268,6 +361,69 @@ export function ConfiguracionManager() {
               <CalendarCheck className="h-4 w-4" /> {guardando ? "Guardando..." : "Guardar ajustes"}
             </span>
           </Button>
+        </div>
+      </Card>
+
+      <Card>
+        <h2 className="mb-1 flex items-center gap-2 font-semibold text-titos-green-900">
+          <ShieldCheck className="h-4.5 w-4.5 text-titos-green-700" />
+          NIP de supervisor
+        </h2>
+        <p className="mb-4 text-sm text-black/50">
+          Autoriza las cancelaciones en los puntos de venta de matriz y de las sucursales: quitar un producto del
+          carrito, cancelar una venta en curso o cancelar una venta ya cobrada. Todas quedan en la bitácora de
+          cancelaciones, con o sin NIP.
+        </p>
+
+        <div
+          className={`mb-4 rounded-lg px-3 py-2 text-sm ${
+            nipConfigurado ? "bg-titos-green-100 text-titos-green-700" : "bg-amber-50 text-amber-800"
+          }`}
+        >
+          {nipConfigurado
+            ? "Hay un NIP configurado: los cajeros deben capturarlo para poder cancelar."
+            : "Todavía no hay NIP. Las cancelaciones se registran, pero cualquier cajero puede hacerlas sin autorización."}
+        </div>
+
+        <FormGrid>
+          <FormField label={nipConfigurado ? "Nuevo NIP (4 a 8 dígitos)" : "NIP (4 a 8 dígitos)"}>
+            <Input
+              icon={KeyRound}
+              type="password"
+              inputMode="numeric"
+              autoComplete="new-password"
+              maxLength={8}
+              value={nip}
+              onChange={(e) => setNip(e.target.value.replace(/\D/g, ""))}
+              placeholder="••••"
+            />
+          </FormField>
+          <FormField label="Confirmar NIP">
+            <Input
+              icon={KeyRound}
+              type="password"
+              inputMode="numeric"
+              autoComplete="new-password"
+              maxLength={8}
+              value={nipConfirmacion}
+              onChange={(e) => setNipConfirmacion(e.target.value.replace(/\D/g, ""))}
+              placeholder="••••"
+            />
+          </FormField>
+        </FormGrid>
+
+        {errorNip ? <p className="mt-3 text-sm text-red-600">{errorNip}</p> : null}
+        {mensajeNip ? <p className="mt-3 text-sm text-titos-green-700">{mensajeNip}</p> : null}
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button onClick={guardarNip} disabled={guardandoNip || cargandoConfig}>
+            {guardandoNip ? "Guardando..." : nipConfigurado ? "Cambiar NIP" : "Guardar NIP"}
+          </Button>
+          {nipConfigurado ? (
+            <Button variant="ghost" onClick={quitarNip} disabled={guardandoNip}>
+              Quitar NIP
+            </Button>
+          ) : null}
         </div>
       </Card>
 

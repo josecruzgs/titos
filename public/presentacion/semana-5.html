@@ -1,0 +1,999 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>DaVinci · Avances Mercados Titos</title>
+    <link rel="icon" href="img/logo-davinci.png" />
+    <style>
+      /* ── Paleta tomada del logo DaVinci ─────────────────────────────── */
+      :root {
+        --naranja: #f58634;
+        --naranja-claro: #ffa365;
+        --naranja-suave: #fff1e6;
+        --carbon: #373435;
+        --carbon-medio: #575253;
+        --carbon-suave: #f4f2f2;
+        --blanco: #ffffff;
+        --gris-linea: rgba(55, 52, 53, 0.12);
+        --gris-texto: rgba(55, 52, 53, 0.62);
+        --verde: #2f9e5f;
+        --sombra: 0 18px 50px rgba(55, 52, 53, 0.16);
+        --radio: 18px;
+      }
+
+      * { box-sizing: border-box; }
+
+      html { scroll-behavior: smooth; }
+
+      body {
+        margin: 0;
+        font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+        color: var(--carbon);
+        background: var(--blanco);
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      h1, h2, h3 { line-height: 1.2; margin: 0; letter-spacing: -0.02em; }
+      p { margin: 0; }
+
+      /* ── Barra de progreso de lectura ───────────────────────────────── */
+      .progreso {
+        position: fixed;
+        inset: 0 auto auto 0;
+        height: 4px;
+        width: 0;
+        background: linear-gradient(90deg, var(--naranja), var(--naranja-claro));
+        z-index: 100;
+        transition: width 0.1s linear;
+      }
+
+      /* ── Navegación superior ────────────────────────────────────────── */
+      .nav {
+        position: sticky;
+        top: 0;
+        z-index: 90;
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        padding: 14px 32px;
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(12px);
+        border-bottom: 1px solid var(--gris-linea);
+      }
+      .nav img { height: 34px; width: auto; display: block; }
+      .nav-marca { display: flex; align-items: center; gap: 12px; }
+      .nav-marca span {
+        font-weight: 700;
+        font-size: 15px;
+        letter-spacing: -0.01em;
+      }
+      .nav-marca small {
+        display: block;
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--gris-texto);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+      /* ── Selector de semana ─────────────────────────────────────────── */
+      .semanas {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        padding: 3px;
+        border-radius: 999px;
+        background: var(--carbon-suave);
+        border: 1px solid var(--gris-linea);
+      }
+      .semanas a {
+        padding: 5px 12px;
+        border-radius: 999px;
+        font-size: 12.5px;
+        font-weight: 700;
+        color: var(--carbon-medio);
+        text-decoration: none;
+        white-space: nowrap;
+        transition: background 0.18s, color 0.18s;
+      }
+      .semanas a:hover { background: var(--naranja-suave); color: var(--naranja); }
+      .semanas a.actual { background: var(--carbon); color: #fff; }
+      .semanas .indice {
+        display: grid;
+        place-items: center;
+        width: 26px; height: 26px;
+        border-radius: 50%;
+        color: var(--carbon-medio);
+        text-decoration: none;
+        transition: background 0.18s, color 0.18s;
+      }
+      .semanas .indice:hover { background: var(--naranja); color: #fff; }
+
+      .nav-links { margin-left: auto; display: flex; gap: 4px; flex-wrap: wrap; }
+      .nav-links a {
+        padding: 7px 13px;
+        border-radius: 999px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--carbon-medio);
+        text-decoration: none;
+        transition: background 0.18s, color 0.18s;
+        white-space: nowrap;
+      }
+      .nav-links a:hover { background: var(--naranja-suave); color: var(--naranja); }
+      .nav-links a.activo { background: var(--naranja); color: #fff; }
+
+      /* ── Portada ────────────────────────────────────────────────────── */
+      .portada {
+        position: relative;
+        overflow: hidden;
+        padding: 90px 32px 80px;
+        background: var(--carbon);
+        color: #fff;
+        text-align: center;
+      }
+      .portada::before,
+      .portada::after {
+        content: "";
+        position: absolute;
+        border-radius: 50%;
+        pointer-events: none;
+      }
+      .portada::before {
+        width: 460px; height: 460px;
+        top: -220px; right: -140px;
+        background: radial-gradient(circle, rgba(245, 134, 52, 0.42), transparent 68%);
+      }
+      .portada::after {
+        width: 380px; height: 380px;
+        bottom: -200px; left: -120px;
+        background: radial-gradient(circle, rgba(245, 134, 52, 0.26), transparent 68%);
+      }
+      .portada > * { position: relative; z-index: 1; }
+      .portada .escudo {
+        display: inline-grid;
+        place-items: center;
+        width: 96px; height: 96px;
+        border-radius: 26px;
+        background: #fff;
+        box-shadow: var(--sombra);
+        margin-bottom: 26px;
+      }
+      .portada .escudo img { width: 60px; height: auto; display: block; }
+      .portada h1 { font-size: clamp(32px, 5.2vw, 54px); font-weight: 800; }
+      .portada h1 em { font-style: normal; color: var(--naranja-claro); }
+      .portada .bajada {
+        max-width: 640px;
+        margin: 18px auto 0;
+        font-size: 17px;
+        color: rgba(255, 255, 255, 0.76);
+      }
+      .etiqueta {
+        display: inline-block;
+        padding: 6px 15px;
+        border-radius: 999px;
+        background: rgba(245, 134, 52, 0.18);
+        border: 1px solid rgba(245, 134, 52, 0.42);
+        color: var(--naranja-claro);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        margin-bottom: 22px;
+      }
+
+      .metricas {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 14px;
+        max-width: 880px;
+        margin: 44px auto 0;
+      }
+      .metrica {
+        padding: 20px 16px;
+        border-radius: var(--radio);
+        background: rgba(255, 255, 255, 0.07);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+      }
+      .metrica strong {
+        display: block;
+        font-size: 30px;
+        font-weight: 800;
+        color: var(--naranja-claro);
+        line-height: 1.1;
+      }
+      .metrica span {
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.66);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      /* ── Secciones ──────────────────────────────────────────────────── */
+      .seccion { padding: 76px 32px; max-width: 1180px; margin: 0 auto; }
+      .seccion.alterna { background: var(--carbon-suave); max-width: none; }
+      .seccion.alterna > .interior { max-width: 1180px; margin: 0 auto; }
+
+      .encabezado { margin-bottom: 38px; max-width: 720px; }
+      .numero {
+        display: inline-block;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        color: var(--naranja);
+        text-transform: uppercase;
+        margin-bottom: 10px;
+      }
+      .encabezado h2 { font-size: clamp(26px, 3.4vw, 36px); font-weight: 800; }
+      .encabezado p { margin-top: 12px; font-size: 16px; color: var(--gris-texto); }
+
+      /* ── Tarjetas de funcionalidad ──────────────────────────────────── */
+      .tarjetas {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 18px;
+        margin-bottom: 36px;
+      }
+      .tarjeta {
+        padding: 24px;
+        border-radius: var(--radio);
+        background: #fff;
+        border: 1px solid var(--gris-linea);
+        transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+      }
+      .tarjeta:hover {
+        transform: translateY(-3px);
+        box-shadow: var(--sombra);
+        border-color: rgba(245, 134, 52, 0.4);
+      }
+      .tarjeta .icono {
+        display: grid;
+        place-items: center;
+        width: 42px; height: 42px;
+        border-radius: 12px;
+        background: var(--naranja-suave);
+        color: var(--naranja);
+        margin-bottom: 14px;
+      }
+      .tarjeta h3 { font-size: 17px; font-weight: 700; margin-bottom: 7px; }
+      .tarjeta p { font-size: 14.5px; color: var(--gris-texto); }
+
+      /* ── Visor de capturas ──────────────────────────────────────────── */
+      .visor {
+        border-radius: var(--radio);
+        overflow: hidden;
+        border: 1px solid var(--gris-linea);
+        background: #fff;
+        box-shadow: var(--sombra);
+      }
+      .pestanas {
+        display: flex;
+        gap: 4px;
+        padding: 10px 12px;
+        background: var(--carbon);
+        overflow-x: auto;
+      }
+      .pestanas button {
+        flex: 0 0 auto;
+        padding: 8px 15px;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.68);
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background 0.18s, color 0.18s;
+      }
+      .pestanas button:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+      .pestanas button[aria-selected="true"] { background: var(--naranja); color: #fff; }
+
+      .lamina { display: none; }
+      .lamina.visible { display: block; }
+      .lamina figure { margin: 0; }
+      .lamina img {
+        display: block;
+        width: 100%;
+        height: auto;
+        cursor: zoom-in;
+        border-bottom: 1px solid var(--gris-linea);
+      }
+      .lamina figcaption {
+        padding: 16px 22px;
+        font-size: 14.5px;
+        color: var(--gris-texto);
+        background: #fff;
+      }
+      .lamina figcaption strong { color: var(--carbon); font-weight: 700; }
+
+      /* ── Flujo de préstamos ─────────────────────────────────────────── */
+      .flujo {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        gap: 14px;
+        margin-top: 30px;
+      }
+      .paso {
+        position: relative;
+        padding: 20px;
+        border-radius: var(--radio);
+        background: #fff;
+        border: 1px solid var(--gris-linea);
+      }
+      .paso .orden {
+        display: grid;
+        place-items: center;
+        width: 30px; height: 30px;
+        border-radius: 50%;
+        background: var(--naranja);
+        color: #fff;
+        font-size: 14px;
+        font-weight: 800;
+        margin-bottom: 12px;
+      }
+      .paso h4 { margin: 0 0 5px; font-size: 15px; font-weight: 700; }
+      .paso p { font-size: 13.5px; color: var(--gris-texto); }
+
+      /* ── Reglas destacadas ──────────────────────────────────────────── */
+      .reglas { display: grid; gap: 12px; margin-top: 28px; }
+      .regla {
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+        padding: 17px 20px;
+        border-radius: 14px;
+        background: var(--naranja-suave);
+        border-left: 4px solid var(--naranja);
+      }
+      .regla svg { flex: 0 0 auto; margin-top: 2px; color: var(--naranja); }
+      .regla p { font-size: 14.5px; }
+      .regla strong { font-weight: 700; }
+
+      /* ── Lightbox ───────────────────────────────────────────────────── */
+      .lightbox {
+        position: fixed;
+        inset: 0;
+        z-index: 200;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 28px;
+        background: rgba(55, 52, 53, 0.93);
+        cursor: zoom-out;
+      }
+      .lightbox.abierto { display: flex; }
+      .lightbox img {
+        max-width: 100%;
+        max-height: 100%;
+        border-radius: 12px;
+        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+      }
+      .lightbox .cerrar {
+        position: absolute;
+        top: 20px; right: 26px;
+        width: 42px; height: 42px;
+        border: 0;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.14);
+        color: #fff;
+        font-size: 22px;
+        cursor: pointer;
+      }
+      .lightbox .cerrar:hover { background: var(--naranja); }
+
+      /* ── Cierre ─────────────────────────────────────────────────────── */
+      .cierre {
+        padding: 70px 32px;
+        background: var(--carbon);
+        color: #fff;
+        text-align: center;
+      }
+      .cierre h2 { font-size: clamp(24px, 3.4vw, 34px); font-weight: 800; }
+      .cierre p { margin-top: 14px; color: rgba(255, 255, 255, 0.7); }
+      .cierre img { height: 44px; width: auto; margin-bottom: 24px; filter: brightness(0) invert(1); }
+      .pie {
+        padding: 22px 32px;
+        text-align: center;
+        font-size: 12.5px;
+        color: var(--gris-texto);
+        border-top: 1px solid var(--gris-linea);
+      }
+
+      .revelar {
+        opacity: 0;
+        transform: translateY(18px);
+        transition: opacity 0.5s ease, transform 0.5s ease;
+      }
+      .revelar.visible { opacity: 1; transform: none; }
+
+      @media (max-width: 720px) {
+        .nav { padding: 12px 18px; }
+        .nav-links { width: 100%; margin-left: 0; }
+        .seccion { padding: 52px 18px; }
+        .portada { padding: 60px 18px 56px; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html { scroll-behavior: auto; }
+        .revelar { opacity: 1; transform: none; transition: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="progreso" id="progreso"></div>
+
+    <nav class="nav">
+      <div class="nav-marca">
+        <img src="img/logo-davinci.png" alt="DaVinci" />
+        <span>DaVinci<small>Avances Mercados Titos</small></span>
+      </div>
+      <div class="semanas">
+        <a class="indice" href="index.html" title="Todas las semanas" aria-label="Todas las semanas">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </a>
+        <a class="actual" href="semana-5.html">Semana 5</a>
+        <a href="semana-6.html">Semana 6</a>
+      </div>
+      <div class="nav-links">
+        <a href="#resumen">Resumen</a>
+        <a href="#clientes">Clientes y crédito</a>
+        <a href="#punto-venta">Punto de venta</a>
+        <a href="#caja">Caja y retiros</a>
+        <a href="#devoluciones">Devoluciones</a>
+        <a href="#prestamos">Préstamos</a>
+        <a href="#matriz">Control matriz</a>
+      </div>
+    </nav>
+
+    <header class="portada">
+      <span class="escudo"><img src="img/logo-davinci.png" alt="DaVinci" /></span>
+      <div><span class="etiqueta">Semana 5 · Entrega de avances</span></div>
+      <h1>Lo que construimos para <em>Mercados Titos</em></h1>
+      <p class="bajada">
+        Cinco módulos nuevos que cierran el ciclo completo de la tienda: vender a crédito, cobrar,
+        devolver, mover mercancía entre sucursales y cuadrar la caja desde matriz.
+      </p>
+
+      <div class="metricas">
+        <div class="metrica"><strong>5</strong><span>Módulos nuevos</span></div>
+        <div class="metrica"><strong>56</strong><span>Archivos trabajados</span></div>
+        <div class="metrica"><strong>+4,683</strong><span>Líneas de código</span></div>
+        <div class="metrica"><strong>12</strong><span>Endpoints nuevos</span></div>
+      </div>
+    </header>
+
+    <!-- ── Resumen ──────────────────────────────────────────────────── -->
+    <section class="seccion" id="resumen">
+      <div class="encabezado revelar">
+        <span class="numero">01 · Resumen</span>
+        <h2>Qué cambió en esta entrega</h2>
+        <p>
+          Cada módulo resuelve un problema concreto de la operación diaria y todos quedaron
+          conectados entre sí: una venta a crédito afecta la cartera del cliente, una devolución
+          afecta el corte de caja, y un préstamo mueve el inventario de las dos sucursales.
+        </p>
+      </div>
+
+      <div class="tarjetas">
+        <article class="tarjeta revelar">
+          <span class="icono">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>
+          </span>
+          <h3>Clientes con crédito</h3>
+          <p>Alta de clientes frecuentes con límite de crédito, plazo de pago, datos de facturación y estado de cuenta con abonos.</p>
+        </article>
+
+        <article class="tarjeta revelar">
+          <span class="icono">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+          </span>
+          <h3>Crédito en el punto de venta</h3>
+          <p>Cuarta forma de pago combinable con efectivo, tarjeta y transferencia, con validación del límite y de los vencidos.</p>
+        </article>
+
+        <article class="tarjeta revelar">
+          <span class="icono">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+          </span>
+          <h3>Devoluciones a 48 horas</h3>
+          <p>Devolución total o parcial dentro de la ventana permitida, con reembolso y regreso automático al inventario.</p>
+        </article>
+
+        <article class="tarjeta revelar">
+          <span class="icono">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>
+          </span>
+          <h3>Préstamos entre sucursales</h3>
+          <p>Consulta de stock en las demás tiendas, solicitud con aprobación y control de lo que falta por devolver.</p>
+        </article>
+
+        <article class="tarjeta revelar">
+          <span class="icono">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg>
+          </span>
+          <h3>Retiros con folio y ticket</h3>
+          <p>Retiros en pesos o dólares, autorizados con clave, con folio, bitácora de fecha y hora, y ticket imprimible.</p>
+        </article>
+
+        <article class="tarjeta revelar">
+          <span class="icono">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>
+          </span>
+          <h3>Corte global desde matriz</h3>
+          <p>Todos los cierres de caja de todas las sucursales en una vista, con sus retiros y diferencias.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ── Clientes ─────────────────────────────────────────────────── -->
+    <section class="seccion alterna" id="clientes">
+      <div class="interior">
+        <div class="encabezado revelar">
+          <span class="numero">02 · Clientes</span>
+          <h2>Clientes frecuentes y su crédito</h2>
+          <p>
+            Cada sucursal da de alta a sus propios clientes. Además de los datos de contacto se
+            captura si tiene crédito autorizado, hasta qué monto, en cuántos días paga y todos los
+            datos fiscales necesarios para facturarle.
+          </p>
+        </div>
+
+        <div class="visor revelar" data-visor>
+          <div class="pestanas" role="tablist">
+            <button role="tab" aria-selected="true" data-tab="0">Cartera de clientes</button>
+            <button role="tab" aria-selected="false" data-tab="1">Alta con crédito y facturación</button>
+          </div>
+          <div class="lamina visible" data-panel="0">
+            <figure>
+              <img src="img/sucursal-clientes.png" alt="Módulo de clientes de la sucursal" />
+              <figcaption>
+                <strong>Cartera por cobrar de un vistazo.</strong> Arriba el total adeudado, lo vencido
+                y cuántos clientes tienen crédito. La tabla muestra límite, saldo, disponible y la
+                fecha del próximo pago de cada uno.
+              </figcaption>
+            </figure>
+          </div>
+          <div class="lamina" data-panel="1">
+            <figure>
+              <img src="img/sucursal-cliente-alta.png" alt="Alta de cliente con crédito y facturación" />
+              <figcaption>
+                <strong>Un solo formulario.</strong> Contacto, crédito (límite y plazo en días) y datos
+                de facturación con los catálogos oficiales del SAT: régimen fiscal, uso de CFDI y
+                validación del RFC.
+              </figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="reglas">
+          <div class="regla revelar">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+            <p><strong>El cliente debe liquidar para seguir comprando a crédito.</strong> Si deja pasar una fecha de vencimiento, el sistema le bloquea el crédito hasta que se ponga al corriente.</p>
+          </div>
+          <div class="regla revelar">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <p><strong>Los abonos se aplican solos.</strong> Se descuentan de las ventas más próximas a vencer, y si entran en efectivo se suman al corte de caja del día.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Punto de venta ───────────────────────────────────────────── -->
+    <section class="seccion" id="punto-venta">
+      <div class="encabezado revelar">
+        <span class="numero">03 · Punto de venta</span>
+        <h2>Vender a crédito sin salirse de la caja</h2>
+        <p>
+          El punto de venta trabaja a pantalla completa y ahora permite asignar la venta a un cliente
+          frecuente. El crédito es una forma de pago más, que se puede combinar con efectivo, tarjeta
+          y transferencia en la misma venta.
+        </p>
+      </div>
+
+      <div class="visor revelar" data-visor>
+        <div class="pestanas" role="tablist">
+          <button role="tab" aria-selected="true" data-tab="0">Pantalla completa</button>
+          <button role="tab" aria-selected="false" data-tab="1">Cobro con crédito</button>
+          <button role="tab" aria-selected="false" data-tab="2">Historial de ventas</button>
+        </div>
+        <div class="lamina visible" data-panel="0">
+          <figure>
+            <img src="img/sucursal-punto-venta.png" alt="Punto de venta a pantalla completa" />
+            <figcaption>
+              <strong>Caja lista para operar.</strong> Escaneo por código, búsqueda por nombre o SKU,
+              totales en pesos y en dólares con el tipo de cambio configurado desde matriz, y atajos
+              de teclado para consultar precio, retirar efectivo y hacer el corte.
+            </figcaption>
+          </figure>
+        </div>
+        <div class="lamina" data-panel="1">
+          <figure>
+            <img src="img/sucursal-punto-venta-cobro.png" alt="Modal de cobro con crédito del cliente" />
+            <figcaption>
+              <strong>Cuatro formas de pago combinables.</strong> Al elegir un cliente se muestra su
+              saldo, su disponible y su próxima fecha de pago. Si no tiene crédito vigente, el campo
+              de crédito permanece bloqueado.
+            </figcaption>
+          </figure>
+        </div>
+        <div class="lamina" data-panel="2">
+          <figure>
+            <img src="img/sucursal-ventas.png" alt="Historial de ventas de la sucursal" />
+            <figcaption>
+              <strong>Cada venta guarda a su cliente.</strong> En el detalle se ve el monto fiado y la
+              fecha máxima de pago. El rol de Ventas también entra aquí para consultar ventas
+              anteriores.
+            </figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Caja ─────────────────────────────────────────────────────── -->
+    <section class="seccion alterna" id="caja">
+      <div class="interior">
+        <div class="encabezado revelar">
+          <span class="numero">04 · Caja</span>
+          <h2>Retiros controlados y corte en dos monedas</h2>
+          <p>
+            Cada retiro se autoriza con la clave del usuario que lo hace, genera un folio propio y
+            queda en bitácora con fecha y hora. El sistema no deja retirar más de lo que hay en el
+            cajón, y el comprobante se imprime para firma de quien recibe.
+          </p>
+        </div>
+
+        <div class="flujo">
+          <div class="paso revelar">
+            <span class="orden">1</span>
+            <h4>Se captura el retiro</h4>
+            <p>Monto, moneda (pesos o dólares) y motivo.</p>
+          </div>
+          <div class="paso revelar">
+            <span class="orden">2</span>
+            <h4>Se autoriza con clave</h4>
+            <p>El usuario confirma su contraseña; el folio queda ligado a él.</p>
+          </div>
+          <div class="paso revelar">
+            <span class="orden">3</span>
+            <h4>Se emite el ticket</h4>
+            <p>Comprobante con folio, fecha, hora y línea de firma.</p>
+          </div>
+          <div class="paso revelar">
+            <span class="orden">4</span>
+            <h4>Entra al corte</h4>
+            <p>Descuenta del cajón que corresponde y aparece en el cierre.</p>
+          </div>
+        </div>
+
+        <div class="reglas">
+          <div class="regla revelar">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            <p><strong>Pesos y dólares se cuadran por separado.</strong> El corte lleva dos saldos independientes, cada uno con su fondo inicial, su esperado, su contado y su diferencia.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Devoluciones ─────────────────────────────────────────────── -->
+    <section class="seccion" id="devoluciones">
+      <div class="encabezado revelar">
+        <span class="numero">05 · Devoluciones</span>
+        <h2>Ventana de 48 horas, sin excepciones</h2>
+        <p>
+          Se busca la venta por su folio y el sistema muestra cuánto queda por devolver de cada
+          producto. Pasadas las 48 horas desde la venta, la devolución simplemente no procede.
+        </p>
+      </div>
+
+      <div class="visor revelar" data-visor>
+        <div class="pestanas" role="tablist">
+          <button role="tab" aria-selected="true" data-tab="0">Módulo de devoluciones</button>
+        </div>
+        <div class="lamina visible" data-panel="0">
+          <figure>
+            <img src="img/sucursal-devoluciones.png" alt="Módulo de devoluciones" />
+            <figcaption>
+              <strong>Devolución total o parcial.</strong> Se puede devolver solo una parte de la venta
+              y volver después por el resto, siempre dentro de la ventana. El contador muestra las
+              horas que quedan.
+            </figcaption>
+          </figure>
+        </div>
+      </div>
+
+      <div class="reglas">
+        <div class="regla revelar">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          <p><strong>Si el corte del día ya se cerró, la nota se genera sola.</strong> No se puede sacar dinero de una caja cerrada, así que el sistema crea una devolución pendiente con folio que se paga contra la caja siguiente.</p>
+        </div>
+        <div class="regla revelar">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <p><strong>Si la venta fue a crédito, primero baja la deuda.</strong> La devolución abate la cuenta por cobrar del cliente y solo el resto se reembolsa en efectivo.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Préstamos ────────────────────────────────────────────────── -->
+    <section class="seccion alterna" id="prestamos">
+      <div class="interior">
+        <div class="encabezado revelar">
+          <span class="numero">06 · Préstamos</span>
+          <h2>Las sucursales se apoyan entre ellas</h2>
+          <p>
+            Cuando a una tienda se le acaba un producto, ya no tiene que hablar por teléfono para
+            saber quién tiene. Busca el producto, ve el stock de todas las demás sucursales y le pide
+            prestado a la que le convenga. El préstamo queda registrado hasta que lo devuelve.
+          </p>
+        </div>
+
+        <div class="visor revelar" data-visor>
+          <div class="pestanas" role="tablist">
+            <button role="tab" aria-selected="true" data-tab="0">Stock en otras sucursales</button>
+            <button role="tab" aria-selected="false" data-tab="1">Solicitud de préstamo</button>
+            <button role="tab" aria-selected="false" data-tab="2">Panel del módulo</button>
+          </div>
+          <div class="lamina visible" data-panel="0">
+            <figure>
+              <img src="img/sucursal-prestamos-stock.png" alt="Consulta de stock en otras sucursales" />
+              <figcaption>
+                <strong>Todo el inventario de la cadena, visible.</strong> Por cada producto se muestra
+                lo que tiene la sucursal actual y lo que tiene cada una de las demás, en tiempo real.
+              </figcaption>
+            </figure>
+          </div>
+          <div class="lamina" data-panel="1">
+            <figure>
+              <img src="img/sucursal-prestamos-solicitar.png" alt="Modal de solicitud de préstamo" />
+              <figcaption>
+                <strong>Un clic para pedir.</strong> Se elige la sucursal, la cantidad (nunca más de lo
+                que esa tienda tiene) y una nota. La solicitud le llega a la otra sucursal para que la
+                apruebe o la rechace.
+              </figcaption>
+            </figure>
+          </div>
+          <div class="lamina" data-panel="2">
+            <figure>
+              <img src="img/sucursal-prestamos.png" alt="Panel de préstamos entre sucursales" />
+              <figcaption>
+                <strong>Tres bandejas.</strong> Lo que me están pidiendo, lo que pedí prestado y lo que
+                presté, cada préstamo con su estado y lo que falta por devolver.
+              </figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="flujo">
+          <div class="paso revelar">
+            <span class="orden">1</span>
+            <h4>Solicita</h4>
+            <p>La sucursal que necesita el producto manda la solicitud.</p>
+          </div>
+          <div class="paso revelar">
+            <span class="orden">2</span>
+            <h4>Aprueba</h4>
+            <p>La otra tienda autoriza (puede prestar menos) y el stock sale de su inventario.</p>
+          </div>
+          <div class="paso revelar">
+            <span class="orden">3</span>
+            <h4>Recibe</h4>
+            <p>Al recoger la mercancía, entra al inventario de quien la pidió.</p>
+          </div>
+          <div class="paso revelar">
+            <span class="orden">4</span>
+            <h4>Devuelve</h4>
+            <p>La devolución hace el movimiento inverso y admite entregas parciales.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Matriz ───────────────────────────────────────────────────── -->
+    <section class="seccion" id="matriz">
+      <div class="encabezado revelar">
+        <span class="numero">07 · Matriz</span>
+        <h2>Control central de toda la cadena</h2>
+        <p>
+          Matriz define las reglas que aplican a todas las tiendas y ve el resultado consolidado:
+          tipo de cambio, zona horaria de cada sucursal y el corte de caja de todas ellas.
+        </p>
+      </div>
+
+      <div class="visor revelar" data-visor>
+        <div class="pestanas" role="tablist">
+          <button role="tab" aria-selected="true" data-tab="0">Corte global</button>
+          <button role="tab" aria-selected="false" data-tab="1">Configuración</button>
+          <button role="tab" aria-selected="false" data-tab="2">Sucursales</button>
+          <button role="tab" aria-selected="false" data-tab="3">Zona horaria</button>
+          <button role="tab" aria-selected="false" data-tab="4">Notas de venta</button>
+        </div>
+        <div class="lamina visible" data-panel="0">
+          <figure>
+            <img src="img/matriz-cortes.png" alt="Corte global de todas las sucursales" />
+            <figcaption>
+              <strong>Todos los cierres en una pantalla.</strong> Filtrable por sucursal y por fecha,
+              con el desglose de cada turno y sus retiros, y la diferencia acumulada de la cadena.
+            </figcaption>
+          </figure>
+        </div>
+        <div class="lamina" data-panel="1">
+          <figure>
+            <img src="img/matriz-configuracion.png" alt="Configuración general del sistema" />
+            <figcaption>
+              <strong>Ajustes generales.</strong> Tipo de cambio peso-dólar que usan todas las cajas,
+              días laborales, hora de corte y conexión de WhatsApp.
+            </figcaption>
+          </figure>
+        </div>
+        <div class="lamina" data-panel="2">
+          <figure>
+            <img src="img/matriz-sucursales.png" alt="Catálogo de sucursales" />
+            <figcaption>
+              <strong>Alta de sucursales y su acceso.</strong> Cada tienda con su dirección, WhatsApp,
+              zona horaria y el usuario con el que entra al sistema.
+            </figcaption>
+          </figure>
+        </div>
+        <div class="lamina" data-panel="3">
+          <figure>
+            <img src="img/matriz-sucursal-zona-horaria.png" alt="Zona horaria por sucursal" />
+            <figcaption>
+              <strong>Cada tienda en su hora local.</strong> La zona horaria define los vencimientos de
+              crédito y las horas de corte. Todas arrancan en hora de Tijuana.
+            </figcaption>
+          </figure>
+        </div>
+        <div class="lamina" data-panel="4">
+          <figure>
+            <img src="img/matriz-notas-de-venta.png" alt="Módulo de notas de venta" />
+            <figcaption>
+              <strong>Notas de venta.</strong> El módulo antes llamado Ventas 2, ahora con su nombre
+              definitivo en el menú y en su dirección.
+            </figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="cierre">
+      <img src="img/logo-davinci.png" alt="DaVinci" />
+      <h2>Listo para operar</h2>
+      <p>
+        Los cinco módulos están integrados entre sí y funcionando sobre el sistema actual.<br />
+        Quedamos atentos a sus comentarios para la siguiente etapa.
+      </p>
+      <p style="margin-top: 26px">
+        <a
+          href="semana-6.html"
+          style="
+            display: inline-block;
+            padding: 12px 26px;
+            border-radius: 999px;
+            background: var(--naranja);
+            color: #fff;
+            font-weight: 700;
+            font-size: 14.5px;
+            text-decoration: none;
+          "
+          >Ver la semana 6 →</a
+        >
+      </p>
+    </section>
+
+    <footer class="pie">
+      DaVinci · Presentación de avances para Mercados Titos
+      <span id="fecha"></span>
+    </footer>
+
+    <div class="lightbox" id="lightbox">
+      <button class="cerrar" id="cerrarLightbox" aria-label="Cerrar">×</button>
+      <img id="lightboxImg" alt="" />
+    </div>
+
+    <script>
+      // ── Pestañas de cada visor ────────────────────────────────────────
+      document.querySelectorAll("[data-visor]").forEach((visor) => {
+        const botones = visor.querySelectorAll("[data-tab]");
+        const paneles = visor.querySelectorAll("[data-panel]");
+
+        botones.forEach((boton) => {
+          boton.addEventListener("click", () => {
+            botones.forEach((b) => b.setAttribute("aria-selected", String(b === boton)));
+            paneles.forEach((p) =>
+              p.classList.toggle("visible", p.dataset.panel === boton.dataset.tab)
+            );
+          });
+        });
+      });
+
+      // ── Lightbox para ver la captura en grande ────────────────────────
+      const lightbox = document.getElementById("lightbox");
+      const lightboxImg = document.getElementById("lightboxImg");
+
+      function abrirLightbox(src, alt) {
+        lightboxImg.src = src;
+        lightboxImg.alt = alt;
+        lightbox.classList.add("abierto");
+        document.body.style.overflow = "hidden";
+      }
+      function cerrarLightbox() {
+        lightbox.classList.remove("abierto");
+        document.body.style.overflow = "";
+      }
+
+      document.querySelectorAll(".lamina img").forEach((img) => {
+        img.addEventListener("click", () => abrirLightbox(img.src, img.alt));
+      });
+      lightbox.addEventListener("click", cerrarLightbox);
+      document.getElementById("cerrarLightbox").addEventListener("click", cerrarLightbox);
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") cerrarLightbox();
+      });
+
+      // ── Barra de progreso ─────────────────────────────────────────────
+      const progreso = document.getElementById("progreso");
+      function actualizarProgreso() {
+        const alto = document.documentElement.scrollHeight - window.innerHeight;
+        const avance = alto > 0 ? (window.scrollY / alto) * 100 : 0;
+        progreso.style.width = avance + "%";
+      }
+      window.addEventListener("scroll", actualizarProgreso, { passive: true });
+      actualizarProgreso();
+
+      // ── Resaltado del enlace de la sección visible ────────────────────
+      const enlaces = [...document.querySelectorAll(".nav-links a")];
+      const secciones = enlaces
+        .map((a) => document.querySelector(a.getAttribute("href")))
+        .filter(Boolean);
+
+      const observadorNav = new IntersectionObserver(
+        (entradas) => {
+          entradas.forEach((entrada) => {
+            if (!entrada.isIntersecting) return;
+            enlaces.forEach((a) =>
+              a.classList.toggle("activo", a.getAttribute("href") === "#" + entrada.target.id)
+            );
+          });
+        },
+        { rootMargin: "-45% 0px -50% 0px" }
+      );
+      secciones.forEach((s) => observadorNav.observe(s));
+
+      // ── Aparición progresiva al hacer scroll ──────────────────────────
+      const observadorRevelar = new IntersectionObserver(
+        (entradas, obs) => {
+          entradas.forEach((entrada) => {
+            if (!entrada.isIntersecting) return;
+            entrada.target.classList.add("visible");
+            obs.unobserve(entrada.target);
+          });
+        },
+        { threshold: 0.12 }
+      );
+      document.querySelectorAll(".revelar").forEach((el, i) => {
+        el.style.transitionDelay = (i % 4) * 60 + "ms";
+        observadorRevelar.observe(el);
+      });
+
+      // ── Navegación con flechas entre secciones ────────────────────────
+      document.addEventListener("keydown", (e) => {
+        if (lightbox.classList.contains("abierto")) return;
+        if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+        if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)) return;
+
+        const actual = secciones.findIndex((s) => s.getBoundingClientRect().top > -80);
+        const destino = e.key === "ArrowDown" ? actual : actual - 2;
+        if (secciones[destino]) {
+          e.preventDefault();
+          secciones[destino].scrollIntoView({ behavior: "smooth" });
+        }
+      });
+
+      document.getElementById("fecha").textContent =
+        " · " + new Date().toLocaleDateString("es-MX", { day: "2-digit", month: "long", year: "numeric" });
+    </script>
+  </body>
+</html>

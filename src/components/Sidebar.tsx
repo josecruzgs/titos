@@ -26,8 +26,11 @@ import {
   FileText,
   Wrench,
   Receipt,
+  ReceiptText,
   Tags,
   Tag,
+  Ban,
+  TrendingUp,
   Banknote,
   BadgeDollarSign,
   RotateCcw,
@@ -62,7 +65,9 @@ const MATRIZ_NAV: NavCategory[] = [
     label: "Reportes",
     icon: FileText,
     items: [
-      { href: "/matriz/reportes", label: "Reportes", icon: BarChart3 },
+      { href: "/matriz/reportes", label: "Reportes", icon: BarChart3, exact: true },
+      { href: "/matriz/reportes/ventas", label: "Ventas por sucursal", icon: TrendingUp },
+      { href: "/matriz/cancelaciones", label: "Cancelaciones", icon: Ban },
       { href: "/matriz/cortes", label: "Corte global", icon: ClipboardCheck },
       { href: "/matriz/notas-de-venta", label: "Notas de venta", icon: Banknote },
       { href: "/matriz/actualizacion-precios", label: "Actualización de precios", icon: BadgeDollarSign },
@@ -110,7 +115,7 @@ const MATRIZ_NAV: NavCategory[] = [
   {
     label: "Facturación",
     icon: Receipt,
-    items: [],
+    items: [{ href: "/matriz/facturas", label: "Facturas", icon: ReceiptText }],
   },
 ];
 
@@ -252,7 +257,7 @@ export function Sidebar({
       <aside
         className={`fixed inset-y-0 left-0 z-40 flex flex-col border-r border-black/5 bg-white transition-all duration-200 ease-in-out md:sticky md:top-0 md:z-auto md:h-screen md:translate-x-0 ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
-        } ${collapsed ? "w-20" : "w-64"}`}
+        } ${collapsed ? "w-64 md:w-20" : "w-64"}`}
       >
         <div className={`flex items-center gap-2 border-b border-black/5 px-4 py-4 ${collapsed ? "md:justify-center md:px-0" : ""}`}>
           {collapsed ? (
@@ -285,41 +290,58 @@ export function Sidebar({
         ) : null}
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-3">
-          {role === "matriz"
+          {role === "matriz" && collapsed
+            ? // Colapsado en escritorio: los encabezados de categoría no caben, así
+              // que se muestra una sola columna de iconos con el nombre en el tooltip.
+              MATRIZ_NAV.flatMap((category) => category.items).map((item) => {
+                const active = isNavItemActive(pathname, role, item);
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    title={item.label}
+                    className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors md:justify-center md:px-0 ${
+                      active
+                        ? "bg-titos-green-600 text-white shadow-sm"
+                        : "text-titos-green-900/70 hover:bg-titos-green-100"
+                    }`}
+                  >
+                    <Icon className="h-4.5 w-4.5 shrink-0" />
+                    <span className="md:hidden">{item.label}</span>
+                  </Link>
+                );
+              })
+            : role === "matriz"
             ? MATRIZ_NAV.map((category) => {
                 const CategoryIcon = category.icon;
                 const hasItems = category.items.length > 0;
-                const isOpen = collapsed || !!openCategories[category.label];
+                const isOpen = !!openCategories[category.label];
                 return (
                   <div key={category.label} className="space-y-1">
                     <button
                       type="button"
                       onClick={hasItems ? () => toggleCategory(category.label) : undefined}
                       disabled={!hasItems}
-                      title={collapsed ? category.label : undefined}
                       className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                        collapsed ? "md:justify-center md:px-0" : ""
-                      } ${
                         hasItems
                           ? "text-titos-green-900/70 hover:bg-titos-green-100"
                           : "cursor-default text-titos-green-900/30"
                       }`}
                     >
                       <CategoryIcon className="h-4.5 w-4.5 shrink-0" />
-                      <span className={`flex-1 text-left ${collapsed ? "md:hidden" : ""}`}>{category.label}</span>
+                      <span className="flex-1 text-left">{category.label}</span>
                       {hasItems ? (
-                        <span className={collapsed ? "md:hidden" : ""}>
-                          {isOpen ? (
-                            <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-                          ) : (
-                            <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-                          )}
-                        </span>
+                        isOpen ? (
+                          <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                        ) : (
+                          <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                        )
                       ) : null}
                     </button>
 
                     {hasItems && isOpen ? (
-                      <div className={collapsed ? "space-y-1" : "space-y-1 pl-4"}>
+                      <div className="space-y-1 pl-4">
                         {category.items.map((item) => {
                           const active = isNavItemActive(pathname, role, item);
                           const Icon = item.icon;
@@ -327,17 +349,14 @@ export function Sidebar({
                             <Link
                               key={item.href}
                               href={item.href}
-                              title={collapsed ? item.label : undefined}
                               className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                                collapsed ? "md:justify-center md:px-0" : ""
-                              } ${
                                 active
                                   ? "bg-titos-green-600 text-white shadow-sm"
                                   : "text-titos-green-900/70 hover:bg-titos-green-100"
                               }`}
                             >
                               <Icon className="h-4.5 w-4.5 shrink-0" />
-                              <span className={collapsed ? "md:hidden" : ""}>{item.label}</span>
+                              <span>{item.label}</span>
                             </Link>
                           );
                         })}
@@ -389,7 +408,10 @@ export function Sidebar({
 
         <button
           onClick={toggleCollapsed}
-          className="hidden items-center gap-2 border-t border-black/5 px-5 py-3 text-xs font-medium text-black/40 hover:bg-titos-green-100 hover:text-black/60 md:flex"
+          title={collapsed ? "Expandir menú" : "Contraer menú"}
+          className={`hidden items-center gap-2 border-t border-black/5 px-5 py-3 text-xs font-medium text-black/40 hover:bg-titos-green-100 hover:text-black/60 md:flex ${
+            collapsed ? "md:justify-center md:px-0" : ""
+          }`}
         >
           {collapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
           <span className={collapsed ? "md:hidden" : ""}>Contraer menú</span>

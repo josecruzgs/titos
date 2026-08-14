@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   User,
   Phone,
@@ -12,6 +12,7 @@ import {
   TriangleAlert,
   Wallet,
   CalendarClock,
+  FileUp,
 } from "lucide-react";
 import {
   Button,
@@ -116,6 +117,95 @@ function formAPayload(form: FormState) {
   };
 }
 
+type DatosConstancia = {
+  rfc: string;
+  razonSocial: string;
+  regimenFiscal: string;
+  regimenesDetectados: { clave: string; nombre: string }[];
+  codigoPostal: string;
+  direccionFiscal: string;
+  email: string;
+  telefono: string;
+  faltantes: string[];
+};
+
+/**
+ * Sube el PDF de la constancia de situación fiscal del SAT y precarga con él el
+ * formulario del cliente. Lo que no se alcance a leer se avisa para capturarlo a
+ * mano; nunca se guarda nada sin que el usuario confirme.
+ */
+function CargarConstancia({ onLeida }: { onLeida: (datos: DatosConstancia) => void }) {
+  const [leyendo, setLeyendo] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function subir(archivo: File) {
+    setError(null);
+    setAviso(null);
+    setLeyendo(true);
+
+    const datos = new FormData();
+    datos.append("archivo", archivo);
+
+    try {
+      const res = await fetch("/api/clientes/constancia", { method: "POST", body: datos });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || "No se pudo leer la constancia");
+        return;
+      }
+
+      const leidos: DatosConstancia = await res.json();
+      onLeida(leidos);
+      setAviso(
+        leidos.faltantes.length > 0
+          ? `Datos cargados. Revisa y captura a mano: ${leidos.faltantes.join(", ")}.`
+          : "Datos fiscales cargados desde la constancia. Revísalos antes de guardar."
+      );
+    } catch {
+      setError("Se perdió la conexión al subir el archivo");
+    } finally {
+      setLeyendo(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
+  return (
+    <div className="mb-4 rounded-lg border border-dashed border-titos-green-600/40 bg-titos-green-100/30 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-medium text-titos-green-900">Alta desde constancia fiscal</p>
+          <p className="text-xs text-black/50">
+            Sube el PDF de la Constancia de Situación Fiscal del SAT y se llenan solos el RFC, la razón social, el
+            régimen, el código postal y el domicilio.
+          </p>
+        </div>
+        <Button type="button" variant="secondary" onClick={() => inputRef.current?.click()} disabled={leyendo}>
+          <span className="flex items-center gap-1.5">
+            <FileUp className="h-4 w-4" />
+            {leyendo ? "Leyendo PDF..." : "Subir PDF"}
+          </span>
+        </Button>
+      </div>
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="application/pdf,.pdf"
+        className="hidden"
+        onChange={(e) => {
+          const archivo = e.target.files?.[0];
+          if (archivo) subir(archivo);
+        }}
+      />
+
+      {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
+      {aviso ? <p className="mt-2 text-sm text-titos-green-700">{aviso}</p> : null}
+    </div>
+  );
+}
+
 function ClienteFormModal({
   cliente,
   onClose,
@@ -137,6 +227,32 @@ function ClienteFormModal({
   }
   function setFacturacion(campo: keyof FormState["facturacion"], valor: string) {
     setForm((prev) => ({ ...prev, facturacion: { ...prev.facturacion, [campo]: valor } }));
+  }
+
+  /**
+   * Vuelca lo leído de la constancia al formulario. Solo pisa los campos que la
+   * constancia sí trae, para no borrar lo que el usuario ya hubiera capturado.
+   */
+  function aplicarConstancia(datos: DatosConstancia) {
+    setForm((prev) => ({
+      ...prev,
+      nombre: prev.nombre.trim() || datos.razonSocial,
+      telefono: prev.telefono.trim() || datos.telefono,
+      email: prev.email.trim() || datos.email,
+      direccion: prev.direccion.trim() || datos.direccionFiscal,
+      facturacion: {
+        ...prev.facturacion,
+        razonSocial: datos.razonSocial || prev.facturacion.razonSocial,
+        rfc: datos.rfc || prev.facturacion.rfc,
+        regimenFiscal: datos.regimenFiscal || prev.facturacion.regimenFiscal,
+        // La constancia no dice para qué se usará la factura; G03 (gastos en
+        // general) es lo que aplica en un abarrote y se puede cambiar.
+        usoCfdi: prev.facturacion.usoCfdi || "G03",
+        codigoPostal: datos.codigoPostal || prev.facturacion.codigoPostal,
+        direccionFiscal: datos.direccionFiscal || prev.facturacion.direccionFiscal,
+        emailFacturacion: datos.email || prev.facturacion.emailFacturacion,
+      },
+    }));
   }
 
   async function guardar() {
@@ -249,6 +365,9 @@ function ClienteFormModal({
           <p className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-black/40">
             <Receipt className="h-3.5 w-3.5" /> Datos de facturación
           </p>
+
+          <CargarConstancia onLeida={aplicarConstancia} />
+
           <FormGrid>
             <FormField label="Razón social" className="sm:col-span-2">
               <Input

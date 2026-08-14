@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
-import Configuracion from "@/models/Configuracion";
 import { DIAS_SEMANA } from "@/lib/dias";
 import { requireSession, unauthorized, forbidden, badRequest } from "@/lib/apiAuth";
-
-async function obtenerConfiguracion() {
-  let config = await Configuracion.findOne();
-  if (!config) config = await Configuracion.create({});
-  return config;
-}
+import { hashPassword } from "@/lib/auth";
+import { NIP_SUPERVISOR_REGEX, obtenerConfiguracion } from "@/lib/configuracion";
 
 export async function GET(req: NextRequest) {
   const session = await requireSession(req);
@@ -16,13 +11,18 @@ export async function GET(req: NextRequest) {
 
   await connectDB();
   const config = await obtenerConfiguracion();
+  const nipSupervisorConfigurado = !!config.nipSupervisorHash;
 
-  // Las sucursales solo necesitan el tipo de cambio (lo usa el punto de venta)
+  // Las sucursales solo necesitan el tipo de cambio (lo usa el punto de venta) y
+  // saber si ya hay un NIP de supervisor con el que autorizar cancelaciones.
   if (session.role !== "matriz") {
-    return NextResponse.json({ tipoCambio: config.tipoCambio ?? 17 });
+    return NextResponse.json({ tipoCambio: config.tipoCambio ?? 17, nipSupervisorConfigurado });
   }
 
-  return NextResponse.json(config);
+  // El hash del NIP nunca sale de la API.
+  const objeto = config.toObject();
+  delete objeto.nipSupervisorHash;
+  return NextResponse.json({ ...objeto, nipSupervisorConfigurado });
 }
 
 export async function PATCH(req: NextRequest) {
@@ -49,11 +49,28 @@ export async function PATCH(req: NextRequest) {
     if (!Number.isFinite(tipoCambio) || tipoCambio <= 0) return badRequest("Tipo de cambio inválido");
     update.tipoCambio = tipoCambio;
   }
+  if ("tasaIvaFactura" in body) {
+    const tasa = Number(body.tasaIvaFactura);
+    if (!Number.isFinite(tasa) || tasa < 0 || tasa > 100) return badRequest("La tasa de IVA debe ir de 0 a 100");
+    update.tasaIvaFactura = tasa;
+  }
+  // `null` borra el NIP (deja las cancelaciones sin autorización); una cadena lo
+  // cambia. Si no viene la llave, el NIP actual no se toca.
+  if ("nipSupervisor" in body) {
+    if (body.nipSupervisor === null) {
+      update.nipSupervisorHash = "";
+    } else {
+      const nip = String(body.nipSupervisor ?? "").trim();
+      if (!NIP_SUPERVISOR_REGEX.test(nip)) return badRequest("El NIP de supervisor debe tener de 4 a 8 dígitos");
+      update.nipSupervisorHash = await hashPassword(nip);
+    }
+  }
 
   await connectDB();
   const actual = await obtenerConfiguracion();
   Object.assign(actual, update);
   await actual.save();
 
-  return NextResponse.json(actual);
+  const { nipSupervisorHash, ...resto } = actual.toObject();
+  return NextResponse.json({ ...resto, nipSupervisorConfigurado: !!nipSupervisorHash });
 }

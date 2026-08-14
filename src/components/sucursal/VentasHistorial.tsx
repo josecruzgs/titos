@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { EstadoBadge, Button, formatMoney } from "@/components/ui";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { EstadoBadge, Button, FormField, Input, Modal, formatMoney } from "@/components/ui";
+import { ChevronDown, ChevronRight, ShieldAlert } from "lucide-react";
 import { formatFecha } from "@/lib/creditoCliente";
 import { useZonaHoraria } from "@/components/ZonaHorariaProvider";
 import { formatFechaHora } from "@/lib/zonasHorarias";
@@ -40,14 +40,56 @@ export function VentasHistorial({ ventas }: { ventas: Venta[] }) {
   const zonaHoraria = useZonaHoraria();
   const router = useRouter();
   const [expandido, setExpandido] = useState<string | null>(null);
-  const [cancelando, setCancelando] = useState<string | null>(null);
+  const [cancelando, setCancelando] = useState(false);
+  const [porCancelar, setPorCancelar] = useState<Venta | null>(null);
+  const [motivo, setMotivo] = useState("");
+  const [nip, setNip] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [nipConfigurado, setNipConfigurado] = useState(false);
 
-  async function cancelarVenta(id: string) {
-    if (!confirm("¿Cancelar esta venta? El stock de los productos se devolverá al inventario.")) return;
-    setCancelando(id);
-    const res = await fetch(`/api/ventas/${id}/cancelar`, { method: "POST" });
-    setCancelando(null);
-    if (res.ok) router.refresh();
+  useEffect(() => {
+    fetch("/api/configuracion")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("http-error"))))
+      .then((data: { nipSupervisorConfigurado?: boolean }) => setNipConfigurado(!!data.nipSupervisorConfigurado))
+      .catch(() => setNipConfigurado(false));
+  }, []);
+
+  function abrirCancelacion(venta: Venta) {
+    setMotivo("");
+    setNip("");
+    setError(null);
+    setPorCancelar(venta);
+  }
+
+  async function confirmarCancelacion() {
+    if (!porCancelar) return;
+    setError(null);
+
+    if (!motivo.trim()) {
+      setError("Captura el motivo de la cancelación");
+      return;
+    }
+    if (nipConfigurado && !nip) {
+      setError("Captura el NIP de supervisor");
+      return;
+    }
+
+    setCancelando(true);
+    const res = await fetch(`/api/ventas/${porCancelar._id}/cancelar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ motivo: motivo.trim(), nip }),
+    });
+    setCancelando(false);
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error || "No se pudo cancelar la venta");
+      return;
+    }
+
+    setPorCancelar(null);
+    router.refresh();
   }
 
   return (
@@ -115,8 +157,8 @@ export function VentasHistorial({ ventas }: { ventas: Venta[] }) {
                     </p>
                   ) : null}
                   {v.estado === "completada" ? (
-                    <Button variant="danger" onClick={() => cancelarVenta(v._id)} disabled={cancelando === v._id}>
-                      {cancelando === v._id ? "Cancelando..." : "Cancelar venta"}
+                    <Button variant="danger" onClick={() => abrirCancelacion(v)}>
+                      Cancelar venta
                     </Button>
                   ) : null}
                 </div>
@@ -125,6 +167,62 @@ export function VentasHistorial({ ventas }: { ventas: Venta[] }) {
           );
         })}
       </ul>
+
+      {porCancelar ? (
+        <Modal
+          open
+          onClose={() => setPorCancelar(null)}
+          title="Cancelar venta"
+          icon={ShieldAlert}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setPorCancelar(null)} disabled={cancelando}>
+                Regresar
+              </Button>
+              <Button variant="danger" onClick={confirmarCancelacion} disabled={cancelando}>
+                {cancelando ? "Cancelando..." : "Autorizar y cancelar"}
+              </Button>
+            </>
+          }
+        >
+          <p className="mb-3 text-sm text-black/70">
+            Se cancela la venta <strong>{porCancelar.folio}</strong> por {formatMoney(porCancelar.total)}. El stock de
+            los productos regresa al inventario y la cancelación queda en la bitácora que revisa matriz.
+          </p>
+
+          <FormField label="Motivo de la cancelación" className="mb-3">
+            <Input
+              autoFocus
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              placeholder="Ej. devolución total, cobro duplicado..."
+            />
+          </FormField>
+
+          {nipConfigurado ? (
+            <FormField label="NIP de supervisor">
+              <Input
+                type="password"
+                inputMode="numeric"
+                maxLength={8}
+                value={nip}
+                onChange={(e) => setNip(e.target.value.replace(/\D/g, ""))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") confirmarCancelacion();
+                }}
+                placeholder="••••"
+              />
+            </FormField>
+          ) : (
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              Matriz todavía no configura el NIP de supervisor, así que la cancelación procede sin autorización pero se
+              marca como tal en la bitácora.
+            </p>
+          )}
+
+          {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
+        </Modal>
+      ) : null}
     </div>
   );
 }

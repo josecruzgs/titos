@@ -17,6 +17,7 @@ import {
   CreditCard,
   TriangleAlert,
   Clock,
+  ShieldAlert,
 } from "lucide-react";
 import { Button, Card, Input, Select, Modal, FormField, formatMoney } from "@/components/ui";
 import { ProductoCombobox } from "@/components/ProductoCombobox";
@@ -85,6 +86,20 @@ type VentaResp = {
   clienteNombre?: string;
   creditoMonto?: number | null;
   creditoFechaVencimiento?: string | null;
+};
+
+/**
+ * Cancelación que está esperando la autorización del supervisor.
+ * "linea" quita un solo producto del carrito; "carrito" tira la venta completa
+ * antes de cobrarla (vaciar o cancelar).
+ */
+type CancelacionPendiente = {
+  tipo: "linea" | "carrito";
+  titulo: string;
+  lineas: LineaVenta[];
+  productoId?: string;
+  /** Si además de vaciar el carrito hay que limpiar las formas de pago. */
+  limpiarPago?: boolean;
 };
 
 type MonedaCaja = "MXN" | "USD";
@@ -193,6 +208,14 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
   const [modalPrecio, setModalPrecio] = useState(false);
   const [precioCodigo, setPrecioCodigo] = useState("");
   const [precioResultado, setPrecioResultado] = useState<Producto | null | undefined>(undefined);
+
+  // --- Cancelaciones: piden NIP de supervisor y quedan en la bitácora ---
+  const [nipConfigurado, setNipConfigurado] = useState(false);
+  const [cancelacion, setCancelacion] = useState<CancelacionPendiente | null>(null);
+  const [cancelMotivo, setCancelMotivo] = useState("");
+  const [cancelNip, setCancelNip] = useState("");
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const [cancelando, setCancelando] = useState(false);
 
   // --- Modo sin conexión: cache local + cola de acciones pendientes ---
   const [isOnline, setIsOnline] = useState(true);
@@ -312,9 +335,10 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
 
     fetch("/api/configuracion")
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("http-error"))))
-      .then((data: { tipoCambio?: number }) => {
+      .then((data: { tipoCambio?: number; nipSupervisorConfigurado?: boolean }) => {
         const valor = Number(data.tipoCambio) || 0;
         setTipoCambio(valor);
+        setNipConfigurado(!!data.nipSupervisorConfigurado);
         try {
           localStorage.setItem(TIPO_CAMBIO_CACHE_KEY, String(valor));
         } catch {}
@@ -339,8 +363,10 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
   }, []);
 
   useEffect(() => {
-    if (!pesaje && !ventaCompletada && !modalRetiro && !modalCorte && !modalPrecio && !modalCobro) inputRef.current?.focus();
-  }, [pesaje, ventaCompletada, modalRetiro, modalCorte, modalPrecio, modalCobro, carrito]);
+    if (!pesaje && !ventaCompletada && !modalRetiro && !modalCorte && !modalPrecio && !modalCobro && !cancelacion) {
+      inputRef.current?.focus();
+    }
+  }, [pesaje, ventaCompletada, modalRetiro, modalCorte, modalPrecio, modalCobro, cancelacion, carrito]);
 
   const cargarResumenCorte = useCallback(async () => {
     if (!navigator.onLine) {
@@ -520,8 +546,98 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
     setCarrito((prev) => prev.map((l) => (l.productoId === productoId ? { ...l, cantidad } : l)));
   }
 
+  /**
+   * Quitar productos del carrito o tirar la venta en curso son cancelaciones:
+   * las autoriza un supervisor con su NIP y se registran en la bitácora que ve
+   * matriz. Por eso todo pasa por el modal en vez de borrarse en el acto.
+   */
+  function pedirCancelacion(pendiente: CancelacionPendiente) {
+    setCancelMotivo("");
+    setCancelNip("");
+    setCancelError(null);
+    setCancelacion(pendiente);
+  }
+
   function quitarLinea(productoId: string) {
-    setCarrito((prev) => prev.filter((l) => l.productoId !== productoId));
+    const linea = carrito.find((l) => l.productoId === productoId);
+    if (!linea) return;
+    pedirCancelacion({
+      tipo: "linea",
+      titulo: `Quitar ${linea.nombre}`,
+      lineas: [linea],
+      productoId,
+    });
+  }
+
+  function vaciarCarrito() {
+    if (carrito.length === 0) return;
+    pedirCancelacion({ tipo: "carrito", titulo: "Vaciar el carrito", lineas: carrito });
+  }
+
+  function aplicarCancelacion(pendiente: CancelacionPendiente) {
+    if (pendiente.tipo === "linea" && pendiente.productoId) {
+      const productoId = pendiente.productoId;
+      setCarrito((prev) => prev.filter((l) => l.productoId !== productoId));
+    } else if (pendiente.limpiarPago) {
+      limpiarCarritoYPago();
+    } else {
+      setCarrito([]);
+    }
+    setCancelacion(null);
+  }
+
+  async function confirmarCancelacion() {
+    if (!cancelacion) return;
+    setCancelError(null);
+
+    const motivo = cancelMotivo.trim();
+    if (!motivo) {
+      setCancelError("Captura el motivo de la cancelación");
+      return;
+    }
+    if (nipConfigurado && !cancelNip) {
+      setCancelError("Captura el NIP de supervisor");
+      return;
+    }
+    // El NIP se valida contra el servidor, así que sin conexión no se puede
+    // autorizar (mismo criterio que los retiros de efectivo).
+    if (!isOnline) {
+      setCancelError("Sin conexión no se pueden autorizar cancelaciones: el NIP se valida en el servidor.");
+      return;
+    }
+
+    setCancelando(true);
+    try {
+      const res = await fetch("/api/cancelaciones", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tipo: cancelacion.tipo,
+          motivo,
+          nip: cancelNip,
+          items: cancelacion.lineas.map((l) => ({
+            productoId: l.productoId,
+            sku: l.sku,
+            nombreProducto: l.nombre,
+            unidad: l.unidad,
+            cantidad: Number(l.cantidad) || 0,
+            precioUnitario: l.precioUnitario,
+          })),
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setCancelError(data.error || "No se pudo registrar la cancelación");
+        return;
+      }
+
+      aplicarCancelacion(cancelacion);
+    } catch {
+      setCancelError("Se perdió la conexión. La cancelación no se registró, inténtalo de nuevo.");
+    } finally {
+      setCancelando(false);
+    }
   }
 
   function aplicarDescuentoInventario() {
@@ -557,8 +673,19 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
   }
 
   function cancelarVenta() {
-    limpiarCarritoYPago();
     setError(null);
+    // Sin productos capturados no hay nada que cancelar: solo se limpian las
+    // formas de pago, y eso no necesita autorización.
+    if (carrito.length === 0) {
+      limpiarCarritoYPago();
+      return;
+    }
+    pedirCancelacion({
+      tipo: "carrito",
+      titulo: "Cancelar la venta en curso",
+      lineas: carrito,
+      limpiarPago: true,
+    });
   }
 
   function abrirCobro() {
@@ -1091,7 +1218,11 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
                       <td className="px-2 py-1.5 text-right text-black/40">$0.00</td>
                       <td className="px-2 py-1.5 text-right font-semibold">{formatMoney(cantidad * l.precioUnitario)}</td>
                       <td className="px-2 py-1.5 text-right">
-                        <button onClick={() => quitarLinea(l.productoId)} className="text-red-500 hover:text-red-700" title="Quitar">
+                        <button
+                          onClick={() => quitarLinea(l.productoId)}
+                          className="text-red-500 hover:text-red-700"
+                          title="Quitar (requiere autorización)"
+                        >
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </td>
@@ -1154,9 +1285,9 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
 
             <div className="grid grid-cols-3 gap-2 pt-1">
               <button
-                onClick={() => setCarrito([])}
+                onClick={vaciarCarrito}
                 disabled={carrito.length === 0}
-                title="Vaciar carrito"
+                title="Vaciar carrito (requiere autorización)"
                 className="grid h-12 place-items-center rounded-lg bg-red-500 text-white transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <Trash2 className="h-5 w-5" />
@@ -1164,7 +1295,7 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
               <button
                 onClick={cancelarVenta}
                 disabled={carrito.length === 0 && sumaPagos === 0}
-                title="Cancelar venta"
+                title="Cancelar venta (requiere autorización)"
                 className="grid h-12 place-items-center rounded-lg bg-red-500 text-white transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <X className="h-5 w-5" />
@@ -1488,6 +1619,80 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
               </p>
             </div>
           ) : null}
+        </Modal>
+      ) : null}
+
+      {cancelacion ? (
+        <Modal
+          open
+          onClose={() => setCancelacion(null)}
+          title="Autorizar cancelación"
+          icon={ShieldAlert}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setCancelacion(null)} disabled={cancelando}>
+                Regresar
+              </Button>
+              <Button variant="danger" onClick={confirmarCancelacion} disabled={cancelando}>
+                {cancelando ? "Registrando..." : "Autorizar y cancelar"}
+              </Button>
+            </>
+          }
+        >
+          <p className="mb-3 text-sm text-black/70">
+            <strong>{cancelacion.titulo}</strong>. Queda registrado en la bitácora de cancelaciones que revisa matriz.
+          </p>
+
+          <ul className="mb-4 divide-y divide-black/5 rounded-lg bg-black/2 px-3 text-sm">
+            {cancelacion.lineas.map((l) => (
+              <li key={l.productoId} className="flex items-center justify-between py-1.5">
+                <span className="uppercase">
+                  {l.nombre} × {Number(l.cantidad) || 0} {l.unidad}
+                </span>
+                <span className="font-medium">{formatMoney((Number(l.cantidad) || 0) * l.precioUnitario)}</span>
+              </li>
+            ))}
+            <li className="flex items-center justify-between py-1.5 font-semibold text-titos-green-900">
+              <span>Importe cancelado</span>
+              <span>
+                {formatMoney(
+                  cancelacion.lineas.reduce((sum, l) => sum + (Number(l.cantidad) || 0) * l.precioUnitario, 0)
+                )}
+              </span>
+            </li>
+          </ul>
+
+          <FormField label="Motivo de la cancelación" className="mb-3">
+            <Input
+              autoFocus
+              value={cancelMotivo}
+              onChange={(e) => setCancelMotivo(e.target.value)}
+              placeholder="Ej. el cliente se arrepintió, producto mal escaneado..."
+            />
+          </FormField>
+
+          {nipConfigurado ? (
+            <FormField label="NIP de supervisor">
+              <Input
+                type="password"
+                inputMode="numeric"
+                maxLength={8}
+                value={cancelNip}
+                onChange={(e) => setCancelNip(e.target.value.replace(/\D/g, ""))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") confirmarCancelacion();
+                }}
+                placeholder="••••"
+              />
+            </FormField>
+          ) : (
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              Matriz todavía no configura el NIP de supervisor, así que la cancelación procede sin autorización pero se
+              marca como tal en la bitácora.
+            </p>
+          )}
+
+          {cancelError ? <p className="mt-3 text-sm text-red-600">{cancelError}</p> : null}
         </Modal>
       ) : null}
 

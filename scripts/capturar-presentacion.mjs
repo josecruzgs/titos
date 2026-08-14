@@ -1,6 +1,10 @@
-// Toma las capturas de pantalla que ilustran la presentación de avances.
-// Uso: node scripts/capturar-presentacion.mjs
+// Toma las capturas de pantalla que ilustran las presentaciones de avances.
+// Uso: node scripts/capturar-presentacion.mjs [--semana=6]
 // Requiere el servidor de desarrollo corriendo en http://localhost:3000.
+//
+// Cada pantalla pertenece a la semana en la que se presentó. Sin --semana se
+// retoman TODAS, lo que reescribe también las de semanas pasadas; para no tocar
+// el histórico, captura solo la semana que estés armando.
 //
 // Las credenciales se leen de variables de entorno para no dejarlas escritas
 // en el repositorio:
@@ -29,7 +33,8 @@ async function ocultarOverlayDev(page) {
   await page
     .addStyleTag({
       content: `nextjs-portal, [data-nextjs-toast], [data-nextjs-dev-tools-button],
-                #__next-build-watcher { display: none !important; }`,
+                [data-next-badge-root], [data-next-badge], #__next-build-watcher
+                { display: none !important; }`,
     })
     .catch(() => {});
 }
@@ -123,26 +128,105 @@ const ACCIONES = {
     await page.getByRole("button", { name: /Nuevo cliente/i }).click();
     await page.waitForTimeout(800);
   },
+
+  // ── Semana 6 ────────────────────────────────────────────────────────
+
+  /** Deja el menú de matriz en modo iconos para mostrar el espacio que libera. */
+  async contraerMenu(page) {
+    await page.getByRole("button", { name: /Contraer menú/i }).click();
+    await page.waitForTimeout(600);
+  },
+
+  /** Baja hasta la tarjeta del NIP de supervisor. */
+  async verNipSupervisor(page) {
+    await page.getByText("NIP de supervisor").first().scrollIntoViewIfNeeded();
+    await page.waitForTimeout(600);
+  },
+
+  /** Abre el formulario de facturación de la primera venta pendiente. */
+  async abrirModalFactura(page) {
+    await page.getByRole("button", { name: "Facturar", exact: true }).first().click();
+    await page.getByText(/Razón social/i).first().waitFor({ timeout: 10000 });
+    await page.waitForTimeout(900);
+  },
+
+  /** Cambia a la pestaña de facturas ya emitidas. */
+  async verFacturasEmitidas(page) {
+    await page.getByRole("button", { name: /Facturas emitidas/i }).click();
+    await page.waitForTimeout(1200);
+  },
+
+  /** Abre el alta de cliente y enfoca el bloque de la constancia fiscal. */
+  async altaClienteConstancia(page) {
+    await page.getByRole("button", { name: /Nuevo cliente/i }).click();
+    await page.getByText(/Alta desde constancia fiscal/i).first().waitFor({ timeout: 10000 });
+    await page.getByText(/Alta desde constancia fiscal/i).first().scrollIntoViewIfNeeded();
+    await page.waitForTimeout(800);
+  },
+
+  /**
+   * Captura un producto en el carrito y pide quitarlo, para que se vea el modal
+   * de autorización. Todo pasa en la interfaz: no se cobra ni se guarda nada.
+   */
+  async cancelacionEnPuntoVenta(page) {
+    const termino = await terminoDeBusqueda(page);
+    if (!termino) return;
+
+    await page.getByPlaceholder(/Buscar por nombre o SKU/i).fill(termino);
+    const opcion = page.locator("div.absolute.z-10 button").first();
+    await opcion.waitFor({ timeout: 8000 });
+    await opcion.click();
+    await page.waitForTimeout(700);
+
+    const modalPeso = page.getByText(/Capturar peso/).first();
+    if (await modalPeso.isVisible().catch(() => false)) {
+      await page.locator('input[type="number"]').first().fill("1.5").catch(() => {});
+      await page.getByRole("button", { name: /Agregar al carrito/i }).click();
+      await page.waitForTimeout(700);
+    }
+
+    await page.locator('button[title^="Quitar"]').first().click();
+    await page.getByText(/Autorizar cancelación/i).first().waitFor({ timeout: 8000 });
+    await page.waitForTimeout(600);
+  },
 };
 
-/** Pantallas a capturar: [archivo, ruta, cuenta, accion?] */
+/** Pantallas a capturar: [archivo, ruta, cuenta, accion?, semana] */
 const PANTALLAS = [
-  ["matriz-dashboard", "/matriz", "matriz"],
-  ["matriz-configuracion", "/matriz/configuracion", "matriz"],
-  ["matriz-sucursales", "/matriz/sucursales", "matriz"],
-  ["matriz-sucursal-zona-horaria", "/matriz/sucursales", "matriz", "abrirModalSucursal"],
-  ["matriz-cortes", "/matriz/cortes", "matriz"],
-  ["matriz-notas-de-venta", "/matriz/notas-de-venta", "matriz"],
-  ["sucursal-punto-venta", "/sucursal", "sucursal"],
-  ["sucursal-punto-venta-cobro", "/sucursal", "sucursal", "cobroConCredito"],
-  ["sucursal-clientes", "/sucursal/clientes", "sucursal"],
-  ["sucursal-cliente-alta", "/sucursal/clientes", "sucursal", "altaCliente"],
-  ["sucursal-devoluciones", "/sucursal/devoluciones", "sucursal"],
-  ["sucursal-prestamos", "/sucursal/prestamos", "sucursal"],
-  ["sucursal-prestamos-stock", "/sucursal/prestamos", "sucursal", "buscarStockOtrasSucursales"],
-  ["sucursal-prestamos-solicitar", "/sucursal/prestamos", "sucursal", "pedirPrestado"],
-  ["sucursal-ventas", "/sucursal/ventas", "sucursal"],
+  ["matriz-dashboard", "/matriz", "matriz", null, 5],
+  ["matriz-configuracion", "/matriz/configuracion", "matriz", null, 5],
+  ["matriz-sucursales", "/matriz/sucursales", "matriz", null, 5],
+  ["matriz-sucursal-zona-horaria", "/matriz/sucursales", "matriz", "abrirModalSucursal", 5],
+  ["matriz-cortes", "/matriz/cortes", "matriz", null, 5],
+  ["matriz-notas-de-venta", "/matriz/notas-de-venta", "matriz", null, 5],
+  ["sucursal-punto-venta", "/sucursal", "sucursal", null, 5],
+  ["sucursal-punto-venta-cobro", "/sucursal", "sucursal", "cobroConCredito", 5],
+  ["sucursal-clientes", "/sucursal/clientes", "sucursal", null, 5],
+  ["sucursal-cliente-alta", "/sucursal/clientes", "sucursal", "altaCliente", 5],
+  ["sucursal-devoluciones", "/sucursal/devoluciones", "sucursal", null, 5],
+  ["sucursal-prestamos", "/sucursal/prestamos", "sucursal", null, 5],
+  ["sucursal-prestamos-stock", "/sucursal/prestamos", "sucursal", "buscarStockOtrasSucursales", 5],
+  ["sucursal-prestamos-solicitar", "/sucursal/prestamos", "sucursal", "pedirPrestado", 5],
+  ["sucursal-ventas", "/sucursal/ventas", "sucursal", null, 5],
+
+  ["s6-matriz-pos", "/matriz/mostrador", "matriz", null, 6],
+  ["s6-reporte-ventas", "/matriz/reportes/ventas", "matriz", null, 6],
+  ["s6-facturas-bandeja", "/matriz/facturas", "matriz", null, 6],
+  ["s6-facturas-modal", "/matriz/facturas", "matriz", "abrirModalFactura", 6],
+  ["s6-facturas-emitidas", "/matriz/facturas", "matriz", "verFacturasEmitidas", 6],
+  ["s6-cancelaciones", "/matriz/cancelaciones", "matriz", null, 6],
+  ["s6-configuracion-nip", "/matriz/configuracion", "matriz", "verNipSupervisor", 6],
+  ["s6-notas-de-venta", "/matriz/notas-de-venta", "matriz", null, 6],
+  ["s6-menu-contraido", "/matriz/facturas", "matriz", "contraerMenu", 6],
+  ["s6-pos-cancelacion", "/sucursal", "sucursal", "cancelacionEnPuntoVenta", 6],
+  ["s6-cliente-constancia", "/sucursal/clientes", "sucursal", "altaClienteConstancia", 6],
 ];
+
+/** --semana=6 limita la corrida a esa entrega y deja intacto el histórico. */
+function semanaSolicitada() {
+  const arg = process.argv.find((a) => a.startsWith("--semana="));
+  return arg ? Number(arg.split("=")[1]) : null;
+}
 
 async function iniciarSesion(page, cuenta) {
   await page.goto(`${BASE}/login`, { waitUntil: "domcontentloaded" });
@@ -177,11 +261,24 @@ async function iniciarSesion(page, cuenta) {
   await page.waitForLoadState("networkidle", { timeout: 20000 }).catch(() => {});
 }
 
+/**
+ * Varias pantallas piden sus datos desde el cliente después de montar, así que
+ * `networkidle` puede alcanzarse antes de que llegue la tabla. Se espera además
+ * a que desaparezcan los "Cargando..." para no fotografiar la pantalla vacía.
+ */
+async function esperarDatos(page) {
+  await page.waitForLoadState("networkidle", { timeout: 20000 }).catch(() => {});
+  await page
+    .locator("text=/^Cargando\\.\\.\\.$/")
+    .first()
+    .waitFor({ state: "detached", timeout: 15000 })
+    .catch(() => {});
+  await page.waitForTimeout(1200);
+}
+
 async function capturar(page, archivo, ruta, accion) {
   await page.goto(`${BASE}${ruta}`, { waitUntil: "domcontentloaded" });
-  // Deja que carguen los fetch del cliente (tablas, catálogos, resúmenes).
-  await page.waitForLoadState("networkidle", { timeout: 20000 }).catch(() => {});
-  await page.waitForTimeout(1200);
+  await esperarDatos(page);
   await ocultarOverlayDev(page);
 
   if (accion) {
@@ -192,6 +289,7 @@ async function capturar(page, archivo, ruta, accion) {
     }
   }
 
+  await esperarDatos(page);
   await ocultarOverlayDev(page);
   await page.screenshot({ path: `${SALIDA}/${archivo}.png`, fullPage: false });
   console.log(`  ✓ ${archivo}.png`);
@@ -200,12 +298,18 @@ async function capturar(page, archivo, ruta, accion) {
 async function main() {
   await mkdir(SALIDA, { recursive: true });
 
+  const semana = semanaSolicitada();
+  if (semana) console.log(`Capturando solo la semana ${semana}.`);
+
   const navegador = await chromium.launch();
   const resultados = { ok: [], fallidas: [] };
 
   for (const rol of ["matriz", "sucursal"]) {
     const cuenta = CUENTAS[rol];
-    const pantallas = PANTALLAS.filter(([, , r]) => r === rol);
+    const pantallas = PANTALLAS.filter(
+      ([, , r, , s]) => r === rol && (semana === null || s === semana)
+    );
+    if (pantallas.length === 0) continue;
 
     if (!cuenta.email || !cuenta.password) {
       console.log(`\n⚠ Sin credenciales de ${rol}; se omiten ${pantallas.length} pantallas.`);
@@ -232,6 +336,9 @@ async function main() {
     }
 
     for (const [archivo, ruta, , accion] of pantallas) {
+      // Cada captura arranca de cero: si la anterior dejó un modal abierto o el
+      // menú contraído, la siguiente saldría contaminada.
+      await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" }).catch(() => {});
       try {
         await capturar(page, archivo, ruta, accion);
         resultados.ok.push(archivo);
