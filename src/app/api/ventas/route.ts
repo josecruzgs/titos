@@ -7,7 +7,8 @@ import CajaSesion from "@/models/CajaSesion";
 import Cliente from "@/models/Cliente";
 import CuentaPorCobrar from "@/models/CuentaPorCobrar";
 import "@/models/Sucursal"; // necesario para que populate("sucursalId") funcione
-import { requireSession, unauthorized, forbidden, badRequest, conflict, generateFolio, todayCorte } from "@/lib/apiAuth";
+import { requireSession, unauthorized, forbidden, badRequest, conflict, todayCorte } from "@/lib/apiAuth";
+import { siguienteFolio } from "@/lib/folios";
 import { resolverVentas2ParaVenta } from "@/lib/ventas2";
 import {
   ajustarStockPuntoVenta,
@@ -179,7 +180,7 @@ export async function POST(req: NextRequest) {
   });
 
   const venta = await Venta.create({
-    folio: generateFolio(ventas2.esVentas2 ? "V2" : "VTA"),
+    folio: await siguienteFolio(ventas2.esVentas2 ? "V2" : "VTA"),
     sucursalId: ctx.sucursalId,
     cajaSesionId: sesionCaja._id,
     usuarioId: session.userId,

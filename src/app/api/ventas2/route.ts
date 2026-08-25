@@ -55,11 +55,15 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const sucursalIds: string[] = Array.isArray(body?.sucursalIds) ? body.sucursalIds.map(String).filter(Boolean) : [];
   const inicio = parseFecha(body?.inicio);
-  const fin = parseFecha(body?.fin);
+  // Sin fecha de fin el protocolo queda indefinido: corre hasta que matriz lo
+  // detenga a mano desde esta misma pantalla.
+  const indefinido = body?.indefinido === true || body?.fin === null;
+  const fin = indefinido ? null : parseFecha(body?.fin);
   const frecuencia = Number(body?.frecuencia);
 
   if (sucursalIds.length === 0) return badRequest("Selecciona al menos una sucursal");
-  if (!inicio || !fin || fin <= inicio) return badRequest("Captura un lapso valido para Ventas 2");
+  if (!inicio) return badRequest("Captura la fecha y hora de inicio");
+  if (!indefinido && (!fin || fin <= inicio)) return badRequest("Captura un lapso valido para Ventas 2");
   if (!Number.isInteger(frecuencia) || frecuencia < 2) return badRequest("La frecuencia debe ser un numero entero mayor o igual a 2");
 
   await connectDB();
@@ -69,11 +73,13 @@ export async function POST(req: NextRequest) {
   const idsValidos = sucursalIds.filter((id: string) => sucursalesValidas.has(id));
   if (idsValidos.length === 0) return badRequest("No se encontraron sucursales activas para activar Ventas 2");
 
+  // Dos activaciones se cruzan si cada una empieza antes de que acabe la otra.
+  // Una indefinida no tiene fin, asi que se cruza con todo lo que venga despues.
   const overlap = await Ventas2Activacion.findOne({
     sucursalId: { $in: idsValidos },
     estado: { $ne: "cancelada" },
-    inicio: { $lt: fin },
-    fin: { $gt: inicio },
+    ...(fin ? { inicio: { $lt: fin } } : {}),
+    $or: [{ fin: null }, { fin: { $gt: inicio } }],
   })
     .populate("sucursalId", "nombre")
     .lean();

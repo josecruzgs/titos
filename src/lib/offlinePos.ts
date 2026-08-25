@@ -53,7 +53,7 @@ export function guardarSesionCache<T>(value: T | null) {
 // "credito" existe en el tipo porque el mismo payload se manda al servidor,
 // pero una venta a crédito nunca se encola: sin conexión no se puede validar el
 // límite ni los vencidos del cliente.
-export type MetodoPagoOffline = "efectivo" | "tarjeta" | "transferencia" | "credito";
+export type MetodoPagoOffline = "efectivo" | "tarjeta" | "transferencia" | "vales" | "credito";
 
 export type VentaPayload = {
   items: { productoId: string; cantidad: number }[];

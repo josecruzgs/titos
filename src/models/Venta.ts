@@ -1,8 +1,10 @@
 import { Schema, model, models, type InferSchemaType } from "mongoose";
 
 // "credito" no entra dinero a la caja: genera una cuenta por cobrar del cliente.
-export const METODOS_PAGO = ["efectivo", "tarjeta", "transferencia", "credito"] as const;
-export const METODOS_PAGO_CONTADO = ["efectivo", "tarjeta", "transferencia"] as const;
+// "vales" son vales de despensa: valen como pago de contado, pero no son
+// efectivo del cajón (se cobran después al emisor del vale).
+export const METODOS_PAGO = ["efectivo", "tarjeta", "transferencia", "vales", "credito"] as const;
+export const METODOS_PAGO_CONTADO = ["efectivo", "tarjeta", "transferencia", "vales"] as const;
 export const ESTADOS_VENTA = ["completada", "cancelada"] as const;
 
 const VentaItemSchema = new Schema(

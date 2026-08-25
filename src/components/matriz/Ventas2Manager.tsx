@@ -35,7 +35,8 @@ type ActivacionVentas2 = {
   sucursalId: string;
   sucursalNombre: string;
   inicio: string;
-  fin: string;
+  /** `null` cuando el protocolo es indefinido: corre hasta que se detenga. */
+  fin: string | null;
   frecuencia: number;
   estado: "programada" | "activa" | "finalizada" | "cancelada";
   totalRecaudado: number;
@@ -54,6 +55,12 @@ function datetimeLocal(fecha: Date) {
 
 function formatoFecha(value: string | null) {
   return formatFechaHora(value, ZONA_HORARIA_DEFAULT, "-");
+}
+
+/** El fin de una activacion indefinida se lee distinto segun si ya se detuvo. */
+function formatoFin(activacion: ActivacionVentas2) {
+  if (activacion.fin) return formatoFecha(activacion.fin);
+  return activacion.estado === "finalizada" || activacion.estado === "cancelada" ? "-" : "Indefinido";
 }
 
 function estadoClase(estado: string) {
@@ -76,6 +83,7 @@ export function Ventas2Manager() {
   const [seleccionadas, setSeleccionadas] = useState<Set<string>>(new Set());
   const [inicio, setInicio] = useState(() => datetimeLocal(new Date()));
   const [fin, setFin] = useState(() => datetimeLocal(new Date(Date.now() + 2 * 60 * 60 * 1000)));
+  const [finIndefinido, setFinIndefinido] = useState(false);
   const [frecuencia, setFrecuencia] = useState("5");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -134,7 +142,8 @@ export function Ventas2Manager() {
       body: JSON.stringify({
         sucursalIds: Array.from(seleccionadas),
         inicio: new Date(inicio).toISOString(),
-        fin: new Date(fin).toISOString(),
+        fin: finIndefinido ? null : new Date(fin).toISOString(),
+        indefinido: finIndefinido,
         frecuencia: Number(frecuencia),
       }),
     });
@@ -219,7 +228,7 @@ export function Ventas2Manager() {
                     </span>
                   </p>
                   <p className="text-xs text-black/50">
-                    {formatoFecha(a.inicio)} → {formatoFecha(a.fin)} · 1 de cada {a.frecuencia} · {a.cantidadMovimientos}{" "}
+                    {formatoFecha(a.inicio)} → {formatoFin(a)} · 1 de cada {a.frecuencia} · {a.cantidadMovimientos}{" "}
                     mov. · {formatMoney(a.totalRecaudado)}
                   </p>
                 </div>
@@ -275,7 +284,28 @@ export function Ventas2Manager() {
               <Input icon={CalendarClock} type="datetime-local" value={inicio} onChange={(e) => setInicio(e.target.value)} />
             </FormField>
             <FormField label="Fin">
-              <Input icon={Clock} type="datetime-local" value={fin} onChange={(e) => setFin(e.target.value)} />
+              <Input
+                icon={Clock}
+                type="datetime-local"
+                value={fin}
+                onChange={(e) => setFin(e.target.value)}
+                disabled={finIndefinido}
+                className={finIndefinido ? "bg-black/3 text-black/35" : ""}
+              />
+              <label className="mt-2 flex cursor-pointer items-start gap-2 text-sm text-black/70">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={finIndefinido}
+                  onChange={(e) => setFinIndefinido(e.target.checked)}
+                />
+                <span>
+                  Indefinido
+                  <span className="block text-xs text-black/45">
+                    Corre sin fecha de fin hasta que lo detengas con el botón.
+                  </span>
+                </span>
+              </label>
             </FormField>
             <FormField label="Frecuencia">
               <Input
@@ -339,7 +369,9 @@ export function Ventas2Manager() {
                     </td>
                     <td className="py-2 pr-3 text-black/60">
                       <span className="block">{formatoFecha(a.inicio)}</span>
-                      <span className="block">{formatoFecha(a.fin)}</span>
+                      <span className={`block ${a.fin ? "" : "font-semibold text-titos-orange-600"}`}>
+                        {formatoFin(a)}
+                      </span>
                     </td>
                     <td className="py-2 pr-3">1 / {a.frecuencia}</td>
                     <td className="py-2 pr-3">{a.cantidadMovimientos}</td>
@@ -413,6 +445,11 @@ export function Ventas2Manager() {
               Todavía no arranca, así que la activación se cancela y no llegará a aplicar.
             </p>
           )}
+          {porDetener.fin === null && porDetener.estado === "activa" ? (
+            <p className="mt-3 text-sm text-black/55">
+              Este protocolo se activó como indefinido: detenerlo ahora es la única forma de cerrarlo.
+            </p>
+          ) : null}
           <div className="mt-6 flex justify-end gap-2 border-t border-black/5 pt-4">
             <Button variant="ghost" onClick={() => setPorDetener(null)}>
               Cancelar

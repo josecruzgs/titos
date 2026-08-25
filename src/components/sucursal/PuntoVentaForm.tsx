@@ -15,12 +15,14 @@ import {
   DollarSign,
   Wifi,
   CreditCard,
+  Ticket,
   TriangleAlert,
   Clock,
   ShieldAlert,
 } from "lucide-react";
 import { Button, Card, Input, Select, Modal, FormField, formatMoney } from "@/components/ui";
 import { ProductoCombobox } from "@/components/ProductoCombobox";
+import { MotivoPosSelector } from "@/components/MotivoPosSelector";
 import { estadoCredito, formatFecha, type ClienteConCredito } from "@/lib/creditoCliente";
 import { imprimirHTML } from "@/lib/print";
 import { useZonaHoraria } from "@/components/ZonaHorariaProvider";
@@ -60,12 +62,13 @@ type LineaVenta = {
   cantidad: string;
 };
 
-type MetodoPago = "efectivo" | "tarjeta" | "transferencia" | "credito";
+type MetodoPago = "efectivo" | "tarjeta" | "transferencia" | "vales" | "credito";
 
 const ETIQUETAS_METODO: Record<MetodoPago, string> = {
   efectivo: "Efectivo",
   tarjeta: "Tarjeta",
   transferencia: "Transferencia",
+  vales: "Vales de despensa",
   credito: "Crédito del cliente",
 };
 
@@ -131,6 +134,7 @@ type ResumenCaja = {
   totalVentasEfectivo: number;
   totalVentasTarjeta: number;
   totalVentasTransferencia: number;
+  totalVentasVales: number;
   totalVentasCredito: number;
   totalAbonosEfectivo: number;
   totalDevoluciones: number;
@@ -161,6 +165,7 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
   const [montoEfectivo, setMontoEfectivo] = useState("");
   const [montoTarjeta, setMontoTarjeta] = useState("");
   const [montoTransferencia, setMontoTransferencia] = useState("");
+  const [montoVales, setMontoVales] = useState("");
   const [montoCredito, setMontoCredito] = useState("");
   const [efectivoRecibido, setEfectivoRecibido] = useState("");
   const [clientes, setClientes] = useState<ClienteConCredito[]>([]);
@@ -424,8 +429,9 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
   const nEfectivo = Number(montoEfectivo) || 0;
   const nTarjeta = Number(montoTarjeta) || 0;
   const nTransferencia = Number(montoTransferencia) || 0;
+  const nVales = Number(montoVales) || 0;
   const nCredito = Number(montoCredito) || 0;
-  const sumaPagos = nEfectivo + nTarjeta + nTransferencia + nCredito;
+  const sumaPagos = nEfectivo + nTarjeta + nTransferencia + nVales + nCredito;
   const restante = Number((total - sumaPagos).toFixed(2));
 
   const cambio = nEfectivo > 0 ? (Number(efectivoRecibido) || 0) - nEfectivo : null;
@@ -465,12 +471,14 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
       (metodo === "efectivo" ? 0 : nEfectivo) -
       (metodo === "tarjeta" ? 0 : nTarjeta) -
       (metodo === "transferencia" ? 0 : nTransferencia) -
+      (metodo === "vales" ? 0 : nVales) -
       (metodo === "credito" ? 0 : nCredito);
     const valor = Math.max(0, Number(otros.toFixed(2)));
     const texto = valor ? String(valor) : "";
     if (metodo === "efectivo") setMontoEfectivo(texto);
     else if (metodo === "tarjeta") setMontoTarjeta(texto);
     else if (metodo === "transferencia") setMontoTransferencia(texto);
+    else if (metodo === "vales") setMontoVales(texto);
     else setMontoCredito(texto);
   }
 
@@ -657,6 +665,7 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
     setMontoEfectivo("");
     setMontoTarjeta("");
     setMontoTransferencia("");
+    setMontoVales("");
     setMontoCredito("");
     setEfectivoRecibido("");
     setClienteId("");
@@ -733,6 +742,7 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
       ...(nEfectivo > 0 ? [{ metodoPago: "efectivo" as const, monto: nEfectivo }] : []),
       ...(nTarjeta > 0 ? [{ metodoPago: "tarjeta" as const, monto: nTarjeta }] : []),
       ...(nTransferencia > 0 ? [{ metodoPago: "transferencia" as const, monto: nTransferencia }] : []),
+      ...(nVales > 0 ? [{ metodoPago: "vales" as const, monto: nVales }] : []),
       ...(nCredito > 0 ? [{ metodoPago: "credito" as const, monto: nCredito }] : []),
     ];
     const payload: VentaPayload = {
@@ -1459,6 +1469,24 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
             </div>
             <div className="flex items-center gap-1.5">
               <Input
+                icon={Ticket}
+                type="number"
+                min="0"
+                step="0.01"
+                value={montoVales}
+                onChange={(e) => setMontoVales(e.target.value)}
+                placeholder="Vales de despensa"
+              />
+              <button
+                type="button"
+                onClick={() => completarCon("vales")}
+                className="whitespace-nowrap text-xs font-medium text-titos-green-700 hover:underline"
+              >
+                Completar
+              </button>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Input
                 icon={CreditCard}
                 type="number"
                 min="0"
@@ -1663,12 +1691,7 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
           </ul>
 
           <FormField label="Motivo de la cancelación" className="mb-3">
-            <Input
-              autoFocus
-              value={cancelMotivo}
-              onChange={(e) => setCancelMotivo(e.target.value)}
-              placeholder="Ej. el cliente se arrepintió, producto mal escaneado..."
-            />
+            <MotivoPosSelector tipo="cancelacion" value={cancelMotivo} onChange={setCancelMotivo} autoFocus />
           </FormField>
 
           {nipConfigurado ? (
@@ -1894,6 +1917,12 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
                   <span className="text-black/50">Ventas por transferencia</span>
                   <span className="font-medium">{formatMoney(resumenCorte.totalVentasTransferencia)}</span>
                 </div>
+                {resumenCorte.totalVentasVales > 0 ? (
+                  <div className="flex justify-between">
+                    <span className="text-black/50">Ventas con vales de despensa (no es efectivo)</span>
+                    <span className="font-medium">{formatMoney(resumenCorte.totalVentasVales)}</span>
+                  </div>
+                ) : null}
                 {resumenCorte.totalVentasCredito > 0 ? (
                   <div className="flex justify-between">
                     <span className="text-black/50">Ventas a crédito (no es efectivo)</span>

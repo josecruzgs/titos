@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
   sesion.totalVentasEfectivo = resumen.totalVentasEfectivo;
   sesion.totalVentasTarjeta = resumen.totalVentasTarjeta;
   sesion.totalVentasTransferencia = resumen.totalVentasTransferencia;
+  sesion.totalVentasVales = resumen.totalVentasVales;
   sesion.totalVentasCredito = resumen.totalVentasCredito;
   sesion.totalAbonosEfectivo = resumen.totalAbonosEfectivo;
   sesion.totalDevoluciones = resumen.totalDevoluciones;

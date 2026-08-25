@@ -27,6 +27,7 @@ type Corte = {
   totalVentasEfectivo: number;
   totalVentasTarjeta: number;
   totalVentasTransferencia: number;
+  totalVentasVales?: number;
   totalVentasCredito?: number;
   totalAbonosEfectivo?: number;
   totalDevoluciones?: number;
@@ -105,6 +106,7 @@ export function CortesManager() {
           efectivo: acc.efectivo + c.totalVentasEfectivo,
           tarjeta: acc.tarjeta + c.totalVentasTarjeta,
           transferencia: acc.transferencia + c.totalVentasTransferencia,
+          vales: acc.vales + (c.totalVentasVales ?? 0),
           credito: acc.credito + (c.totalVentasCredito ?? 0),
           devoluciones: acc.devoluciones + (c.totalDevoluciones ?? 0),
           retiros: acc.retiros + c.totalRetiros,
@@ -115,6 +117,7 @@ export function CortesManager() {
           efectivo: 0,
           tarjeta: 0,
           transferencia: 0,
+          vales: 0,
           credito: 0,
           devoluciones: 0,
           retiros: 0,
@@ -163,6 +166,11 @@ export function CortesManager() {
           <p className="text-2xl font-bold text-titos-green-900">
             {formatMoney(totales.tarjeta + totales.transferencia)}
           </p>
+          {totales.vales > 0 ? (
+            <p className="text-sm font-semibold text-titos-orange-600">
+              + {formatMoney(totales.vales)} en vales de despensa
+            </p>
+          ) : null}
         </Card>
         <Card>
           <p className="text-xs font-semibold uppercase tracking-wide text-black/40">Retiros</p>

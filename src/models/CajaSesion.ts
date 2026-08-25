@@ -15,6 +15,7 @@ const CajaSesionSchema = new Schema(
     totalVentasEfectivo: { type: Number, default: null },
     totalVentasTarjeta: { type: Number, default: null },
     totalVentasTransferencia: { type: Number, default: null },
+    totalVentasVales: { type: Number, default: null }, // vales de despensa recibidos: se cobran al emisor, no al cajón
     totalVentasCredito: { type: Number, default: null }, // no es efectivo en caja, es cartera generada en el turno
     totalAbonosEfectivo: { type: Number, default: null }, // cobranza de clientes recibida en el turno
     totalDevoluciones: { type: Number, default: null }, // reembolsos pagados en el turno

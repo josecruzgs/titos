@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { EstadoBadge, Button, FormField, Input, Modal, formatMoney } from "@/components/ui";
 import { ChevronDown, ChevronRight, ShieldAlert } from "lucide-react";
+import { MotivoPosSelector } from "@/components/MotivoPosSelector";
 import { formatFecha } from "@/lib/creditoCliente";
 import { useZonaHoraria } from "@/components/ZonaHorariaProvider";
 import { formatFechaHora } from "@/lib/zonasHorarias";
@@ -12,6 +13,7 @@ const ETIQUETAS_METODO: Record<string, string> = {
   efectivo: "Efectivo",
   tarjeta: "Tarjeta",
   transferencia: "Transferencia",
+  vales: "Vales de despensa",
   credito: "Crédito del cliente",
 };
 
@@ -191,12 +193,7 @@ export function VentasHistorial({ ventas }: { ventas: Venta[] }) {
           </p>
 
           <FormField label="Motivo de la cancelación" className="mb-3">
-            <Input
-              autoFocus
-              value={motivo}
-              onChange={(e) => setMotivo(e.target.value)}
-              placeholder="Ej. devolución total, cobro duplicado..."
-            />
+            <MotivoPosSelector tipo="cancelacion" value={motivo} onChange={setMotivo} autoFocus />
           </FormField>
 
           {nipConfigurado ? (

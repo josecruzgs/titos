@@ -9,6 +9,7 @@ const ETIQUETA_METODO: Record<string, string> = {
   efectivo: "Efectivo",
   tarjeta: "Tarjeta",
   transferencia: "Transf.",
+  vales: "Vales",
   credito: "Credito",
 };
 

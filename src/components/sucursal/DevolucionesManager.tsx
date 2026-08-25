@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Search, TriangleAlert, Clock, Wallet } from "lucide-react";
 import { Button, Card, EmptyState, FormField, Input, formatMoney } from "@/components/ui";
+import { MotivoPosSelector } from "@/components/MotivoPosSelector";
 import { useZonaHoraria } from "@/components/ZonaHorariaProvider";
 import { formatFechaHora } from "@/lib/zonasHorarias";
 
@@ -304,7 +305,7 @@ export function DevolucionesManager() {
                 </div>
 
                 <FormField label="Motivo de la devolución">
-                  <Input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ej. producto dañado" />
+                  <MotivoPosSelector tipo="devolucion" value={motivo} onChange={setMotivo} />
                 </FormField>
 
                 {errorRegistro ? <p className="text-sm text-red-600">{errorRegistro}</p> : null}

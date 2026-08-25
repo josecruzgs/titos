@@ -92,7 +92,9 @@ export default async function Ventas2SucursalPage() {
                     ) : null}
                   </div>
                   <p className="text-sm text-black/50">
-                    Lapso: {formatoFecha(activacion.inicio)} a {formatoFecha(activacion.fin)}
+                    {activacion.fin
+                      ? `Lapso: ${formatoFecha(activacion.inicio)} a ${formatoFecha(activacion.fin)}`
+                      : `Desde ${formatoFecha(activacion.inicio)} y hasta nuevo aviso`}
                   </p>
                   <p className="text-sm text-black/50">
                     Regla: 1 de cada {activacion.frecuencia} ventas 100% en efectivo

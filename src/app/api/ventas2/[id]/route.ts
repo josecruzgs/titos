@@ -21,7 +21,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   if (accion === "terminar") {
     const ahora = new Date();
-    if (activacion.fin > ahora) activacion.fin = ahora;
+    // Una activacion indefinida se sella con la hora en que se detuvo.
+    if (!activacion.fin || activacion.fin > ahora) activacion.fin = ahora;
     activacion.estado = "finalizada";
     activacion.finalizadoManualPorId = session.userId;
     activacion.finalizadoManualEn = ahora;

@@ -13,6 +13,7 @@ export const FORMAS_PAGO_SAT = [
   { value: "02", label: "02 — Cheque nominativo" },
   { value: "03", label: "03 — Transferencia electrónica de fondos" },
   { value: "04", label: "04 — Tarjeta de crédito" },
+  { value: "08", label: "08 — Vales de despensa" },
   { value: "28", label: "28 — Tarjeta de débito" },
   { value: "99", label: "99 — Por definir" },
 ] as const;
@@ -35,6 +36,7 @@ const FORMA_PAGO_POR_METODO: Record<string, string> = {
   efectivo: "01",
   transferencia: "03",
   tarjeta: "04",
+  vales: "08",
   credito: "99",
 };
 

@@ -16,7 +16,9 @@ const Ventas2ActivacionSchema = new Schema(
   {
     sucursalId: { type: Schema.Types.ObjectId, ref: "Sucursal", required: true },
     inicio: { type: Date, required: true },
-    fin: { type: Date, required: true },
+    // `null` = protocolo indefinido: corre hasta que alguien lo detenga a mano
+    // desde matriz. Al detenerlo se sella con la fecha del momento.
+    fin: { type: Date, default: null },
     frecuencia: { type: Number, required: true, min: 1 },
     estado: { type: String, enum: ESTADOS_VENTAS2, default: "programada" },
     creadoPorId: { type: Schema.Types.ObjectId, ref: "User", required: true },

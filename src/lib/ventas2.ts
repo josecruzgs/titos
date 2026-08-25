@@ -17,12 +17,22 @@ type ActivacionResumenSource = Pick<Ventas2ActivacionType, "inicio" | "fin" | "f
   retiradoEn?: Date | null;
 };
 
+/**
+ * Condición de "todavía corriendo" para las consultas: un protocolo indefinido
+ * (`fin: null`) nunca vence solo, así que hay que dejarlo pasar aparte. Mongo no
+ * lo incluiría en un `$gt` porque las comparaciones solo casan con el mismo tipo.
+ */
+function sinVencer(ahora: Date) {
+  return { $or: [{ fin: null }, { fin: { $gt: ahora } }] };
+}
+
 export function calcularEstadoVentas2(
   activacion: Pick<Ventas2ActivacionType, "estado" | "inicio" | "fin">,
   ahora = new Date()
 ): EstadoVentas2 {
   if (activacion.estado === "cancelada") return "cancelada";
-  if (activacion.fin <= ahora) return "finalizada";
+  // Sin fecha de fin el protocolo sigue vivo hasta que matriz lo detenga.
+  if (activacion.fin && activacion.fin <= ahora) return "finalizada";
   if (activacion.inicio <= ahora) return "activa";
   return "programada";
 }
@@ -30,6 +40,12 @@ export function calcularEstadoVentas2(
 // El aviso lo lee la sucursal, así que las horas van en su zona horaria.
 function formatoFecha(fecha: Date, zona: string = ZONA_HORARIA_DEFAULT) {
   return formatFechaHora(fecha, zona);
+}
+
+/** Renglon del aviso con el lapso; sin fecha de fin se avisa que es indefinido. */
+function lapso(inicio: Date, fin: Date | null | undefined, zona: string) {
+  if (!fin) return `Lapso: desde ${formatoFecha(inicio, zona)} y hasta nuevo aviso (sin fecha de fin).`;
+  return `Lapso: ${formatoFecha(inicio, zona)} a ${formatoFecha(fin, zona)}.`;
 }
 
 function formatMoney(value: number) {
@@ -74,18 +90,18 @@ async function registrarNotificacion(
 
 export async function sincronizarVentas2(ahora = new Date()) {
   await Ventas2ActivacionModel.updateMany(
-    { estado: "programada", inicio: { $lte: ahora }, fin: { $gt: ahora } },
+    { estado: "programada", inicio: { $lte: ahora }, ...sinVencer(ahora) },
     { $set: { estado: "activa" } }
   );
   await Ventas2ActivacionModel.updateMany(
-    { estado: { $in: ["programada", "activa"] }, fin: { $lte: ahora } },
+    { estado: { $in: ["programada", "activa"] }, fin: { $ne: null, $lte: ahora } },
     { $set: { estado: "finalizada" } }
   );
 
   const paraInicio = await Ventas2ActivacionModel.find({
     estado: "activa",
     inicio: { $lte: ahora },
-    fin: { $gt: ahora },
+    ...sinVencer(ahora),
     "notificacionInicio.estado": "pendiente",
   }).limit(25);
 
@@ -94,7 +110,7 @@ export async function sincronizarVentas2(ahora = new Date()) {
     const zona = sucursal?.zonaHoraria || ZONA_HORARIA_DEFAULT;
     const mensaje = [
       `Notas de venta activado para ${sucursal?.nombre ?? "la sucursal"}.`,
-      `Lapso: ${formatoFecha(activacion.inicio, zona)} a ${formatoFecha(activacion.fin, zona)}.`,
+      lapso(activacion.inicio, activacion.fin, zona),
       `Regla: 1 de cada ${activacion.frecuencia} ventas 100% en efectivo se registrara en Notas de venta.`,
       "Revisa el apartado Notas de venta para separar el efectivo correspondiente.",
     ].join("\n");
@@ -103,7 +119,7 @@ export async function sincronizarVentas2(ahora = new Date()) {
 
   const paraFin = await Ventas2ActivacionModel.find({
     estado: "finalizada",
-    fin: { $lte: ahora },
+    fin: { $ne: null, $lte: ahora },
     "notificacionFin.estado": "pendiente",
   }).limit(25);
 
@@ -113,7 +129,7 @@ export async function sincronizarVentas2(ahora = new Date()) {
     const totales = await totalesActivacion(String(activacion._id));
     const mensaje = [
       `Notas de venta finalizo para ${sucursal?.nombre ?? "la sucursal"}.`,
-      `Lapso: ${formatoFecha(activacion.inicio, zona)} a ${formatoFecha(activacion.fin, zona)}.`,
+      lapso(activacion.inicio, activacion.fin, zona),
       `Total recaudado: ${formatMoney(totales.total)} en ${totales.cantidad} movimientos.`,
       "Separa el efectivo para que matriz pueda retirarlo.",
     ].join("\n");
@@ -140,7 +156,7 @@ export async function resolverVentas2ParaVenta({
     sucursalId,
     estado: "activa",
     inicio: { $lte: fecha },
-    fin: { $gt: fecha },
+    ...sinVencer(fecha),
   }).sort({ inicio: -1 });
 
   if (!activacion) {
@@ -178,7 +194,8 @@ export type ActivacionVentas2Resumen = {
   sucursalId: string;
   sucursalNombre: string;
   inicio: string;
-  fin: string;
+  /** `null` cuando el protocolo es indefinido y sigue corriendo. */
+  fin: string | null;
   frecuencia: number;
   estado: EstadoVentas2;
   totalRecaudado: number;
@@ -225,7 +242,7 @@ export async function resumirActivacionesVentas2(activaciones: ActivacionResumen
       sucursalId: String(sucursal?._id ?? a.sucursalId),
       sucursalNombre: sucursal?.nombre ?? "Sucursal",
       inicio: a.inicio.toISOString(),
-      fin: a.fin.toISOString(),
+      fin: a.fin ? a.fin.toISOString() : null,
       frecuencia: a.frecuencia,
       estado: calcularEstadoVentas2(a, ahora),
       totalRecaudado,

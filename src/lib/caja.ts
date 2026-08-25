@@ -9,6 +9,9 @@ export async function calcularResumenSesion(cajaSesionId: string) {
   let totalVentasEfectivo = 0;
   let totalVentasTarjeta = 0;
   let totalVentasTransferencia = 0;
+  // Los vales de despensa se entregan físicamente pero no son efectivo: se
+  // cuentan aparte porque se depositan/cobran al emisor, no en el cajón.
+  let totalVentasVales = 0;
   // El crédito no es dinero en caja: se reporta aparte para cuadrar el corte.
   let totalVentasCredito = 0;
   for (const v of ventas) {
@@ -16,6 +19,7 @@ export async function calcularResumenSesion(cajaSesionId: string) {
       if (pago.metodoPago === "efectivo") totalVentasEfectivo += pago.monto;
       else if (pago.metodoPago === "tarjeta") totalVentasTarjeta += pago.monto;
       else if (pago.metodoPago === "transferencia") totalVentasTransferencia += pago.monto;
+      else if (pago.metodoPago === "vales") totalVentasVales += pago.monto;
       else if (pago.metodoPago === "credito") totalVentasCredito += pago.monto;
     }
   }
@@ -50,6 +54,7 @@ export async function calcularResumenSesion(cajaSesionId: string) {
     totalVentasEfectivo,
     totalVentasTarjeta,
     totalVentasTransferencia,
+    totalVentasVales,
     totalVentasCredito,
     totalAbonosEfectivo,
     totalAbonosOtros,

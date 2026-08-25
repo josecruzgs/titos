@@ -17,6 +17,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { DIAS_SEMANA, DIA_LABEL } from "@/lib/dias";
+import { MotivosPosManager } from "@/components/matriz/MotivosPosManager";
 
 type EstadoConexion = "open" | "connecting" | "close" | "desconocido";
 
@@ -426,6 +427,8 @@ export function ConfiguracionManager() {
           ) : null}
         </div>
       </Card>
+
+      <MotivosPosManager />
 
       {mostrarQR ? (
         <QRModal

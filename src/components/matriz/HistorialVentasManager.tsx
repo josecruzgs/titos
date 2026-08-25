@@ -36,6 +36,7 @@ const ETIQUETA_METODO: Record<string, string> = {
   efectivo: "Efectivo",
   tarjeta: "Tarjeta",
   transferencia: "Transferencia",
+  vales: "Vales de despensa",
   credito: "Crédito",
 };
 
