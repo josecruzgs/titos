@@ -7,7 +7,7 @@ import { esRfcValido, normalizarRfc } from "@/lib/facturacion";
  * Nombres oficiales de los regímenes tal como los imprime la constancia, para
  * poder traducirlos a la clave del catálogo c_RegimenFiscal.
  */
-const REGIMENES_POR_NOMBRE: { clave: string; nombre: string }[] = [
+export const REGIMENES_POR_NOMBRE: { clave: string; nombre: string }[] = [
   { clave: "601", nombre: "General de Ley Personas Morales" },
   { clave: "603", nombre: "Personas Morales con Fines no Lucrativos" },
   { clave: "605", nombre: "Sueldos y Salarios e Ingresos Asimilados a Salarios" },
