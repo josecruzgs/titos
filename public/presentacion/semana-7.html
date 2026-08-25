@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
-    <title>DaVinci · Semana 6 · Avances Mercados Titos</title>
+    <title>DaVinci · Semana 7 · Avances Mercados Titos</title>
     <link rel="icon" href="img/logo-davinci.png" />
     <style>
       /* ── Paleta tomada del logo DaVinci ─────────────────────────────── */
@@ -436,41 +436,91 @@
       }
     </style>
     <style>
-      /* ── Tabla de costos (exclusiva de esta entrega) ─────────────────── */
-      .tabla-envoltura {
-        overflow-x: auto;
+      /* ── Comparativa de folios (exclusiva de esta entrega) ───────────── */
+      .comparativa {
+        display: grid;
+        gap: 18px;
+        grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+        margin-top: 26px;
+      }
+      .caso {
+        padding: 26px 28px;
         border-radius: var(--radio);
         border: 1px solid var(--gris-linea);
         background: #fff;
+      }
+      .caso.antes { background: var(--carbon-suave); }
+      .caso.despues { border-color: rgba(245, 134, 52, 0.4); }
+      .caso .rotulo {
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--gris-texto);
+      }
+      .caso.despues .rotulo { color: var(--naranja); }
+      .caso .folio {
+        margin-top: 14px;
+        font-family: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+        font-size: clamp(21px, 3.2vw, 29px);
+        font-weight: 700;
+        letter-spacing: 0.01em;
+      }
+      .caso.antes .folio { color: rgba(55, 52, 53, 0.45); }
+      .caso.despues .folio { color: var(--verde); }
+      .caso .folio span { display: block; }
+      .caso .folio span + span { margin-top: 4px; opacity: 0.62; }
+      .caso .detalle { margin-top: 16px; font-size: 14.5px; color: var(--gris-texto); }
+
+      /* ── Ficha de datos leídos de la constancia ─────────────────────── */
+      .lectura {
         margin-top: 26px;
+        border-radius: var(--radio);
+        border: 1px solid var(--gris-linea);
+        background: #fff;
+        overflow: hidden;
       }
-      .tabla {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 14.5px;
-        min-width: 620px;
-      }
-      .tabla th {
-        text-align: left;
-        padding: 14px 18px;
+      .lectura .titulo {
+        padding: 14px 22px;
         background: var(--carbon);
         color: #fff;
-        font-weight: 700;
         font-size: 13px;
+        font-weight: 700;
         letter-spacing: 0.02em;
-        white-space: nowrap;
       }
-      .tabla td { padding: 13px 18px; border-bottom: 1px solid var(--gris-linea); }
-      .tabla tbody tr:last-child td { border-bottom: 0; }
-      .tabla tbody tr:nth-child(odd) { background: rgba(55, 52, 53, 0.022); }
-      .tabla td strong { font-weight: 700; }
-      .tabla .destacado { color: var(--naranja); font-weight: 700; }
+      .lectura dl { margin: 0; padding: 6px 22px 18px; }
+      .lectura div {
+        display: grid;
+        grid-template-columns: 190px 1fr;
+        gap: 14px;
+        padding: 11px 0;
+        border-bottom: 1px solid var(--gris-linea);
+      }
+      .lectura div:last-child { border-bottom: 0; }
+      .lectura dt {
+        font-size: 12.5px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--gris-texto);
+      }
+      .lectura dd {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 600;
+        font-family: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+        word-break: break-word;
+      }
+      .lectura dd.ok { color: var(--verde); }
+      @media (max-width: 620px) {
+        .lectura div { grid-template-columns: 1fr; gap: 3px; }
+      }
 
-      /* ── Bloque de pendientes del cliente ───────────────────────────── */
+      /* ── Bloque oscuro de notas ─────────────────────────────────────── */
       .pendientes {
         display: grid;
         gap: 10px;
-        margin-top: 24px;
+        margin-top: 26px;
         padding: 22px 24px;
         border-radius: var(--radio);
         background: var(--carbon);
@@ -526,36 +576,33 @@
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
         </a>
         <a href="semana-5.html">Semana 5</a>
-        <a class="actual" href="semana-6.html">Semana 6</a>
-        <a href="semana-7.html">Semana 7</a>
+        <a href="semana-6.html">Semana 6</a>
+        <a class="actual" href="semana-7.html">Semana 7</a>
       </div>
       <div class="nav-links">
         <a href="#resumen">Resumen</a>
-        <a href="#mostrador">Venta en matriz</a>
-        <a href="#reporte">Ventas</a>
-        <a href="#facturas">Facturación</a>
-        <a href="#sat">Timbrado SAT</a>
-        <a href="#cancelaciones">Cancelaciones</a>
+        <a href="#folios">Folios</a>
+        <a href="#vales">Vales de despensa</a>
+        <a href="#notas">Notas de venta</a>
+        <a href="#motivos">Motivos</a>
         <a href="#constancia">Constancia</a>
-        <a href="#operacion">Operación</a>
       </div>
     </nav>
 
     <header class="portada">
       <span class="escudo"><img src="img/logo-davinci.png" alt="DaVinci" /></span>
-      <div><span class="etiqueta">Semana 6 · Entrega de avances</span></div>
-      <h1>Facturación, control de cancelaciones y <em>venta desde matriz</em></h1>
+      <div><span class="etiqueta">Semana 7 · Entrega de avances</span></div>
+      <h1>Folios legibles, vales de despensa y <em>motivos configurables</em></h1>
       <p class="bajada">
-        Siete ajustes solicitados, entregados en una sola semana: matriz ya vende y descuenta de su
-        propio inventario, las ventas se convierten en facturas, y nadie puede cancelar un producto
-        sin dejar rastro.
+        Cinco ajustes pedidos por ustedes. Cuatro cambian cómo se opera el mostrador todos los días;
+        el quinto era una comprobación, y la dejamos documentada con su propia constancia.
       </p>
 
       <div class="metricas">
-        <div class="metrica"><strong>7</strong><span>Ajustes entregados</span></div>
-        <div class="metrica"><strong>33</strong><span>Archivos trabajados</span></div>
-        <div class="metrica"><strong>+3,900</strong><span>Líneas de código</span></div>
-        <div class="metrica"><strong>8</strong><span>Endpoints nuevos</span></div>
+        <div class="metrica"><strong>5</strong><span>Ajustes atendidos</span></div>
+        <div class="metrica"><strong>28</strong><span>Archivos trabajados</span></div>
+        <div class="metrica"><strong>+738</strong><span>Líneas de código</span></div>
+        <div class="metrica"><strong>4</strong><span>Endpoints nuevos</span></div>
       </div>
     </header>
 
@@ -563,151 +610,147 @@
     <section class="seccion" id="resumen">
       <div class="encabezado revelar">
         <span class="numero">01 · Resumen</span>
-        <h2>Los siete ajustes de esta semana</h2>
+        <h2>Los cinco puntos de esta semana</h2>
         <p>
-          Tres de ellos cierran huecos de control (quién cancela, qué se vendió, cómo se factura) y
-          los otros cuatro quitan fricción del día a día en el mostrador.
+          Ninguno es un módulo nuevo: los cinco afinan cosas que ya se usaban a diario y que
+          estorbaban en el mostrador. Por eso el riesgo de esta entrega es bajo y el efecto se
+          nota desde la primera venta.
         </p>
       </div>
 
       <div class="tarjetas">
         <article class="tarjeta revelar">
           <span class="icono">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h3l2.6 12.4a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.6L21 7H6"/></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4h16v6H4z"/><path d="M4 14h16v6H4z"/><path d="M8 7h.01M8 17h.01"/></svg>
           </span>
-          <h3>Punto de venta en matriz</h3>
-          <p>El mostrador del CEDIS vende con la misma caja, cortes y clientes que una sucursal, descontando de la existencia de matriz.</p>
+          <h3>Folios de venta de 6 dígitos</h3>
+          <p>Se acabaron los folios largos e ilegibles. Ahora la venta sale como <strong>VTA-000001</strong> y se puede dictar por teléfono sin equivocarse.</p>
         </article>
 
         <article class="tarjeta revelar">
           <span class="icono">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 7-7"/><path d="M14 8h6v6"/></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 9a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v1a2 2 0 0 0 0 4v1a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-1a2 2 0 0 0 0-4z"/><path d="M9 9v6"/></svg>
           </span>
-          <h3>Historial de ventas monetario</h3>
-          <p>Cuánto cobró cada sucursal, en qué días y con qué forma de pago. Con filtros por sucursal y fecha, y exportación a PDF.</p>
+          <h3>Pago con vales de despensa</h3>
+          <p>Quinta forma de pago, combinable con las demás. No se cuenta como efectivo del cajón porque se cobra después al emisor del vale.</p>
         </article>
 
         <article class="tarjeta revelar">
           <span class="icono">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 3h16v18l-3-2-3 2-3-2-3 2-3-2z"/><path d="M8 8h8M8 12h5"/></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
           </span>
-          <h3>Módulo de facturas</h3>
-          <p>Cualquier nota de venta se convierte en factura con los datos fiscales del cliente, comentarios de seguimiento y PDF.</p>
+          <h3>Notas de venta indefinidas</h3>
+          <p>El protocolo puede arrancar sin fecha de fin y correr hasta que matriz lo detenga con el botón, en vez de amarrarlo a un lapso fijo.</p>
         </article>
 
         <article class="tarjeta revelar">
           <span class="icono">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v4M12 16h.01"/></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5h4M3 12h4M3 19h4"/><path d="M11 5h10M11 12h10M11 19h10"/></svg>
           </span>
-          <h3>Cancelaciones con NIP</h3>
-          <p>Quitar un producto o cancelar una venta exige el NIP del supervisor y un motivo. Todo queda en una bitácora que revisa matriz.</p>
+          <h3>Motivos configurables</h3>
+          <p>Matriz define desde Configuración los motivos de cancelación y devolución, y los mostradores los eligen de una lista en vez de escribirlos.</p>
         </article>
 
         <article class="tarjeta revelar">
           <span class="icono">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6M9 15l3-3 3 3"/></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="m9 15 2 2 4-4"/></svg>
           </span>
-          <h3>Alta con constancia fiscal</h3>
-          <p>Se sube el PDF del SAT y el sistema llena solo el RFC, la razón social, el régimen, el código postal y el domicilio.</p>
-        </article>
-
-        <article class="tarjeta revelar">
-          <span class="icono">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m7.9 7.9 8.2 8.2"/><circle cx="12" cy="12" r="9"/></svg>
-          </span>
-          <h3>Detener notas de venta</h3>
-          <p>El protocolo se corta en el momento, sin esperar a que se cumpla el lapso programado, conservando lo ya recaudado.</p>
-        </article>
-
-        <article class="tarjeta revelar">
-          <span class="icono">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/><path d="m6 10-1.5 2L6 14"/></svg>
-          </span>
-          <h3>Menú de matriz contraíble</h3>
-          <p>El menú se reduce a iconos y le devuelve casi 200 píxeles de ancho a las tablas, igual que ya lo hacían las sucursales.</p>
+          <h3>Constancia fiscal, comprobada</h3>
+          <p>Probamos el lector con la constancia real del Instituto Villafontana: leyó RFC, razón social, régimen, código postal y domicilio, sin capturar nada a mano.</p>
         </article>
       </div>
     </section>
 
-    <!-- ── Mostrador de matriz ──────────────────────────────────────── -->
-    <section class="seccion alterna" id="mostrador">
+    <!-- ── Folios ───────────────────────────────────────────────────── -->
+    <section class="seccion alterna" id="folios">
       <div class="interior">
         <div class="encabezado revelar">
-          <span class="numero">02 · Venta en matriz</span>
-          <h2>Matriz ya vende de mostrador</h2>
+          <span class="numero">02 · Folios de venta</span>
+          <h2>Un folio que se puede dictar por teléfono</h2>
           <p>
-            El almacén central también le vende al público que llega al CEDIS. Ahora lo hace con el
-            mismo punto de venta de las sucursales: abre su caja, cobra, imprime ticket, hace su
-            corte y atiende devoluciones. La diferencia está en el inventario: cada venta descuenta
-            de la <strong>existencia de matriz</strong>, no de la de una tienda.
+            El folio anterior se armaba con la hora exacta de la venta y unas letras al azar. Nunca
+            se repetía, pero era imposible leerlo en voz alta, anotarlo en una libreta o buscarlo sin
+            equivocarse. Ahora las ventas llevan un consecutivo corrido de seis dígitos.
           </p>
         </div>
 
-        <div class="visor revelar" data-visor>
-          <div class="pestanas" role="tablist">
-            <button role="tab" data-tab="pos-matriz" aria-selected="true">Caja del mostrador</button>
-            <button role="tab" data-tab="pos-venta">Punto de venta en operación</button>
+        <div class="comparativa revelar">
+          <div class="caso antes">
+            <p class="rotulo">Antes</p>
+            <p class="folio"><span>VTA-M3K2J9ABCD</span></p>
+            <p class="detalle">
+              Trece caracteres entre letras y números, sin orden entre una venta y la siguiente. Para
+              dictarlo había que deletrearlo.
+            </p>
           </div>
 
-          <div class="lamina visible" data-panel="pos-matriz">
-            <figure>
-              <img src="img/s6-matriz-pos.png" alt="Apertura de caja del mostrador de matriz" />
-              <figcaption>
-                <strong>Mostrador → Punto de venta.</strong> Matriz abre su propia caja con su fondo
-                en pesos y en dólares. A partir de ahí opera igual que una sucursal, con su corte y
-                sus retiros independientes.
-              </figcaption>
-            </figure>
-          </div>
-
-          <div class="lamina" data-panel="pos-venta">
-            <figure>
-              <img src="img/s6-pos-cancelacion.png" alt="Punto de venta en operación" />
-              <figcaption>
-                <strong>La misma pantalla en las dos vistas.</strong> Escáner, búsqueda por nombre,
-                venta por peso, pago mixto y cobro en dólares. Es exactamente el punto de venta que
-                ya usan las sucursales, sin una segunda herramienta que aprender.
-              </figcaption>
-            </figure>
+          <div class="caso despues">
+            <p class="rotulo">Ahora</p>
+            <p class="folio">
+              <span>VTA-000001</span>
+              <span>VTA-000002</span>
+              <span>VTA-000003</span>
+            </p>
+            <p class="detalle">
+              Seis dígitos consecutivos. Se dicta, se anota y se busca. Las notas de venta llevan su
+              propia serie: <strong>V2-000001</strong>.
+            </p>
           </div>
         </div>
 
         <div class="reglas revelar">
           <div class="regla">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
-            <p><strong>Inventario correcto:</strong> lo que se vende en el mostrador sale de la existencia del CEDIS y queda registrado como movimiento de matriz.</p>
+            <p><strong>Dos cajas cobrando a la vez nunca se llevan el mismo número.</strong> El contador se incrementa de forma atómica en la base de datos, no en la aplicación.</p>
           </div>
           <div class="regla">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
-            <p><strong>Caja separada:</strong> el corte del mostrador no se mezcla con el de ninguna sucursal, pero sí aparece en el corte global.</p>
+            <p><strong>Las ventas viejas no se tocan.</strong> Conservan su folio anterior y conviven con los nuevos sin chocar; el consecutivo arranca en la primera venta que se cobre con esta versión.</p>
+          </div>
+          <div class="regla">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <p><strong>Pasadas las 999,999 ventas el folio crece a siete dígitos.</strong> Preferimos perder el ancho fijo antes que reiniciar la numeración y repetir un folio.</p>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- ── Reporte de ventas ────────────────────────────────────────── -->
-    <section class="seccion" id="reporte">
+    <!-- ── Vales de despensa ────────────────────────────────────────── -->
+    <section class="seccion" id="vales">
       <div class="encabezado revelar">
-        <span class="numero">03 · Historial de ventas</span>
-        <h2>Cuánto entró, dónde y cuándo</h2>
+        <span class="numero">03 · Formas de pago</span>
+        <h2>Vales de despensa en el cobro</h2>
         <p>
-          Un reporte de dinero, no de mercancía. Se elige la sucursal y el rango de fechas y de ahí
-          sale el total cobrado, cuántas ventas fueron, el ticket promedio y el desglose por forma
-          de pago, con el detalle venta por venta y su exportación a PDF.
+          Se suma a efectivo, tarjeta, transferencia y crédito, y se puede combinar con cualquiera de
+          ellas en la misma venta. La diferencia importante está en la caja: el vale se entrega
+          físicamente, pero <strong>no es efectivo</strong>, así que no cuadra contra el cajón.
         </p>
       </div>
 
       <div class="visor revelar" data-visor>
         <div class="pestanas" role="tablist">
-          <button role="tab" data-tab="reporte" aria-selected="true">Reporte completo</button>
+          <button role="tab" data-tab="formas" aria-selected="true">Las cinco formas de pago</button>
+          <button role="tab" data-tab="mixto">Pago mixto con vales</button>
         </div>
-        <div class="lamina visible" data-panel="reporte">
+
+        <div class="lamina visible" data-panel="formas">
           <figure>
-            <img src="img/s6-reporte-ventas.png" alt="Historial de ventas con filtros" />
+            <img src="img/s7-pos-formas-pago.png" alt="Modal de cobro con las cinco formas de pago" />
             <figcaption>
-              <strong>Reportes → Ventas por sucursal.</strong> Los indicadores de arriba responden
-              "¿cuánto vendimos?"; el desglose por forma de pago y la participación por sucursal
-              responden "¿de dónde salió?". Las canceladas se cuentan aparte y nunca suman al total.
+              <strong>Punto de venta → Cobrar.</strong> "Vales de despensa" queda entre transferencia
+              y crédito, con su propio botón <em>Completar</em> para asignarle el resto de la cuenta
+              de un solo clic.
+            </figcaption>
+          </figure>
+        </div>
+
+        <div class="lamina" data-panel="mixto">
+          <figure>
+            <img src="img/s7-pos-vales.png" alt="Venta pagada con efectivo y vales de despensa" />
+            <figcaption>
+              <strong>$35 en efectivo y $50 en vales.</strong> El sistema marca "Pago completo" cuando
+              la suma cuadra con el total. Si el cliente trae vales por menos de lo que consume,
+              simplemente completa la diferencia con otra forma de pago.
             </figcaption>
           </figure>
         </div>
@@ -715,66 +758,46 @@
 
       <div class="reglas revelar">
         <div class="regla">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5l3 2"/></svg>
-          <p><strong>Cada venta cuenta en el día de su sucursal.</strong> Una venta de la tarde en Tijuana no se pasa al día siguiente por la diferencia de horario: el reporte usa el corte real de cada tienda.</p>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <p><strong>No desbalancea el corte.</strong> Los vales se totalizan en su propio renglón del corte de caja y no entran al efectivo esperado, igual que ya pasaba con tarjeta y transferencia.</p>
         </div>
         <div class="regla">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/></svg>
-          <p><strong>Se puede llevar impreso.</strong> El botón PDF genera el reporte del periodo filtrado, con el detalle y el resumen por sucursal.</p>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <p><strong>Listo para facturar.</strong> Una venta pagada con vales se timbra con la forma de pago <strong>08 — Vales de despensa</strong> del catálogo del SAT, sin que el cajero elija nada.</p>
+        </div>
+        <div class="regla">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <p><strong>Aparece en los reportes.</strong> El historial de ventas por sucursal y su PDF ya desglosan cuánto entró en vales, junto a las demás formas de pago.</p>
         </div>
       </div>
     </section>
 
-    <!-- ── Facturas ─────────────────────────────────────────────────── -->
-    <section class="seccion alterna" id="facturas">
+    <!-- ── Notas de venta indefinidas ───────────────────────────────── -->
+    <section class="seccion alterna" id="notas">
       <div class="interior">
         <div class="encabezado revelar">
-          <span class="numero">04 · Facturación</span>
-          <h2>De nota de venta a factura</h2>
+          <span class="numero">04 · Notas de venta</span>
+          <h2>El protocolo puede quedar abierto</h2>
           <p>
-            Cuando el cliente regresa con su ticket a pedir factura, matriz la busca en la bandeja de
-            ventas pendientes, captura o hereda sus datos fiscales y la convierte. La factura guarda
-            el desglose de IVA, las claves del SAT de cada producto, la forma y el método de pago, y
-            un historial de comentarios para las aclaraciones.
+            Hasta ahora había que decidir de antemano a qué hora terminaba el protocolo. Si se
+            necesitaba más tiempo, tocaba volver a activarlo; si se necesitaba menos, había que
+            detenerlo a mano de todos modos. Ahora se puede dejar <strong>indefinido</strong> desde el
+            arranque.
           </p>
         </div>
 
         <div class="visor revelar" data-visor>
           <div class="pestanas" role="tablist">
-            <button role="tab" data-tab="bandeja" aria-selected="true">Ventas por facturar</button>
-            <button role="tab" data-tab="modal">Captura de datos fiscales</button>
-            <button role="tab" data-tab="emitidas">Facturas emitidas</button>
+            <button role="tab" data-tab="indefinido" aria-selected="true">Activación indefinida</button>
           </div>
 
-          <div class="lamina visible" data-panel="bandeja">
+          <div class="lamina visible" data-panel="indefinido">
             <figure>
-              <img src="img/s6-facturas-bandeja.png" alt="Bandeja de ventas por facturar" />
+              <img src="img/s7-notas-indefinido.png" alt="Activación de notas de venta marcada como indefinida" />
               <figcaption>
-                <strong>Facturación → Facturas.</strong> Todas las ventas completadas que aún no
-                tienen factura, filtrables por sucursal, fecha, folio o nombre del cliente. En
-                cuanto una se factura, desaparece de esta lista.
-              </figcaption>
-            </figure>
-          </div>
-
-          <div class="lamina" data-panel="modal">
-            <figure>
-              <img src="img/s6-facturas-modal.png" alt="Formulario de datos fiscales de la factura" />
-              <figcaption>
-                <strong>Datos del receptor.</strong> Si el cliente ya está dado de alta, se eligen
-                sus datos y se llenan solos. Si llega nuevo, se capturan a mano. Los catálogos de
-                régimen fiscal y uso de CFDI son los oficiales del SAT.
-              </figcaption>
-            </figure>
-          </div>
-
-          <div class="lamina" data-panel="emitidas">
-            <figure>
-              <img src="img/s6-facturas-emitidas.png" alt="Listado de facturas emitidas" />
-              <figcaption>
-                <strong>Seguimiento.</strong> Cada factura muestra su receptor, conceptos, IVA
-                desglosado y estado de timbrado. Desde aquí se le agregan comentarios, se descarga
-                el PDF o se cancela dejando el motivo asentado.
+                <strong>Reportes → Notas de venta.</strong> Al marcar "Indefinido" la fecha de fin se
+                desactiva y el protocolo corre hasta que alguien lo detenga. En el resumen de abajo
+                esas activaciones se leen como <em>Indefinido</em> en la columna del lapso.
               </figcaption>
             </figure>
           </div>
@@ -783,288 +806,160 @@
         <div class="reglas revelar">
           <div class="regla">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
-            <p><strong>Una venta, una factura.</strong> No se puede facturar dos veces lo mismo. Y si la factura se cancela, la venta regresa a la bandeja para volver a emitirse con los datos correctos.</p>
+            <p><strong>Se detiene con el mismo botón de siempre.</strong> "Detener notas de venta" corta el protocolo en el momento y sella esa hora como su fecha de fin, conservando todo lo ya recaudado.</p>
           </div>
           <div class="regla">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
-            <p><strong>Una venta facturada ya no se cancela por error.</strong> El sistema lo impide: primero hay que cancelar la factura, para que nunca quede un documento fiscal amparando una venta que ya no existe.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ── Timbrado SAT ─────────────────────────────────────────────── -->
-    <section class="seccion" id="sat">
-      <div class="encabezado revelar">
-        <span class="numero">05 · Siguiente fase</span>
-        <h2>Qué falta para timbrar ante el SAT</h2>
-        <p>
-          Las facturas de hoy son documentos internos: ya llevan <strong>todos</strong> los datos que
-          exige el CFDI 4.0, pero les falta el sello del SAT y el folio fiscal (UUID). Para
-          conseguirlo hay que contratar un PAC, el proveedor autorizado que certifica los
-          comprobantes. Esto es lo que implicaría.
-        </p>
-      </div>
-
-      <div class="tabla-envoltura revelar">
-        <table class="tabla">
-          <thead>
-            <tr>
-              <th>Proveedor (PAC)</th>
-              <th>Costo por timbre</th>
-              <th>Comentario</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><strong>Facturama</strong></td>
-              <td class="destacado">$1.00 – $2.50 MXN</td>
-              <td>API muy documentada y ambiente de pruebas gratuito. La más rápida de integrar.</td>
-            </tr>
-            <tr>
-              <td><strong>SW Sapien</strong></td>
-              <td class="destacado">$0.80 – $2.00 MXN</td>
-              <td>Muy usado por sistemas administrativos, con buen soporte técnico.</td>
-            </tr>
-            <tr>
-              <td><strong>Finkok</strong></td>
-              <td class="destacado">$0.50 – $1.50 MXN</td>
-              <td>De los más económicos por volumen; su conexión es algo más laboriosa.</td>
-            </tr>
-            <tr>
-              <td><strong>Solución Factible</strong></td>
-              <td class="destacado">$1.00 – $2.00 MXN</td>
-              <td>Timbrado y cancelación en el mismo servicio.</td>
-            </tr>
-            <tr>
-              <td><strong>Facturapi</strong></td>
-              <td class="destacado">desde $500 MXN/mes</td>
-              <td>El más cómodo de operar, pero con un costo fijo mensual.</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="tabla-envoltura revelar">
-        <table class="tabla">
-          <thead>
-            <tr>
-              <th>Facturas al mes</th>
-              <th>Costo estimado de timbrado</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td>100</td><td class="destacado">$100 – $250 MXN</td></tr>
-            <tr><td>500</td><td class="destacado">$400 – $1,000 MXN</td></tr>
-            <tr><td>2,000</td><td class="destacado">$1,200 – $3,000 MXN</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <p class="nota-pie revelar">
-        Los folios se compran por paquete y no caducan. Nuestra recomendación es arrancar con
-        Facturama o SW Sapien y un paquete de 1,000 folios: alrededor de <strong>$1,500 a $2,500
-        MXN</strong> de inversión inicial, suficiente para validar todo el flujo sin comprometerse a
-        una mensualidad.
-      </p>
-
-      <div class="pendientes revelar">
-        <h4>Lo que necesitamos de Mercados Titos</h4>
-        <ul>
-          <li><strong>e.firma vigente</strong> de la empresa emisora.</li>
-          <li><strong>Certificado de Sello Digital (CSD)</strong>, que se tramita en el portal del SAT con la e.firma. Vigencia de 4 años.</li>
-          <li><strong>Contrato con el PAC</strong> elegido.</li>
-          <li><strong>Series y folios fiscales</strong> con los que se numerarán las facturas.</li>
-          <li><strong>La tasa de IVA de cada producto</strong>: cuál va a 0%, cuál al 16% y cuál está exento. El SAT lo valida al timbrar.</li>
-        </ul>
-      </div>
-
-      <p class="nota-pie revelar">
-        Con eso en mano, el desarrollo del timbrado, la cancelación ante el SAT y el envío del XML y
-        el PDF por correo toma entre 2 y 3 semanas.
-      </p>
-    </section>
-
-    <!-- ── Cancelaciones ────────────────────────────────────────────── -->
-    <section class="seccion alterna" id="cancelaciones">
-      <div class="interior">
-        <div class="encabezado revelar">
-          <span class="numero">06 · Control de cancelaciones</span>
-          <h2>Nadie quita un producto sin dejar rastro</h2>
-          <p>
-            Quitar un artículo del carrito, tirar una venta antes de cobrarla o cancelar una venta ya
-            cobrada son ahora tres acciones controladas: piden el NIP del supervisor y el motivo, y
-            generan un registro que matriz revisa cuando quiera.
-          </p>
-        </div>
-
-        <div class="visor revelar" data-visor>
-          <div class="pestanas" role="tablist">
-            <button role="tab" data-tab="autorizar" aria-selected="true">Autorización en caja</button>
-            <button role="tab" data-tab="bitacora">Bitácora en matriz</button>
-            <button role="tab" data-tab="nip">Configuración del NIP</button>
-          </div>
-
-          <div class="lamina visible" data-panel="autorizar">
-            <figure>
-              <img src="img/s6-pos-cancelacion.png" alt="Modal de autorización de cancelación en el punto de venta" />
-              <figcaption>
-                <strong>En el mostrador.</strong> Al presionar el bote de basura, la caja pide el
-                motivo y el NIP antes de quitar nada. Se ve el importe exacto que se está
-                cancelando, para que el supervisor sepa qué está autorizando.
-              </figcaption>
-            </figure>
-          </div>
-
-          <div class="lamina" data-panel="bitacora">
-            <figure>
-              <img src="img/s6-cancelaciones.png" alt="Bitácora de cancelaciones en matriz" />
-              <figcaption>
-                <strong>Reportes → Cancelaciones.</strong> Cada movimiento con su folio, tipo,
-                sucursal, cajero, importe y motivo. Se filtra por sucursal, fecha y tipo, y el
-                contador de arriba avisa cuántas se hicieron sin autorización.
-              </figcaption>
-            </figure>
-          </div>
-
-          <div class="lamina" data-panel="nip">
-            <figure>
-              <img src="img/s6-configuracion-nip.png" alt="Configuración del NIP de supervisor" />
-              <figcaption>
-                <strong>Configuraciones → NIP de supervisor.</strong> Matriz define un NIP de 4 a 8
-                dígitos que aplica a todos los puntos de venta. Se guarda cifrado y se puede cambiar
-                cuando haga falta.
-              </figcaption>
-            </figure>
-          </div>
-        </div>
-
-        <div class="reglas revelar">
-          <div class="regla">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
-            <p><strong>El sistema nunca se traba.</strong> Mientras no se configure el NIP, la caja puede seguir cancelando, pero cada movimiento queda marcado como "sin autorización" y matriz lo ve resaltado en la bitácora. El día que se define el NIP, empieza a exigirse.</p>
+            <p><strong>La sucursal está enterada.</strong> El aviso por WhatsApp le dice "desde tal hora y hasta nuevo aviso", en lugar de anunciar un lapso que no existe.</p>
           </div>
           <div class="regla">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
-            <p><strong>Sin internet no se autoriza.</strong> El NIP se valida contra el servidor, igual que ya pasa con los retiros de efectivo, para que nadie pueda cancelar desconectando la caja.</p>
+            <p><strong>No se encima con otra activación.</strong> Mientras una sucursal tenga un protocolo indefinido abierto, el sistema no deja programarle otro encima.</p>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- ── Constancia fiscal ────────────────────────────────────────── -->
-    <section class="seccion" id="constancia">
+    <!-- ── Motivos configurables ────────────────────────────────────── -->
+    <section class="seccion" id="motivos">
       <div class="encabezado revelar">
-        <span class="numero">07 · Constancia fiscal</span>
-        <h2>El PDF del SAT llena el alta</h2>
+        <span class="numero">05 · Cancelaciones y devoluciones</span>
+        <h2>Motivos que define matriz, no cada cajero</h2>
         <p>
-          Dar de alta a un cliente que va a pedir factura ya no es teclear un RFC de trece
-          caracteres. Se sube el PDF de su Constancia de Situación Fiscal y el sistema lo lee.
+          El motivo se escribía a mano en cada mostrador. Eso hacía imposible comparar: la misma
+          causa aparecía como "se arrepintio", "cliente cambió de opinión" o "n/a" según quién la
+          capturara. Ahora matriz publica el catálogo y los puntos de venta eligen de la lista.
         </p>
       </div>
 
       <div class="visor revelar" data-visor>
         <div class="pestanas" role="tablist">
-          <button role="tab" data-tab="alta" aria-selected="true">Alta de cliente</button>
+          <button role="tab" data-tab="catalogo" aria-selected="true">Catálogo en matriz</button>
+          <button role="tab" data-tab="eleccion">Elección en el mostrador</button>
+          <button role="tab" data-tab="otro">La salida "Otro"</button>
         </div>
-        <div class="lamina visible" data-panel="alta">
+
+        <div class="lamina visible" data-panel="catalogo">
           <figure>
-            <img src="img/s6-cliente-constancia.png" alt="Alta de cliente con carga de constancia fiscal" />
+            <img src="img/s7-motivos-configuracion.png" alt="Catálogo de motivos en la configuración de matriz" />
             <figcaption>
-              <strong>Clientes → Nuevo cliente.</strong> El bloque verde recibe el PDF y llena la
-              razón social, el RFC, el régimen fiscal, el código postal, el domicilio y el correo.
-              Nada se guarda hasta que el encargado revisa y confirma.
+              <strong>Configuraciones → Configuración.</strong> Dos listas independientes, una para
+              cancelaciones y otra para devoluciones. El botón "Cargar sugeridos" da de alta de un
+              jalón los motivos típicos del giro para no empezar de cero.
+            </figcaption>
+          </figure>
+        </div>
+
+        <div class="lamina" data-panel="eleccion">
+          <figure>
+            <img src="img/s7-pos-motivo-cancelacion.png" alt="Modal de cancelación con el motivo elegido de la lista" />
+            <figcaption>
+              <strong>El cajero elige, no escribe.</strong> El mismo selector aparece al quitar un
+              producto del carrito, al cancelar una venta en curso, al cancelar una venta ya cobrada
+              y al capturar una devolución, tanto en matriz como en las sucursales.
+            </figcaption>
+          </figure>
+        </div>
+
+        <div class="lamina" data-panel="otro">
+          <figure>
+            <img src="img/s7-pos-motivo-otro.png" alt="Motivo capturado a mano con la opción Otro" />
+            <figcaption>
+              <strong>Siempre queda la puerta abierta.</strong> Si el caso no está en la lista, "Otro
+              (especificar)" habilita el texto libre. Un mostrador no se puede quedar atorado porque
+              falte un motivo en el catálogo.
             </figcaption>
           </figure>
         </div>
       </div>
 
-      <div class="flujo revelar">
-        <div class="paso">
-          <span class="orden">1</span>
-          <h4>Se sube el PDF</h4>
-          <p>El cliente manda su constancia por WhatsApp o la trae en el celular.</p>
+      <div class="reglas revelar">
+        <div class="regla">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <p><strong>La bitácora por fin se puede agrupar.</strong> Como el texto es el mismo en todas las sucursales, se puede responder "¿cuántas cancelaciones fueron por error de captura?" en vez de leer renglón por renglón.</p>
         </div>
-        <div class="paso">
-          <span class="orden">2</span>
-          <h4>El sistema lo lee</h4>
-          <p>Reconoce personas físicas y morales, con o sin acentos en el documento.</p>
+        <div class="regla">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <p><strong>Un motivo que se deja de usar se desactiva, no se borra.</strong> Así deja de ofrecerse en el mostrador sin dejar huérfanas las cancelaciones viejas que lo citan.</p>
         </div>
-        <div class="paso">
-          <span class="orden">3</span>
-          <h4>Se revisa</h4>
-          <p>Si algún dato no venía en el PDF, el sistema avisa exactamente cuál capturar.</p>
+        <div class="regla">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <p><strong>Solo matriz administra el catálogo.</strong> Las sucursales lo leen para poder elegir, pero no pueden agregar ni quitar motivos.</p>
         </div>
-        <div class="paso">
-          <span class="orden">4</span>
-          <h4>Queda listo para facturar</h4>
-          <p>Al facturarle, sus datos fiscales se heredan solos al documento.</p>
-        </div>
+      </div>
+
+      <div class="pendientes revelar">
+        <h4>Dejamos cargados los motivos sugeridos</h4>
+        <ul>
+          <li><strong>Cancelación:</strong> error de captura del cajero · el cliente se arrepintió · producto sin existencia · precio incorrecto · cobro duplicado · falla del sistema o de la impresora.</li>
+          <li><strong>Devolución:</strong> producto dañado · producto caducado · producto equivocado · no era lo que el cliente esperaba · cantidad o peso incorrecto · garantía.</li>
+          <li>Son solo un punto de partida: pueden editarlos, desactivarlos o borrarlos desde Configuración cuando quieran.</li>
+        </ul>
       </div>
     </section>
 
-    <!-- ── Operación diaria ─────────────────────────────────────────── -->
-    <section class="seccion alterna" id="operacion">
+    <!-- ── Constancia fiscal ────────────────────────────────────────── -->
+    <section class="seccion alterna" id="constancia">
       <div class="interior">
         <div class="encabezado revelar">
-          <span class="numero">08 · Operación diaria</span>
-          <h2>Dos detalles que estorbaban</h2>
+          <span class="numero">06 · Constancia de situación fiscal</span>
+          <h2>Comprobado con su propia constancia</h2>
           <p>
-            Pequeños, pero se sentían todos los días: no poder detener el protocolo de notas de venta
-            y no poder recuperar espacio de pantalla en matriz.
+            El alta de clientes desde el PDF del SAT se entregó en la semana 6, y esta semana nos
+            pidieron verificarla con un documento real. Pasamos la constancia del
+            <strong>Instituto Villafontana Hispano Americano</strong> por el mismo camino que sigue el
+            sistema cuando un encargado sube el archivo.
           </p>
         </div>
 
         <div class="visor revelar" data-visor>
           <div class="pestanas" role="tablist">
-            <button role="tab" data-tab="notas" aria-selected="true">Detener notas de venta</button>
-            <button role="tab" data-tab="menu">Menú contraído</button>
+            <button role="tab" data-tab="alta" aria-selected="true">Alta desde el PDF</button>
           </div>
 
-          <div class="lamina visible" data-panel="notas">
+          <div class="lamina visible" data-panel="alta">
             <figure>
-              <img src="img/s6-notas-de-venta.png" alt="Pantalla de notas de venta" />
+              <img src="img/s7-cliente-constancia.png" alt="Alta de cliente desde la constancia fiscal" />
               <figcaption>
-                <strong>Reportes → Notas de venta.</strong> Las activaciones en curso aparecen arriba
-                con un botón para detenerlas en el momento. Antes había que esperar a que se cumpliera
-                el lapso programado.
-              </figcaption>
-            </figure>
-          </div>
-
-          <div class="lamina" data-panel="menu">
-            <figure>
-              <img src="img/s6-menu-contraido.png" alt="Menú de matriz contraído a iconos" />
-              <figcaption>
-                <strong>Contraer menú.</strong> El menú de matriz se reduce a una columna de iconos y
-                le devuelve el ancho a las tablas. La preferencia se recuerda para la siguiente vez
-                que se entre.
+                <strong>Clientes → Nuevo cliente.</strong> Disponible igual en matriz y en sucursales.
+                Se sube el PDF y el formulario queda precargado; nada se guarda hasta que el encargado
+                revisa y confirma.
               </figcaption>
             </figure>
           </div>
         </div>
 
-        <div class="reglas revelar">
-          <div class="regla">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
-            <p><strong>Al detener no se pierde nada.</strong> Lo ya recaudado se conserva y la activación queda lista para marcar el retiro del efectivo. Si todavía no arrancaba, simplemente se cancela.</p>
-          </div>
+        <div class="lectura revelar">
+          <p class="titulo">Lo que el sistema leyó del PDF, sin capturar nada a mano</p>
+          <dl>
+            <div><dt>RFC</dt><dd class="ok">IVH620728DR6</dd></div>
+            <div><dt>Razón social</dt><dd class="ok">INSTITUTO VILLAFONTANA HISPANO AMERICANO</dd></div>
+            <div><dt>Régimen fiscal</dt><dd class="ok">601 · General de Ley Personas Morales</dd></div>
+            <div><dt>Código postal</dt><dd class="ok">21180</dd></div>
+            <div><dt>Domicilio fiscal</dt><dd class="ok">CASA BLANCA, No. 300, Col. VILLA FONTANA, MEXICALI, BAJA CALIFORNIA, C.P. 21180</dd></div>
+            <div><dt>Campos faltantes</dt><dd class="ok">Ninguno</dd></div>
+          </dl>
         </div>
+
+        <p class="nota-pie">
+          El correo y el teléfono salen vacíos porque esa constancia no los trae impresos; el sistema
+          los pide a mano cuando el PDF no los incluye.
+        </p>
       </div>
     </section>
 
     <section class="cierre">
       <img src="img/logo-davinci.png" alt="DaVinci" />
-      <h2>Los siete puntos, entregados</h2>
+      <h2>Los cinco puntos, entregados</h2>
       <p>
         Todo lo de esta semana está funcionando sobre el sistema en operación.<br />
-        Quedamos atentos a sus comentarios y a su decisión sobre el timbrado ante el SAT.
+        Quedamos atentos a sus comentarios.
       </p>
-      <p><a class="boton-semana" href="semana-5.html">← Repasar la semana 5</a></p>
+      <p><a class="boton-semana" href="semana-6.html">← Repasar la semana 6</a></p>
     </section>
 
     <footer class="pie">
-      DaVinci · Presentación de avances para Mercados Titos · Semana 6
+      DaVinci · Presentación de avances para Mercados Titos · Semana 7
       <span id="fecha"></span>
     </footer>
 
@@ -1176,5 +1071,4 @@
         " · " + new Date().toLocaleDateString("es-MX", { day: "2-digit", month: "long", year: "numeric" });
     </script>
   </body>
-
 </html>

@@ -411,7 +411,20 @@
       .revelar.visible { opacity: 1; transform: none; }
 
       @media (max-width: 720px) {
-        .nav { padding: 12px 18px; }
+        /* La barra se apila y cada grupo de enlaces se desliza por su cuenta:
+           con varias semanas ya no cabe todo en el ancho de un teléfono. */
+        .nav { padding: 12px 18px; flex-wrap: wrap; gap: 12px; }
+        .semanas,
+        .nav-links {
+          max-width: 100%;
+          flex-wrap: nowrap;
+          overflow-x: auto;
+          scrollbar-width: none;
+        }
+        .semanas::-webkit-scrollbar,
+        .nav-links::-webkit-scrollbar { display: none; }
+        .semanas a,
+        .nav-links a { white-space: nowrap; }
         .nav-links { width: 100%; margin-left: 0; }
         .seccion { padding: 52px 18px; }
         .portada { padding: 60px 18px 56px; }
@@ -437,6 +450,7 @@
         </a>
         <a class="actual" href="semana-5.html">Semana 5</a>
         <a href="semana-6.html">Semana 6</a>
+        <a href="semana-7.html">Semana 7</a>
       </div>
       <div class="nav-links">
         <a href="#resumen">Resumen</a>

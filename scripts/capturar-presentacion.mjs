@@ -189,6 +189,94 @@ const ACCIONES = {
     await page.getByText(/Autorizar cancelación/i).first().waitFor({ timeout: 8000 });
     await page.waitForTimeout(600);
   },
+
+  // ── Semana 7 ────────────────────────────────────────────────────────
+
+  /** Deja un producto en el carrito; base de las capturas del cobro. */
+  async cargarCarrito(page) {
+    const termino = await terminoDeBusqueda(page);
+    if (!termino) return false;
+
+    await page.getByPlaceholder(/Buscar por nombre o SKU/i).fill(termino);
+    const opcion = page.locator("div.absolute.z-10 button").first();
+    await opcion.waitFor({ timeout: 8000 });
+    await opcion.click();
+    await page.waitForTimeout(700);
+
+    const modalPeso = page.getByText(/Capturar peso/).first();
+    if (await modalPeso.isVisible().catch(() => false)) {
+      await page.locator('input[type="number"]').first().fill("1.5").catch(() => {});
+      await page.getByRole("button", { name: /Agregar al carrito/i }).click();
+      await page.waitForTimeout(700);
+    }
+    return true;
+  },
+
+  /** Modal de cobro sin capturar nada: se ven las cinco formas de pago. */
+  async formasDePago(page) {
+    if (!(await ACCIONES.cargarCarrito(page))) return;
+    await page.locator('button[title="Cobrar"]').click();
+    await page.getByText(/Total a pagar/).first().waitFor({ timeout: 8000 });
+    await page.waitForTimeout(700);
+  },
+
+  /** Abre el cobro con una parte pagada en vales de despensa. */
+  async cobroConVales(page) {
+    if (!(await ACCIONES.cargarCarrito(page))) return;
+
+    await page.locator('button[title="Cobrar"]').click();
+    await page.getByText(/Total a pagar/).first().waitFor({ timeout: 8000 });
+
+    // Se reparte el cobro para que se vea el pago mixto con vales.
+    await page.getByPlaceholder("Vales de despensa").fill("50");
+    await page.waitForTimeout(300);
+    await page.getByRole("button", { name: "Completar" }).first().click();
+    await page.waitForTimeout(600);
+  },
+
+  /** Deja abierto el modal de cancelación con su selector de motivo. */
+  async abrirCancelacion(page) {
+    if (!(await ACCIONES.cargarCarrito(page))) return null;
+
+    await page.locator('button[title^="Quitar"]').first().click();
+    await page.getByText(/Autorizar cancelación/i).first().waitFor({ timeout: 8000 });
+    return page.locator("select").filter({ hasText: "Selecciona un motivo" }).first();
+  },
+
+  /**
+   * Cancelación con uno de los motivos del catálogo ya elegido. El desplegable
+   * nativo no sale en las capturas, así que se muestra el motivo seleccionado.
+   */
+  async motivoDeCancelacion(page) {
+    const select = await ACCIONES.abrirCancelacion(page);
+    if (!select) return;
+    await select.selectOption({ index: 1 });
+    await page.waitForTimeout(700);
+  },
+
+  /** La salida "Otro": el cajero captura un motivo que no está en la lista. */
+  async motivoOtro(page) {
+    const select = await ACCIONES.abrirCancelacion(page);
+    if (!select) return;
+    await select.selectOption({ label: "Otro (especificar)" });
+    await page.getByPlaceholder("Describe el motivo").fill("Se cayó el producto al piso");
+    await page.waitForTimeout(700);
+  },
+
+  /** Baja a la tarjeta del catálogo de motivos de cancelación y devolución. */
+  async verMotivosConfigurados(page) {
+    await page.getByText(/Motivos de cancelación y devolución/i).first().scrollIntoViewIfNeeded();
+    await page.waitForTimeout(700);
+  },
+
+  /** Marca la casilla que deja el protocolo de notas de venta sin fecha de fin. */
+  async activacionIndefinida(page) {
+    const casilla = page.locator("label", { hasText: /Indefinido/ }).locator('input[type="checkbox"]');
+    await casilla.check();
+    await page.waitForTimeout(600);
+    await page.getByText("Activar protocolo").first().scrollIntoViewIfNeeded();
+    await page.waitForTimeout(500);
+  },
 };
 
 /** Pantallas a capturar: [archivo, ruta, cuenta, accion?, semana] */
@@ -220,6 +308,14 @@ const PANTALLAS = [
   ["s6-menu-contraido", "/matriz/facturas", "matriz", "contraerMenu", 6],
   ["s6-pos-cancelacion", "/sucursal", "sucursal", "cancelacionEnPuntoVenta", 6],
   ["s6-cliente-constancia", "/sucursal/clientes", "sucursal", "altaClienteConstancia", 6],
+
+  ["s7-motivos-configuracion", "/matriz/configuracion", "matriz", "verMotivosConfigurados", 7],
+  ["s7-notas-indefinido", "/matriz/notas-de-venta", "matriz", "activacionIndefinida", 7],
+  ["s7-pos-formas-pago", "/sucursal", "sucursal", "formasDePago", 7],
+  ["s7-pos-vales", "/sucursal", "sucursal", "cobroConVales", 7],
+  ["s7-pos-motivo-cancelacion", "/sucursal", "sucursal", "motivoDeCancelacion", 7],
+  ["s7-pos-motivo-otro", "/sucursal", "sucursal", "motivoOtro", 7],
+  ["s7-cliente-constancia", "/sucursal/clientes", "sucursal", "altaClienteConstancia", 7],
 ];
 
 /** --semana=6 limita la corrida a esa entrega y deja intacto el histórico. */
