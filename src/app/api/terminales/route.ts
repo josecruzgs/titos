@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import TerminalPago from "@/models/TerminalPago";
 import Sucursal from "@/models/Sucursal";
-import { requireSession, unauthorized, forbidden, badRequest, conflict } from "@/lib/apiAuth";
+import { requireSession, unauthorized, forbidden, badRequest, conflict, puede, sinPermiso } from "@/lib/apiAuth";
 import { contextoPuntoVenta } from "@/lib/puntoVenta";
 
 /**
@@ -48,6 +48,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
+  if (!puede(session, "catalogos.administrar")) return sinPermiso("catalogos.administrar");
   if (session.role !== "matriz") return forbidden();
 
   const body = await req.json().catch(() => null);

@@ -89,6 +89,17 @@ const METODOS_RAPIDOS: { metodo: MetodoPago; etiqueta: string }[] = [
 
 type TerminalPos = { _id: string; alias: string; banco?: string; marca?: string };
 
+type EmisorVale = { _id: string; nombre: string };
+
+/** Lo que el servidor pudo deducir de la tarjeta de vales que se pasó. */
+type LecturaVale = {
+  bin: string;
+  ultimos4: string;
+  emisorId: string | null;
+  emisorNombre: string;
+  reconocida: boolean;
+};
+
 type ReglasDolares = { aceptaPagos: boolean; denominacionMaxima: number };
 
 const TIPO_CAMBIO_CACHE_KEY = "titos-pos-tipo-cambio";
@@ -121,6 +132,9 @@ type PagoResp = {
   tipoCambio?: number | null;
   terminalId?: string | null;
   terminalAlias?: string;
+  valeEmisorId?: string | null;
+  valeEmisorNombre?: string;
+  valeUltimos4?: string;
 };
 type VentaResp = {
   folio: string;
@@ -187,6 +201,7 @@ type ResumenCaja = {
   totalVentasDolaresMxn: number;
   totalCambioDolaresMxn: number;
   tarjetaPorTerminal: { terminalId: string | null; alias: string; monto: number }[];
+  valesPorEmisor: { emisorId: string | null; nombre: string; monto: number }[];
   totalAbonosEfectivo: number;
   totalDevoluciones: number;
   totalRetiros: number;
@@ -230,6 +245,13 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
   const [terminales, setTerminales] = useState<TerminalPos[]>([]);
   const [terminalId, setTerminalId] = useState("");
   const [reglasDolares, setReglasDolares] = useState<ReglasDolares>({ aceptaPagos: true, denominacionMaxima: 0 });
+  // --- Vales de despensa: la tarjeta se identifica sola por su BIN ---
+  const [emisoresVale, setEmisoresVale] = useState<EmisorVale[]>([]);
+  const [valeLectura, setValeLectura] = useState("");
+  const [valeInfo, setValeInfo] = useState<LecturaVale | null>(null);
+  const [valeEmisorId, setValeEmisorId] = useState("");
+  const [leyendoVale, setLeyendoVale] = useState(false);
+  const [errorVale, setErrorVale] = useState<string | null>(null);
   const [clientes, setClientes] = useState<ClienteConCredito[]>([]);
   const [clienteId, setClienteId] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -427,6 +449,11 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
 
     // Terminales de la tienda: se cachean para que un cobro con tarjeta también
     // se pueda capturar sin conexión y sincronizarse después.
+    fetch("/api/vales?puntoVenta=1")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("http-error"))))
+      .then((data: EmisorVale[]) => setEmisoresVale(data))
+      .catch(() => setEmisoresVale([]));
+
     fetch("/api/terminales?puntoVenta=1")
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("http-error"))))
       .then((data: TerminalPos[]) => {
@@ -534,6 +561,16 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
       if (metodoRapido === "tarjeta") {
         return [{ metodoPago: "tarjeta", monto: total, terminalId: terminalId || null }];
       }
+      if (metodoRapido === "vales") {
+        return [
+          {
+            metodoPago: "vales",
+            monto: total,
+            valeEmisorId: valeEmisorId || null,
+            valeUltimos4: valeInfo?.ultimos4,
+          },
+        ];
+      }
       return [{ metodoPago: metodoRapido, monto: total }];
     }
 
@@ -551,7 +588,16 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
         ? [{ metodoPago: "tarjeta" as const, monto: mTarjeta, terminalId: terminalId || null }]
         : []),
       ...(mTransferencia > 0 ? [{ metodoPago: "transferencia" as const, monto: mTransferencia }] : []),
-      ...(mVales > 0 ? [{ metodoPago: "vales" as const, monto: mVales }] : []),
+      ...(mVales > 0
+        ? [
+            {
+              metodoPago: "vales" as const,
+              monto: mVales,
+              valeEmisorId: valeEmisorId || null,
+              valeUltimos4: valeInfo?.ultimos4,
+            },
+          ]
+        : []),
       ...(mCredito > 0 ? [{ metodoPago: "credito" as const, monto: mCredito }] : []),
     ];
   }, [
@@ -561,6 +607,8 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
     terminalId,
     nDolaresUsd,
     valorDolaresMxn,
+    valeEmisorId,
+    valeInfo,
     mEfectivo,
     mTarjeta,
     mTransferencia,
@@ -569,6 +617,10 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
   ]);
 
   const montoDe = (metodo: MetodoPago) => pagosVenta.find((p) => p.metodoPago === metodo)?.monto ?? 0;
+
+  // El lector aparece cuando la venta se va a cobrar con vales, en cualquiera
+  // de los dos modos de cobro.
+  const mostrarLectorVales = modoMixto ? mVales > 0 : metodoRapido === "vales";
 
   const nEfectivo = montoDe("efectivo");
   const nTarjeta = montoDe("tarjeta");
@@ -669,6 +721,60 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
     else if (metodo === "credito") setMontoCredito(texto);
   }
 
+  /**
+   * Lee la tarjeta de vales que acaba de pasar por el lector. El lector se
+   * comporta como un teclado: escribe la banda de golpe y manda Enter.
+   */
+  async function leerTarjetaVale() {
+    const lectura = valeLectura.trim();
+    if (!lectura) return;
+
+    setErrorVale(null);
+    setLeyendoVale(true);
+    try {
+      const res = await fetch("/api/vales", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lectura }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setErrorVale(data.error || "No se pudo leer la tarjeta");
+        return;
+      }
+      const info: LecturaVale = await res.json();
+      setValeInfo(info);
+      setValeEmisorId(info.emisorId ?? "");
+      // La banda ya no se conserva en pantalla: solo el BIN y los últimos 4.
+      setValeLectura("");
+    } catch {
+      setErrorVale("Se perdió la conexión al leer la tarjeta.");
+    } finally {
+      setLeyendoVale(false);
+    }
+  }
+
+  /**
+   * La primera vez que aparece un BIN, el cajero dice de qué emisor es y el
+   * sistema lo memoriza: a partir de ahí esa tarjeta se identifica sola.
+   */
+  async function enseñarEmisor(emisorId: string) {
+    setValeEmisorId(emisorId);
+    if (!valeInfo || valeInfo.reconocida || !emisorId) return;
+
+    try {
+      await fetch("/api/vales", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bin: valeInfo.bin, emisorId }),
+      });
+      const nombre = emisoresVale.find((e) => e._id === emisorId)?.nombre ?? "";
+      setValeInfo({ ...valeInfo, emisorId, emisorNombre: nombre, reconocida: true });
+    } catch {
+      // Si falla el aprendizaje la venta igual procede con el emisor elegido.
+    }
+  }
+
   /** Cambia de método en el cobro rápido, limpiando lo que ya no aplica. */
   function elegirMetodoRapido(metodo: MetodoPago) {
     setMetodoRapido(metodo);
@@ -676,6 +782,12 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
     if (metodo !== "efectivo") setEfectivoRecibido("");
     if (metodo !== "efectivo_usd") setDolaresRecibidos("");
     if (metodo !== "tarjeta") setTerminalId("");
+    if (metodo !== "vales") {
+      setValeLectura("");
+      setValeInfo(null);
+      setValeEmisorId("");
+      setErrorVale(null);
+    }
     // El cliente elegido se conserva aunque se salga de crédito: sirve para el
     // ticket y para facturar después.
   }
@@ -868,6 +980,10 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
     setEfectivoRecibido("");
     setDolaresRecibidos("");
     setTerminalId("");
+    setValeLectura("");
+    setValeInfo(null);
+    setValeEmisorId("");
+    setErrorVale(null);
     setModoMixto(false);
     setMetodoRapido("efectivo");
     setClienteId("");
@@ -981,6 +1097,8 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
       monto: p.monto,
       ...(p.montoUsd ? { montoUsd: p.montoUsd } : {}),
       ...(p.terminalId ? { terminalId: p.terminalId } : {}),
+      ...(p.valeEmisorId ? { valeEmisorId: p.valeEmisorId } : {}),
+      ...(p.valeUltimos4 ? { valeUltimos4: p.valeUltimos4 } : {}),
     }));
 
     const payload: VentaPayload = {
@@ -1884,6 +2002,60 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
             </>
           )}
 
+          {/* Lector de tarjetas de vales: identifica sola la tarjeta por su BIN.
+              La primera vez que aparece un emisor nuevo el cajero lo dice una
+              vez y el sistema lo memoriza. */}
+          {mostrarLectorVales ? (
+            <div className="mb-3 space-y-2 rounded-lg border border-black/10 p-3">
+              <FormField label="Tarjeta de vales">
+                <Input
+                  icon={ScanLine}
+                  autoFocus={!modoMixto}
+                  value={valeLectura}
+                  onChange={(e) => setValeLectura(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      leerTarjetaVale();
+                    }
+                  }}
+                  onBlur={() => {
+                    if (valeLectura.trim()) leerTarjetaVale();
+                  }}
+                  placeholder={leyendoVale ? "Leyendo..." : "Pasa la tarjeta o escribe los primeros 6 dígitos"}
+                />
+              </FormField>
+
+              {valeInfo ? (
+                valeInfo.reconocida ? (
+                  <p className="rounded-lg bg-titos-green-100 px-3 py-2 text-xs font-semibold text-titos-green-800">
+                    {valeInfo.emisorNombre} · terminación {valeInfo.ultimos4}
+                    <span className="ml-1 font-normal text-titos-green-700/70">(identificada por BIN {valeInfo.bin})</span>
+                  </p>
+                ) : (
+                  <div className="space-y-1.5 rounded-lg bg-amber-50 px-3 py-2">
+                    <p className="text-xs font-semibold text-amber-800">
+                      Tarjeta nueva (BIN {valeInfo.bin} · terminación {valeInfo.ultimos4}). ¿De qué emisor es?
+                    </p>
+                    <Select value={valeEmisorId} onChange={(e) => enseñarEmisor(e.target.value)}>
+                      <option value="">Elige el emisor</option>
+                      {emisoresVale.map((em) => (
+                        <option key={em._id} value={em._id}>
+                          {em.nombre}
+                        </option>
+                      ))}
+                    </Select>
+                    <p className="text-xs text-amber-700">
+                      Solo se pregunta esta vez: las siguientes tarjetas de ese emisor se reconocen solas.
+                    </p>
+                  </div>
+                )
+              ) : null}
+
+              {errorVale ? <p className="text-xs font-semibold text-red-600">{errorVale}</p> : null}
+            </div>
+          ) : null}
+
           {nDolaresUsd > 0 ? (
             <p className="mb-2 rounded-lg bg-sky-50 px-3 py-2 text-xs font-medium text-sky-800">
               {nDolaresUsd.toFixed(2)} USD × {formatMoney(tipoCambio)} = {formatMoney(valorDolaresMxn)}
@@ -1983,16 +2155,10 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
         >
           {ventaCompletada.offline ? (
             <p className="mb-3 rounded-lg bg-amber-100 px-3 py-2 text-xs font-medium text-amber-800">
-              Guardada localmente — se sincronizará cuando vuelva la conexión. El ticket sale sin el asterisco de
-              Notas de venta: esa regla la resuelve el servidor al sincronizar.
+              Guardada localmente — se sincronizará cuando vuelva la conexión.
             </p>
           ) : null}
 
-          {ventaCompletada.esVentas2 ? (
-            <p className="mb-3 rounded-lg bg-sky-50 px-3 py-2 text-xs font-medium text-sky-800">
-              Entró al protocolo de Notas de venta. El ticket lleva un asterisco (*) junto al nombre de la sucursal.
-            </p>
-          ) : null}
           <ul className="mb-3 divide-y divide-black/5 text-sm">
             {ventaCompletada.items.map((i, idx) => (
               <li key={idx} className="flex items-center justify-between py-1.5">
@@ -2014,6 +2180,8 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
                   {ETIQUETAS_METODO[p.metodoPago]}
                   {p.montoUsd ? ` — ${p.montoUsd.toFixed(2)} USD` : ""}
                   {p.terminalAlias ? ` — ${p.terminalAlias}` : ""}
+                  {p.valeEmisorNombre ? ` — ${p.valeEmisorNombre}` : ""}
+                  {p.valeUltimos4 ? ` ****${p.valeUltimos4}` : ""}
                 </span>
                 <span>{formatMoney(p.monto)}</span>
               </div>
@@ -2321,10 +2489,19 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
                   <span className="font-medium">{formatMoney(resumenCorte.totalVentasTransferencia)}</span>
                 </div>
                 {resumenCorte.totalVentasVales > 0 ? (
-                  <div className="flex justify-between">
-                    <span className="text-black/50">Ventas con vales de despensa (no es efectivo)</span>
-                    <span className="font-medium">{formatMoney(resumenCorte.totalVentasVales)}</span>
-                  </div>
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-black/50">Ventas con vales de despensa (no es efectivo)</span>
+                      <span className="font-medium">{formatMoney(resumenCorte.totalVentasVales)}</span>
+                    </div>
+                    {/* Cada emisor se cobra por separado, por eso van desglosados. */}
+                    {(resumenCorte.valesPorEmisor ?? []).map((v) => (
+                      <div key={v.emisorId ?? v.nombre} className="flex justify-between pl-4 text-xs">
+                        <span className="text-black/40">· {v.nombre}</span>
+                        <span className="text-black/60">{formatMoney(v.monto)}</span>
+                      </div>
+                    ))}
+                  </>
                 ) : null}
                 {resumenCorte.totalVentasCredito > 0 ? (
                   <div className="flex justify-between">

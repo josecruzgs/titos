@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import CancelacionPos, { TIPOS_CANCELACION } from "@/models/CancelacionPos";
-import { requireSession, unauthorized, forbidden, badRequest } from "@/lib/apiAuth";
+import { requireSession, unauthorized, forbidden, badRequest, puede, sinPermiso } from "@/lib/apiAuth";
 import { verificarNipSupervisor } from "@/lib/configuracion";
 import { normalizarItemsCancelados, registrarCancelacion, type TipoCancelacion } from "@/lib/cancelaciones";
 import { contextoPuntoVenta } from "@/lib/puntoVenta";
@@ -58,6 +58,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
+  if (!puede(session, "pos.cancelar")) return sinPermiso("pos.cancelar");
 
   const body = await req.json().catch(() => null);
   const tipo = String(body?.tipo ?? "");

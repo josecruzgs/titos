@@ -269,6 +269,96 @@ const ACCIONES = {
     await page.waitForTimeout(700);
   },
 
+  // ── Semana 8 ────────────────────────────────────────────────────────
+
+  /** Cobro rápido: el modal abre en efectivo con un solo campo. */
+  async cobroRapido(page) {
+    if (!(await ACCIONES.cargarCarrito(page))) return;
+    await page.locator('button[title="Cobrar"]').click();
+    await page.getByText(/Total a pagar/).first().waitFor({ timeout: 8000 });
+    await page.waitForTimeout(800);
+  },
+
+  /** El mismo cobro repartido a mano entre varias formas de pago. */
+  async cobroMixto(page) {
+    await ACCIONES.cobroRapido(page);
+    await page.getByRole("button", { name: /Pago mixto/i }).click();
+    await page.waitForTimeout(500);
+    await page.getByPlaceholder("Efectivo").fill("50");
+    await page.waitForTimeout(400);
+    await page.getByRole("button", { name: "Completar" }).nth(1).click();
+    await page.waitForTimeout(700);
+  },
+
+  /** Cobro en dólares: se capturan los billetes y el sistema calcula el cambio. */
+  async cobroDolares(page) {
+    await ACCIONES.cobroRapido(page);
+    await page.getByRole("button", { name: "Dólares", exact: true }).click();
+    await page.waitForTimeout(500);
+    await page.getByLabel(/Dólares recibidos del cliente/i).fill("20").catch(async () => {
+      await page.locator('input[type="number"]').first().fill("20");
+    });
+    await page.waitForTimeout(900);
+  },
+
+  /** Tarjeta de vales ya conocida: el sistema la identifica sola por su BIN. */
+  async valesReconocida(page) {
+    await ACCIONES.cobroRapido(page);
+    await page.getByRole("button", { name: "Vales", exact: true }).click();
+    await page.waitForTimeout(500);
+    const lector = page.getByPlaceholder(/Pasa la tarjeta/i);
+    await lector.fill(";5036129999887766=25121010000000000000?");
+    await lector.press("Enter");
+    await page.getByText(/identificada por BIN/i).first().waitFor({ timeout: 10000 });
+    await page.waitForTimeout(700);
+  },
+
+  /** Tarjeta nueva: se pregunta el emisor una sola vez. */
+  async valesNueva(page) {
+    await ACCIONES.cobroRapido(page);
+    await page.getByRole("button", { name: "Vales", exact: true }).click();
+    await page.waitForTimeout(500);
+    const lector = page.getByPlaceholder(/Pasa la tarjeta/i);
+    // BIN que no está en la tabla de aprendizaje: dispara la pregunta.
+    await lector.fill(";4915330000445566=25121010000000000000?");
+    await lector.press("Enter");
+    await page.getByText(/Tarjeta nueva/i).first().waitFor({ timeout: 10000 });
+    await page.waitForTimeout(700);
+  },
+
+  /** Pestaña de roles con las tarjetas de cada perfil. */
+  async verRoles(page) {
+    await page.getByRole("button", { name: /^Roles \(/ }).click();
+    await page.waitForTimeout(900);
+  },
+
+  /** Editor de un rol con sus permisos en casillas. */
+  async editarRol(page) {
+    await ACCIONES.verRoles(page);
+    await page.getByText("Encargado de turno").first().click();
+    await page.getByText(/Permisos \(/i).first().waitFor({ timeout: 8000 });
+    await page.waitForTimeout(900);
+  },
+
+  /** Alta de usuario con la asignación de sucursal y rol. */
+  async altaUsuario(page) {
+    await page.getByRole("button", { name: /Nuevo usuario/i }).click();
+    await page.getByText(/Tipo de usuario/i).first().waitFor({ timeout: 8000 });
+    await page.waitForTimeout(800);
+  },
+
+  /** Baja a la tarjeta de alertas automáticas de pedidos atrasados. */
+  async verAlertas(page) {
+    await page.getByText(/Alertas de pedidos atrasados/i).first().scrollIntoViewIfNeeded();
+    await page.waitForTimeout(800);
+  },
+
+  /** Baja al bloque de reglas de pagos en dólares. */
+  async verReglasDolares(page) {
+    await page.getByText(/Pagos en dólares/i).first().scrollIntoViewIfNeeded();
+    await page.waitForTimeout(800);
+  },
+
   /** Marca la casilla que deja el protocolo de notas de venta sin fecha de fin. */
   async activacionIndefinida(page) {
     const casilla = page.locator("label", { hasText: /Indefinido/ }).locator('input[type="checkbox"]');
@@ -316,6 +406,21 @@ const PANTALLAS = [
   ["s7-pos-motivo-cancelacion", "/sucursal", "sucursal", "motivoDeCancelacion", 7],
   ["s7-pos-motivo-otro", "/sucursal", "sucursal", "motivoOtro", 7],
   ["s7-cliente-constancia", "/sucursal/clientes", "sucursal", "altaClienteConstancia", 7],
+
+  ["s8-matriz-usuarios", "/matriz/usuarios", "matriz", null, 8],
+  ["s8-matriz-usuario-alta", "/matriz/usuarios", "matriz", "altaUsuario", 8],
+  ["s8-matriz-roles", "/matriz/usuarios", "matriz", "verRoles", 8],
+  ["s8-matriz-rol-permisos", "/matriz/usuarios", "matriz", "editarRol", 8],
+  ["s8-matriz-terminales", "/matriz/terminales", "matriz", null, 8],
+  ["s8-matriz-vales", "/matriz/vales", "matriz", null, 8],
+  ["s8-matriz-bitacora", "/matriz/bitacora", "matriz", null, 8],
+  ["s8-configuracion-alertas", "/matriz/configuracion", "matriz", "verAlertas", 8],
+  ["s8-configuracion-dolares", "/matriz/configuracion", "matriz", "verReglasDolares", 8],
+  ["s8-pos-cobro-rapido", "/sucursal", "sucursal", "cobroRapido", 8],
+  ["s8-pos-cobro-mixto", "/sucursal", "sucursal", "cobroMixto", 8],
+  ["s8-pos-dolares", "/sucursal", "sucursal", "cobroDolares", 8],
+  ["s8-pos-vales-reconocida", "/sucursal", "sucursal", "valesReconocida", 8],
+  ["s8-pos-vales-nueva", "/sucursal", "sucursal", "valesNueva", 8],
 ];
 
 /** --semana=6 limita la corrida a esa entrega y deja intacto el histórico. */

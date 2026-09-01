@@ -6,6 +6,7 @@ import { connectDB } from "@/lib/db";
 import Sucursal from "@/models/Sucursal";
 import { ZonaHorariaProvider } from "@/components/ZonaHorariaProvider";
 import { ZONA_HORARIA_DEFAULT } from "@/lib/zonasHorarias";
+import { permisosDeSesion } from "@/lib/permisos";
 
 export default async function SucursalLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
@@ -20,7 +21,13 @@ export default async function SucursalLayout({ children }: { children: React.Rea
   return (
     <ZonaHorariaProvider zona={zonaHoraria}>
       <div className="flex min-h-screen flex-col md:flex-row">
-        <Sidebar role="sucursal" nombre={session.nombre} sucursalNombre={sucursalNombre} sucursalRol={sucursalRol} />
+        <Sidebar
+          role="sucursal"
+          nombre={session.nombre}
+          sucursalNombre={sucursalNombre}
+          sucursalRol={sucursalRol}
+          permisos={permisosDeSesion(session)}
+        />
         <SucursalMain>{children}</SucursalMain>
       </div>
     </ZonaHorariaProvider>

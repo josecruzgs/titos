@@ -41,6 +41,20 @@ const CajaSesionSchema = new Schema(
     efectivoEsperado: { type: Number, default: null },
     efectivoContado: { type: Number, default: null },
     diferencia: { type: Number, default: null },
+    // Desglose de vales por emisor: a cada uno se le cobra por separado.
+    valesPorEmisor: {
+      type: [
+        new Schema(
+          {
+            emisorId: { type: Schema.Types.ObjectId, ref: "EmisorVale", default: null },
+            nombre: { type: String, default: "" },
+            monto: { type: Number, default: 0 },
+          },
+          { _id: false }
+        ),
+      ],
+      default: [],
+    },
     // Cajón de dólares, independiente del de pesos
     totalVentasDolaresUsd: { type: Number, default: null }, // billetes de dólar que entraron por ventas
     totalVentasDolaresMxn: { type: Number, default: null }, // su valor en pesos al tipo de cambio del cobro

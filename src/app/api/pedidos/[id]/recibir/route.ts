@@ -3,11 +3,12 @@ import { connectDB } from "@/lib/db";
 import Pedido from "@/models/Pedido";
 import InventarioSucursal from "@/models/InventarioSucursal";
 import MovimientoInventario from "@/models/MovimientoInventario";
-import { requireSession, unauthorized, forbidden, badRequest, notFound } from "@/lib/apiAuth";
+import { requireSession, unauthorized, forbidden, badRequest, notFound, puede, sinPermiso } from "@/lib/apiAuth";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
+  if (!puede(session, "pedidos.recibir")) return sinPermiso("pedidos.recibir");
   if (session.role !== "sucursal" || !session.sucursalId) return forbidden();
 
   const { id } = await params;

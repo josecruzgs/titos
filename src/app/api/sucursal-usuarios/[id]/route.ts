@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import UserModel from "@/models/User";
-import { requireSession, unauthorized, forbidden, badRequest, notFound, conflict } from "@/lib/apiAuth";
+import { requireSession, unauthorized, forbidden, badRequest, notFound, conflict, puede, sinPermiso } from "@/lib/apiAuth";
 import { hashPassword } from "@/lib/auth";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
-  if (session.role !== "sucursal" || !session.sucursalId || session.sucursalRol === "ventas") return forbidden();
+  if (session.role !== "sucursal" || !session.sucursalId) return forbidden();
+  if (!puede(session, "sucursal.usuarios")) return sinPermiso("sucursal.usuarios");
 
   const { id } = await params;
   const body = await req.json().catch(() => null);

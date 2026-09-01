@@ -21,6 +21,13 @@ export type SessionPayload = {
   // Rol interno de la sucursal; los tokens viejos no lo traen (se tratan como "admin")
   sucursalRol?: "admin" | "ventas" | null;
   sucursalId: string | null;
+  /**
+   * Permisos efectivos, resueltos al iniciar sesión. Viajan en el token para
+   * que el proxy y el menú puedan decidir sin consultar la base en cada
+   * navegación. Los tokens emitidos antes de que existieran los roles no los
+   * traen; `permisosDeSesion()` los deduce del rol viejo.
+   */
+  permisos?: string[];
 };
 
 export const SESSION_COOKIE = "titos_session";

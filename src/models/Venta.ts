@@ -38,6 +38,14 @@ const PagoVentaSchema = new Schema(
     // cambiar mañana y el corte de hoy tiene que seguir cuadrando.
     tipoCambio: { type: Number, default: null },
 
+    // --- Solo para "vales" ---
+    // De qué emisor es el vale: cada uno se cobra por separado, así que el corte
+    // tiene que poder desglosarlos. Del plástico solo se guardan el BIN y los
+    // últimos 4, nunca el número completo.
+    valeEmisorId: { type: Schema.Types.ObjectId, ref: "EmisorVale", default: null },
+    valeEmisorNombre: { type: String, default: "" },
+    valeUltimos4: { type: String, default: "" },
+
     // --- Solo para "tarjeta" ---
     // Con qué terminal física se cobró, para cuadrar contra el banco.
     terminalId: { type: Schema.Types.ObjectId, ref: "TerminalPago", default: null },

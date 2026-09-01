@@ -4,11 +4,12 @@ import Pedido from "@/models/Pedido";
 import Producto from "@/models/Producto";
 import NecesidadCompra from "@/models/NecesidadCompra";
 import { nivelar } from "@/lib/nivelador";
-import { requireSession, unauthorized, forbidden } from "@/lib/apiAuth";
+import { requireSession, unauthorized, forbidden, puede, sinPermiso } from "@/lib/apiAuth";
 
 export async function POST(req: NextRequest) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
+  if (!puede(session, "pedidos.surtir")) return sinPermiso("pedidos.surtir");
   if (session.role !== "matriz") return forbidden();
 
   const body = await req.json().catch(() => ({}) as Record<string, unknown>);

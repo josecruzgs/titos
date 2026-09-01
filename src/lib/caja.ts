@@ -8,6 +8,7 @@ function redondear(valor: number) {
 }
 
 export type TarjetaPorTerminal = { terminalId: string | null; alias: string; monto: number };
+export type ValesPorEmisor = { emisorId: string | null; nombre: string; monto: number };
 
 export async function calcularResumenSesion(cajaSesionId: string) {
   const ventas = await Venta.find({ cajaSesionId, estado: "completada", esVentas2: { $ne: true } }).select("pagos").lean();
@@ -27,12 +28,25 @@ export async function calcularResumenSesion(cajaSesionId: string) {
   let totalCambioDolaresMxn = 0;
 
   const porTerminal = new Map<string, TarjetaPorTerminal>();
+  const porEmisorVale = new Map<string, ValesPorEmisor>();
 
   for (const v of ventas) {
     for (const pago of v.pagos) {
       if (pago.metodoPago === "efectivo") totalVentasEfectivo += pago.monto;
       else if (pago.metodoPago === "transferencia") totalVentasTransferencia += pago.monto;
-      else if (pago.metodoPago === "vales") totalVentasVales += pago.monto;
+      else if (pago.metodoPago === "vales") {
+        totalVentasVales += pago.monto;
+        // Los vales de antes de que se identificara el emisor se agrupan aparte
+        // en lugar de perderse del desglose.
+        const clave = pago.valeEmisorId ? String(pago.valeEmisorId) : "";
+        const actual = porEmisorVale.get(clave) ?? {
+          emisorId: pago.valeEmisorId ? String(pago.valeEmisorId) : null,
+          nombre: pago.valeEmisorNombre || "Sin emisor identificado",
+          monto: 0,
+        };
+        actual.monto += pago.monto;
+        porEmisorVale.set(clave, actual);
+      }
       else if (pago.metodoPago === "credito") totalVentasCredito += pago.monto;
       else if (pago.metodoPago === "tarjeta") {
         totalVentasTarjeta += pago.monto;
@@ -59,6 +73,10 @@ export async function calcularResumenSesion(cajaSesionId: string) {
 
   const tarjetaPorTerminal = [...porTerminal.values()]
     .map((t) => ({ ...t, monto: redondear(t.monto) }))
+    .sort((a, b) => b.monto - a.monto);
+
+  const valesPorEmisor = [...porEmisorVale.values()]
+    .map((v) => ({ ...v, monto: redondear(v.monto) }))
     .sort((a, b) => b.monto - a.monto);
 
   // Los abonos de clientes sí son cobranza del turno: el efectivo entra al cajón.
@@ -97,6 +115,7 @@ export async function calcularResumenSesion(cajaSesionId: string) {
     totalVentasDolaresMxn: redondear(totalVentasDolaresMxn),
     totalCambioDolaresMxn: redondear(totalCambioDolaresMxn),
     tarjetaPorTerminal,
+    valesPorEmisor,
     totalAbonosEfectivo,
     totalAbonosOtros,
     totalDevoluciones,

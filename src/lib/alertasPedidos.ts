@@ -47,11 +47,12 @@ function renglon(p: PedidoAtrasado) {
  *
  * Solo un aviso **enviado** frena los siguientes barridos: si se marcara también
  * el fallido, una caída de Evolution API o un WhatsApp que todavía no está
- * capturado se tragarían la alerta para siempre. Así se reintenta cada hora y se
+ * capturado se tragarían la alerta para siempre. Así se reintenta en el siguiente
+ * barrido y se
  * arregla solo en cuanto el envío vuelva a funcionar.
  *
  * De los fallos se guarda solo el primero (`alertas.tipo` no repetido), para que
- * un pedido olvidado con el servicio caído no acumule un renglón por hora.
+ * un pedido olvidado con el servicio caído no acumule un renglón por barrido.
  */
 async function marcarAlerta(
   ids: unknown[],

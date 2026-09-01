@@ -3,7 +3,7 @@ import { connectDB } from "@/lib/db";
 import CajaSesion from "@/models/CajaSesion";
 import MovimientoCaja, { MONEDAS_CAJA } from "@/models/MovimientoCaja";
 import UserModel from "@/models/User";
-import { requireSession, unauthorized, forbidden, badRequest, generateFolio, todayCorte } from "@/lib/apiAuth";
+import { requireSession, unauthorized, forbidden, badRequest, generateFolio, todayCorte, puede, sinPermiso } from "@/lib/apiAuth";
 import { zonaHorariaDeSucursal } from "@/lib/credito";
 import { verifyPassword } from "@/lib/auth";
 import { calcularResumenSesion, calcularEfectivoEsperado, calcularEfectivoEsperadoUsd } from "@/lib/caja";
@@ -38,6 +38,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
+  if (!puede(session, "caja.retirar")) return sinPermiso("caja.retirar");
 
   const body = await req.json().catch(() => null);
   const monto = Number(body?.monto);

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import Sucursal from "@/models/Sucursal";
 import UserModel from "@/models/User";
-import { requireSession, unauthorized, forbidden } from "@/lib/apiAuth";
+import { requireSession, unauthorized, forbidden, puede, sinPermiso } from "@/lib/apiAuth";
 import { consultarBitacora, TIPOS_BITACORA, type TipoBitacora } from "@/lib/bitacora";
 
 // La bitácora es una herramienta de auditoría de matriz: una sucursal no debe
@@ -10,6 +10,7 @@ import { consultarBitacora, TIPOS_BITACORA, type TipoBitacora } from "@/lib/bita
 export async function GET(req: NextRequest) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
+  if (!puede(session, "bitacora.ver")) return sinPermiso("bitacora.ver");
   if (session.role !== "matriz") return forbidden();
 
   await connectDB();

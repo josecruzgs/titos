@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
   sesion.totalVentasTransferencia = resumen.totalVentasTransferencia;
   sesion.totalVentasVales = resumen.totalVentasVales;
   sesion.tarjetaPorTerminal = resumen.tarjetaPorTerminal;
+  sesion.valesPorEmisor = resumen.valesPorEmisor;
   sesion.totalVentasDolaresUsd = resumen.totalVentasDolaresUsd;
   sesion.totalVentasDolaresMxn = resumen.totalVentasDolaresMxn;
   sesion.totalCambioDolaresMxn = resumen.totalCambioDolaresMxn;

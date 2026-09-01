@@ -3,8 +3,10 @@ import { connectDB } from "@/lib/db";
 import { requireSession, unauthorized } from "@/lib/apiAuth";
 import { revisarPedidosAtrasados } from "@/lib/alertasPedidos";
 
-// Barrido de pedidos atrasados. Lo llama el cron de Vercel cada hora (ver
-// vercel.json), que manda `Authorization: Bearer $CRON_SECRET`.
+// Barrido de pedidos atrasados. Lo llama el cron de Vercel (ver vercel.json), que
+// manda `Authorization: Bearer $CRON_SECRET`. La frecuencia depende del plan:
+// Hobby solo admite una vez al día; para revisar por hora hace falta Pro o un
+// cron externo que llame a esta misma URL. Ver el README.
 //
 // También lo puede disparar a mano un usuario de matriz desde Configuración,
 // que es la única forma de probarlo sin esperar a la siguiente hora en punto.

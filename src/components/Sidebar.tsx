@@ -3,14 +3,16 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   LayoutDashboard,
   Package,
   Warehouse,
   Store,
   CreditCard,
+  Ticket,
   ScrollText,
+  UserCog,
   ClipboardList,
   ShoppingCart,
   Truck,
@@ -41,6 +43,7 @@ import {
   Presentation,
   type LucideIcon,
 } from "lucide-react";
+import { permisoDeRuta } from "@/lib/permisos";
 
 // "exact" es para las rutas que son padre de otras (el punto de venta del
 // mostrador) y no deben marcarse activas mientras se navega en sus hijas.
@@ -93,6 +96,7 @@ const MATRIZ_NAV: NavCategory[] = [
       { href: "/matriz/proveedores", label: "Proveedores", icon: Truck },
       { href: "/matriz/personal", label: "Personal", icon: Users },
       { href: "/matriz/terminales", label: "Terminales de pago", icon: CreditCard },
+      { href: "/matriz/vales", label: "Vales de despensa", icon: Ticket },
       { href: "/matriz/lineas", label: "Líneas", icon: Tags },
       { href: "/matriz/categorias", label: "Categorías", icon: Tag },
     ],
@@ -107,6 +111,7 @@ const MATRIZ_NAV: NavCategory[] = [
     icon: Settings,
     items: [
       { href: "/matriz/configuracion", label: "Configuración", icon: Settings },
+      { href: "/matriz/usuarios", label: "Usuarios y roles", icon: UserCog },
       { href: "/matriz/bitacora", label: "Bitácora", icon: ScrollText },
     ],
   },
@@ -139,9 +144,6 @@ const SUCURSAL_NAV: NavItem[] = [
   { href: "/sucursal/ajustes", label: "Ajustes", icon: Settings },
 ];
 
-// El rol "ventas" solo ve el punto de venta y el historial, para poder consultar
-// ventas pasadas sin acceder al resto de la administración de la sucursal.
-const SUCURSAL_NAV_SOLO_VENTAS = ["/sucursal", "/sucursal/ventas"];
 
 const STORAGE_KEY = "titos-sidebar-collapsed";
 
@@ -165,15 +167,41 @@ export function Sidebar({
   nombre,
   sucursalNombre,
   sucursalRol = "admin",
+  permisos = [],
 }: {
   role: "matriz" | "sucursal";
   nombre: string;
   sucursalNombre?: string;
   sucursalRol?: "admin" | "ventas";
+  /** Permisos efectivos de la sesión; el menú solo muestra lo que se puede abrir. */
+  permisos?: string[];
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const soloVentas = role === "sucursal" && sucursalRol === "ventas";
+
+  // Una entrada se muestra si su ruta no exige permiso, o si la sesión lo tiene.
+  const visible = useCallback(
+    (href: string) => {
+      const permiso = permisoDeRuta(href);
+      return !permiso || permisos.includes(permiso);
+    },
+    [permisos]
+  );
+
+  const categoriasVisibles = useMemo(
+    () =>
+      MATRIZ_NAV.map((categoria) => ({
+        ...categoria,
+        items: categoria.items.filter((item) => visible(item.href)),
+      })).filter((categoria) => categoria.items.length > 0),
+    [visible]
+  );
+
+  const itemsSucursalVisibles = useMemo(
+    () => SUCURSAL_NAV.filter((item) => visible(item.href)),
+    [visible]
+  );
   // El rol de ventas arranca con el menú compacto para maximizar el punto de venta
   const [collapsed, setCollapsed] = useState(soloVentas);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -299,7 +327,7 @@ export function Sidebar({
           {role === "matriz" && collapsed
             ? // Colapsado en escritorio: los encabezados de categoría no caben, así
               // que se muestra una sola columna de iconos con el nombre en el tooltip.
-              MATRIZ_NAV.flatMap((category) => category.items).map((item) => {
+              categoriasVisibles.flatMap((category) => category.items).map((item) => {
                 const active = isNavItemActive(pathname, role, item);
                 const Icon = item.icon;
                 return (
@@ -319,7 +347,7 @@ export function Sidebar({
                 );
               })
             : role === "matriz"
-            ? MATRIZ_NAV.map((category) => {
+            ? categoriasVisibles.map((category) => {
                 const CategoryIcon = category.icon;
                 const hasItems = category.items.length > 0;
                 const isOpen = !!openCategories[category.label];
@@ -371,10 +399,7 @@ export function Sidebar({
                   </div>
                 );
               })
-            : (soloVentas
-                ? SUCURSAL_NAV.filter((item) => SUCURSAL_NAV_SOLO_VENTAS.includes(item.href))
-                : SUCURSAL_NAV
-              ).map((item) => {
+            : itemsSucursalVisibles.map((item) => {
                 const active = isNavItemActive(pathname, role, item);
                 const Icon = item.icon;
                 return (

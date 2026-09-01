@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/db";
 import UserModel from "@/models/User";
 import { SESSION_COOKIE, signSession, verifyPassword } from "@/lib/auth";
 import { badRequest } from "@/lib/apiAuth";
+import { asegurarRolesSemilla, permisosDeUsuario } from "@/lib/roles";
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
@@ -25,6 +26,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Credenciales inválidas" }, { status: 401 });
   }
 
+  // Los roles del sistema se crean solos la primera vez que alguien entra, para
+  // no depender de un script de migración manual.
+  await asegurarRolesSemilla();
+
   const token = await signSession({
     userId: String(user._id),
     email: user.email,
@@ -32,6 +37,7 @@ export async function POST(req: NextRequest) {
     role: user.role as "matriz" | "sucursal",
     sucursalRol: user.role === "sucursal" ? ((user.sucursalRol as "admin" | "ventas") ?? "admin") : null,
     sucursalId: user.sucursalId ? String(user.sucursalId) : null,
+    permisos: await permisosDeUsuario(user),
   });
 
   const res = NextResponse.json({

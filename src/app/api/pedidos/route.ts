@@ -6,7 +6,7 @@ import SolicitudProductoNuevo from "@/models/SolicitudProductoNuevo";
 import "@/models/Sucursal"; // necesario para que populate("sucursalId") funcione
 import "@/models/Empleado"; // necesario para que populate("repartidorId") funcione
 import "@/models/User"; // necesario para que populate("surtidoPorId"/"recibidoPorId") funcione
-import { requireSession, unauthorized, forbidden, badRequest, generateFolio, todayCorte } from "@/lib/apiAuth";
+import { requireSession, unauthorized, forbidden, badRequest, generateFolio, todayCorte, puede, sinPermiso } from "@/lib/apiAuth";
 import { zonaHorariaDeSucursal } from "@/lib/credito";
 
 export async function GET(req: NextRequest) {
@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
+  if (!puede(session, "pedidos.crear")) return sinPermiso("pedidos.crear");
   if (session.role !== "sucursal" || !session.sucursalId) return forbidden();
 
   const body = await req.json().catch(() => null);

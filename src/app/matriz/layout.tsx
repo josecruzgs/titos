@@ -6,6 +6,7 @@ import { connectDB } from "@/lib/db";
 import { obtenerMostradorMatriz } from "@/lib/puntoVenta";
 import { ZonaHorariaProvider } from "@/components/ZonaHorariaProvider";
 import { ZONA_HORARIA_DEFAULT } from "@/lib/zonasHorarias";
+import { permisosDeSesion } from "@/lib/permisos";
 
 export default async function MatrizLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
@@ -19,7 +20,7 @@ export default async function MatrizLayout({ children }: { children: React.React
   return (
     <ZonaHorariaProvider zona={zonaHoraria}>
       <div className="flex min-h-screen flex-col md:flex-row">
-        <Sidebar role="matriz" nombre={session.nombre} />
+        <Sidebar role="matriz" nombre={session.nombre} permisos={permisosDeSesion(session)} />
         <MatrizMain>{children}</MatrizMain>
       </div>
     </ZonaHorariaProvider>

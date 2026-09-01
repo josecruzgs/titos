@@ -3,7 +3,7 @@ import { connectDB } from "@/lib/db";
 import PrestamoSucursal from "@/models/PrestamoSucursal";
 import Producto from "@/models/Producto";
 import Sucursal from "@/models/Sucursal";
-import { requireSession, unauthorized, forbidden, badRequest, generateFolio } from "@/lib/apiAuth";
+import { requireSession, unauthorized, forbidden, badRequest, generateFolio, puede, sinPermiso } from "@/lib/apiAuth";
 
 export async function GET(req: NextRequest) {
   const session = await requireSession(req);
@@ -42,6 +42,7 @@ type ItemSolicitud = { productoId: string; cantidad: number };
 export async function POST(req: NextRequest) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
+  if (!puede(session, "prestamos.operar")) return sinPermiso("prestamos.operar");
   if (session.role !== "sucursal" || !session.sucursalId) return forbidden();
 
   const body = await req.json().catch(() => null);

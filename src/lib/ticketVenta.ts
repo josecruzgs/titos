@@ -20,6 +20,8 @@ export type PagoTicket = {
   montoUsd?: number | null;
   tipoCambio?: number | null;
   terminalAlias?: string;
+  valeEmisorNombre?: string;
+  valeUltimos4?: string;
 };
 
 export type ItemTicket = {
@@ -93,6 +95,13 @@ function detallePago(pago: PagoTicket) {
     // El cambio de un pago en dólares se devuelve en pesos.
     const sobrante = Number((pago.montoUsd * tipoCambio - pago.monto).toFixed(2));
     if (sobrante > 0) lineas.push(fila('<span class="tenue">Cambio en pesos</span>', pesos(sobrante)));
+  }
+
+  if (pago.metodoPago === "vales" && (pago.valeEmisorNombre || pago.valeUltimos4)) {
+    const detalle = [pago.valeEmisorNombre, pago.valeUltimos4 ? `****${pago.valeUltimos4}` : ""]
+      .filter(Boolean)
+      .join(" ");
+    lineas.push(fila(`<span class="tenue">${escaparHTML(detalle)}</span>`, ""));
   }
 
   if (pago.metodoPago === "tarjeta" && pago.terminalAlias) {

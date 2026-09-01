@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, verifySession, type SessionPayload } from "@/lib/auth";
+import { PERMISOS, tienePermiso } from "@/lib/permisos";
 import { fechaEnZona, ZONA_HORARIA_DEFAULT } from "@/lib/zonasHorarias";
 
 export async function requireSession(req: NextRequest): Promise<SessionPayload | null> {
@@ -14,6 +15,23 @@ export function unauthorized() {
 
 export function forbidden() {
   return NextResponse.json({ error: "No tienes permiso para esta acción" }, { status: 403 });
+}
+
+/**
+ * ¿La sesión tiene este permiso? Es la misma función que usan el menú y el
+ * proxy, para que lo que se ve y lo que se puede hacer no se separen.
+ */
+export function puede(session: SessionPayload, permiso: string) {
+  return tienePermiso(session, permiso);
+}
+
+/** 403 con el nombre del permiso que faltó, para que el error sea accionable. */
+export function sinPermiso(permiso: string) {
+  const etiqueta = PERMISOS.find((p) => p.clave === permiso)?.etiqueta;
+  return NextResponse.json(
+    { error: etiqueta ? `Tu rol no incluye el permiso: ${etiqueta}` : "No tienes permiso para esta acción" },
+    { status: 403 }
+  );
 }
 
 export function badRequest(message: string) {

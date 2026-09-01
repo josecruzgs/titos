@@ -7,8 +7,9 @@ import CajaSesion from "@/models/CajaSesion";
 import Cliente from "@/models/Cliente";
 import CuentaPorCobrar from "@/models/CuentaPorCobrar";
 import TerminalPago from "@/models/TerminalPago";
+import EmisorValeModel from "@/models/EmisorVale";
 import "@/models/Sucursal"; // necesario para que populate("sucursalId") funcione
-import { requireSession, unauthorized, forbidden, badRequest, conflict, todayCorte } from "@/lib/apiAuth";
+import { requireSession, unauthorized, forbidden, badRequest, conflict, todayCorte, puede, sinPermiso } from "@/lib/apiAuth";
 import { siguienteFolio } from "@/lib/folios";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { resolverVentas2ParaVenta } from "@/lib/ventas2";
@@ -59,11 +60,15 @@ type PagoVenta = {
   tipoCambio?: number | null;
   terminalId?: string | null;
   terminalAlias?: string;
+  valeEmisorId?: string | null;
+  valeEmisorNombre?: string;
+  valeUltimos4?: string;
 };
 
 export async function POST(req: NextRequest) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
+  if (!puede(session, "pos.vender")) return sinPermiso("pos.vender");
 
   const body = await req.json().catch(() => null);
   const items: ItemVenta[] = body?.items ?? [];
@@ -98,6 +103,11 @@ export async function POST(req: NextRequest) {
     }
     if (p.metodoPago === "tarjeta" && p.terminalId) {
       pago.terminalId = String(p.terminalId);
+    }
+    if (p.metodoPago === "vales") {
+      if (p.valeEmisorId) pago.valeEmisorId = String(p.valeEmisorId);
+      // Solo los últimos 4 dígitos: el número completo nunca se guarda.
+      if (p.valeUltimos4) pago.valeUltimos4 = String(p.valeUltimos4).replace(/\D/g, "").slice(-4);
     }
     pagos.push(pago);
   }
@@ -175,6 +185,17 @@ export async function POST(req: NextRequest) {
       // todavía no lo hacen siguen pudiendo cobrar con tarjeta sin trabarse.
       return badRequest("Indica con cuál terminal se cobró");
     }
+  }
+
+  // --- Emisor del vale de despensa ---
+  // El nombre se sella en la venta para que el corte lo pueda desglosar aunque
+  // después le cambien el nombre al emisor.
+  const pagoVales = pagos.find((p) => p.metodoPago === "vales");
+  if (pagoVales?.valeEmisorId) {
+    const emisor = await EmisorValeModel.findById(pagoVales.valeEmisorId).select("nombre activo").lean();
+    if (!emisor) return badRequest("El emisor de vales seleccionado no existe");
+    if (!emisor.activo) return badRequest("Ese emisor de vales está desactivado");
+    pagoVales.valeEmisorNombre = emisor.nombre;
   }
 
   // El cliente es opcional en una venta de contado, pero obligatorio (y validado

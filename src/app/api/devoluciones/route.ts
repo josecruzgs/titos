@@ -6,7 +6,7 @@ import CajaSesion from "@/models/CajaSesion";
 import MovimientoInventario from "@/models/MovimientoInventario";
 import "@/models/User"; // necesario para que populate("usuarioId"/"pagadaPorId") funcione
 import CuentaPorCobrar from "@/models/CuentaPorCobrar";
-import { requireSession, unauthorized, forbidden, badRequest, conflict, generateFolio, todayCorte } from "@/lib/apiAuth";
+import { requireSession, unauthorized, forbidden, badRequest, conflict, generateFolio, todayCorte, puede, sinPermiso } from "@/lib/apiAuth";
 import { zonaHorariaDeSucursal } from "@/lib/credito";
 import { calcularDevolvible, dentroDeVentana, HORAS_LIMITE_DEVOLUCION } from "@/lib/devoluciones";
 import { EPSILON, recalcularSaldoCliente, redondear } from "@/lib/credito";
@@ -46,6 +46,7 @@ type ItemDevolucion = { productoId: string; cantidad: number };
 export async function POST(req: NextRequest) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
+  if (!puede(session, "devoluciones.registrar")) return sinPermiso("devoluciones.registrar");
   const body = await req.json().catch(() => null);
   const ventaId = String(body?.ventaId ?? "");
   const itemsBody: ItemDevolucion[] = body?.items ?? [];

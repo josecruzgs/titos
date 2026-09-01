@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import Devolucion from "@/models/Devolucion";
 import CajaSesion from "@/models/CajaSesion";
-import { requireSession, unauthorized, forbidden, badRequest, notFound, todayCorte } from "@/lib/apiAuth";
+import { requireSession, unauthorized, forbidden, badRequest, notFound, todayCorte, puede, sinPermiso } from "@/lib/apiAuth";
 import { zonaHorariaDeSucursal } from "@/lib/credito";
 import { contextoPuntoVenta } from "@/lib/puntoVenta";
 
@@ -10,6 +10,7 @@ import { contextoPuntoVenta } from "@/lib/puntoVenta";
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
+  if (!puede(session, "devoluciones.registrar")) return sinPermiso("devoluciones.registrar");
   const { id } = await params;
   await connectDB();
 

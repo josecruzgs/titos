@@ -3,9 +3,12 @@ import { connectDB } from "@/lib/db";
 import UserModel from "@/models/User";
 import { requireSession, unauthorized, forbidden, badRequest, conflict } from "@/lib/apiAuth";
 import { hashPassword, type SessionPayload } from "@/lib/auth";
+import { tienePermiso } from "@/lib/permisos";
 
+// Autoservicio de la sucursal: administra solo a los suyos. La administración
+// global de usuarios vive en /matriz/usuarios.
 function puedeAdministrar(session: SessionPayload) {
-  return session.role === "sucursal" && !!session.sucursalId && session.sucursalRol !== "ventas";
+  return session.role === "sucursal" && !!session.sucursalId && tienePermiso(session, "sucursal.usuarios");
 }
 
 export async function GET(req: NextRequest) {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { DIAS_SEMANA } from "@/lib/dias";
-import { requireSession, unauthorized, forbidden, badRequest } from "@/lib/apiAuth";
+import { requireSession, unauthorized, forbidden, badRequest, puede, sinPermiso } from "@/lib/apiAuth";
 import { hashPassword } from "@/lib/auth";
 import { NIP_SUPERVISOR_REGEX, obtenerConfiguracion } from "@/lib/configuracion";
 
@@ -36,6 +36,7 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
+  if (!puede(session, "configuracion.editar")) return sinPermiso("configuracion.editar");
   if (session.role !== "matriz") return forbidden();
 
   const body = await req.json().catch(() => null);

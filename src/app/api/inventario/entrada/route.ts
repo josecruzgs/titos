@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import Producto from "@/models/Producto";
 import MovimientoInventario from "@/models/MovimientoInventario";
-import { requireSession, unauthorized, forbidden, badRequest, notFound } from "@/lib/apiAuth";
+import { requireSession, unauthorized, forbidden, badRequest, notFound, puede, sinPermiso } from "@/lib/apiAuth";
 
 export async function POST(req: NextRequest) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
+  if (!puede(session, "inventario.administrar")) return sinPermiso("inventario.administrar");
   if (session.role !== "matriz") return forbidden();
 
   const body = await req.json().catch(() => null);

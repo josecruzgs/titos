@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth";
+import { permisoDeRuta, tienePermiso } from "@/lib/permisos";
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -28,9 +29,16 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL("/matriz", req.url));
   }
 
-  // El rol "ventas" solo tiene acceso al punto de venta
-  if (isSucursalRoute && session.sucursalRol === "ventas" && pathname !== "/sucursal") {
-    return NextResponse.redirect(new URL("/sucursal", req.url));
+  // Bloqueo por permiso: aunque alguien escriba la URL a mano, si su rol no lo
+  // incluye regresa a su inicio. El menú ya oculta estas rutas, pero ocultar no
+  // es proteger.
+  //
+  // Los tokens emitidos antes de que existieran los roles no traen permisos;
+  // `tienePermiso` los deduce del perfil viejo, así que una sesión abierta al
+  // momento del despliegue sigue funcionando igual hasta que expire.
+  const permiso = permisoDeRuta(pathname);
+  if (permiso && !tienePermiso(session, permiso)) {
+    return NextResponse.redirect(new URL(session.role === "matriz" ? "/matriz" : "/sucursal", req.url));
   }
 
   return NextResponse.next();

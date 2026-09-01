@@ -245,7 +245,7 @@ export function ConfiguracionManager() {
     setMensajeAlertas("Alertas guardadas.");
   }
 
-  /** Dispara el mismo barrido que corre cada hora, para poder probarlo. */
+  /** Dispara el mismo barrido que corre en automático, para poder probarlo. */
   async function revisarAhora() {
     setRevisando(true);
     setMensajeAlertas(null);
@@ -477,10 +477,10 @@ export function ConfiguracionManager() {
           Alertas de pedidos atrasados
         </h2>
         <p className="mb-4 text-sm text-black/50">
-          Cada hora el sistema revisa los pedidos que se quedaron atorados y manda un WhatsApp. Los de{" "}
+          El sistema revisa periódicamente los pedidos que se quedaron atorados y manda un WhatsApp. Los de{" "}
           <strong>surtido atrasado</strong> van a los números de aquí abajo; los de <strong>recepción atrasada</strong>{" "}
           van al WhatsApp de la sucursal que no ha confirmado su mercancía. De cada pedido se avisa una sola vez, para
-          no repetir el mismo mensaje cada hora.
+          no repetir el mismo mensaje en cada revisión.
         </p>
 
         <label className="mb-3 flex items-center gap-2 text-sm text-black/70">

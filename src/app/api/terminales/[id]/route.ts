@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import TerminalPago from "@/models/TerminalPago";
 import Venta from "@/models/Venta";
-import { requireSession, unauthorized, forbidden, notFound, conflict, badRequest } from "@/lib/apiAuth";
+import { requireSession, unauthorized, forbidden, notFound, conflict, badRequest, puede, sinPermiso } from "@/lib/apiAuth";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
+  if (!puede(session, "catalogos.administrar")) return sinPermiso("catalogos.administrar");
   if (session.role !== "matriz") return forbidden();
 
   const { id } = await params;
@@ -37,6 +38,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
+  if (!puede(session, "catalogos.administrar")) return sinPermiso("catalogos.administrar");
   if (session.role !== "matriz") return forbidden();
 
   const { id } = await params;

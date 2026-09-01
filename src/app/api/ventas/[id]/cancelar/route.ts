@@ -4,7 +4,7 @@ import Venta from "@/models/Venta";
 import MovimientoInventario from "@/models/MovimientoInventario";
 import CuentaPorCobrar from "@/models/CuentaPorCobrar";
 import Factura from "@/models/Factura";
-import { requireSession, unauthorized, forbidden, badRequest, notFound, conflict } from "@/lib/apiAuth";
+import { requireSession, unauthorized, forbidden, badRequest, notFound, conflict, puede, sinPermiso } from "@/lib/apiAuth";
 import { EPSILON, recalcularSaldoCliente } from "@/lib/credito";
 import { ajustarStockPuntoVenta, contextoPuntoVenta, ubicacionDeMovimiento } from "@/lib/puntoVenta";
 import { verificarNipSupervisor } from "@/lib/configuracion";
@@ -13,6 +13,7 @@ import { registrarCancelacion } from "@/lib/cancelaciones";
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireSession(req);
   if (!session) return unauthorized();
+  if (!puede(session, "pos.cancelar")) return sinPermiso("pos.cancelar");
 
   // Cancelar una venta cobrada devuelve stock y dinero, por eso la autoriza un
   // supervisor con su NIP y queda en la bitácora de cancelaciones.
