@@ -50,7 +50,16 @@ export async function POST(req: NextRequest) {
   if (!MONEDAS_CAJA.includes(moneda as (typeof MONEDAS_CAJA)[number])) return badRequest("Moneda inválida");
   if (!password) return badRequest("Confirma tu clave de acceso para autorizar el retiro");
 
+  const clienteOperacionId = body?.clienteOperacionId ? String(body.clienteOperacionId) : null;
+
   await connectDB();
+
+  // Reintento de un retiro que ya se había registrado: se devuelve el mismo
+  // folio en lugar de sacar el dinero del cajón dos veces.
+  if (clienteOperacionId) {
+    const yaRegistrado = await MovimientoCaja.findOne({ clienteOperacionId });
+    if (yaRegistrado) return NextResponse.json(yaRegistrado);
+  }
 
   const ctx = await contextoPuntoVenta(session);
   if (!ctx) return forbidden();
@@ -78,19 +87,28 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const movimiento = await MovimientoCaja.create({
-    folio: generateFolio("RET"),
-    cajaSesionId: sesion._id,
-    sucursalId: ctx.sucursalId,
-    tipo: "retiro",
-    moneda,
-    monto,
-    motivo,
-    usuarioId: session.userId,
-    usuarioNombre: usuario.nombre,
-    fecha: new Date(),
-    corte: todayCorte(await zonaHorariaDeSucursal(ctx.sucursalId)),
-  });
-
-  return NextResponse.json(movimiento, { status: 201 });
+  try {
+    const movimiento = await MovimientoCaja.create({
+      folio: generateFolio("RET"),
+      ...(clienteOperacionId ? { clienteOperacionId } : {}),
+      cajaSesionId: sesion._id,
+      sucursalId: ctx.sucursalId,
+      tipo: "retiro",
+      moneda,
+      monto,
+      motivo,
+      usuarioId: session.userId,
+      usuarioNombre: usuario.nombre,
+      fecha: new Date(),
+      corte: todayCorte(await zonaHorariaDeSucursal(ctx.sucursalId)),
+    });
+    return NextResponse.json(movimiento, { status: 201 });
+  } catch (err) {
+    const codigo = (err as { code?: number }).code;
+    if (codigo === 11000 && clienteOperacionId) {
+      const ganador = await MovimientoCaja.findOne({ clienteOperacionId });
+      if (ganador) return NextResponse.json(ganador);
+    }
+    throw err;
+  }
 }

@@ -54,7 +54,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const todosSurtidos = pedido.items.every(
     (i: PedidoItemDoc) => i.cantidadSurtida !== null && i.cantidadSurtida !== undefined
   );
-  if (todosSurtidos) pedido.estado = "surtido";
+  if (todosSurtidos) {
+    pedido.estado = "surtido";
+    // Se sella al quedar completo: es el momento desde el que corre el plazo de
+    // recepción y lo que la bitácora reporta como "quién surtió".
+    pedido.surtidoEn = new Date();
+    pedido.surtidoPorId = session.userId;
+  }
 
   await pedido.save();
 

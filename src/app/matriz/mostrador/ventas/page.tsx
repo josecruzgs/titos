@@ -43,7 +43,7 @@ export default async function VentasMostradorPage() {
           <EmptyState message="Todavía no se han registrado ventas en el mostrador." />
         </Card>
       ) : (
-        <VentasHistorial ventas={JSON.parse(JSON.stringify(ventas))} />
+        <VentasHistorial ventas={JSON.parse(JSON.stringify(ventas))} sucursalNombre={mostrador.nombre} />
       )}
     </div>
   );

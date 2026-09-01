@@ -3,6 +3,12 @@ import MovimientoCaja from "@/models/MovimientoCaja";
 import AbonoCliente from "@/models/AbonoCliente";
 import Devolucion from "@/models/Devolucion";
 
+function redondear(valor: number) {
+  return Number(valor.toFixed(2));
+}
+
+export type TarjetaPorTerminal = { terminalId: string | null; alias: string; monto: number };
+
 export async function calcularResumenSesion(cajaSesionId: string) {
   const ventas = await Venta.find({ cajaSesionId, estado: "completada", esVentas2: { $ne: true } }).select("pagos").lean();
 
@@ -14,15 +20,46 @@ export async function calcularResumenSesion(cajaSesionId: string) {
   let totalVentasVales = 0;
   // El crédito no es dinero en caja: se reporta aparte para cuadrar el corte.
   let totalVentasCredito = 0;
+  // Dólares en billete recibidos por ventas, su valor en pesos, y el cambio que
+  // se devolvió en pesos por esos mismos cobros (sale del cajón de pesos).
+  let totalVentasDolaresUsd = 0;
+  let totalVentasDolaresMxn = 0;
+  let totalCambioDolaresMxn = 0;
+
+  const porTerminal = new Map<string, TarjetaPorTerminal>();
+
   for (const v of ventas) {
     for (const pago of v.pagos) {
       if (pago.metodoPago === "efectivo") totalVentasEfectivo += pago.monto;
-      else if (pago.metodoPago === "tarjeta") totalVentasTarjeta += pago.monto;
       else if (pago.metodoPago === "transferencia") totalVentasTransferencia += pago.monto;
       else if (pago.metodoPago === "vales") totalVentasVales += pago.monto;
       else if (pago.metodoPago === "credito") totalVentasCredito += pago.monto;
+      else if (pago.metodoPago === "tarjeta") {
+        totalVentasTarjeta += pago.monto;
+        // Las ventas anteriores a que existieran las terminales no traen cuál se
+        // usó; se agrupan bajo una entrada sin identificar en vez de perderse.
+        const clave = pago.terminalId ? String(pago.terminalId) : "";
+        const actual = porTerminal.get(clave) ?? {
+          terminalId: pago.terminalId ? String(pago.terminalId) : null,
+          alias: pago.terminalAlias || "Sin terminal registrada",
+          monto: 0,
+        };
+        actual.monto += pago.monto;
+        porTerminal.set(clave, actual);
+      } else if (pago.metodoPago === "efectivo_usd") {
+        const montoUsd = pago.montoUsd ?? 0;
+        const tipoCambio = pago.tipoCambio ?? 0;
+        totalVentasDolaresUsd += montoUsd;
+        totalVentasDolaresMxn += pago.monto;
+        // Lo que el cliente entregó de más, devuelto en pesos.
+        totalCambioDolaresMxn += Math.max(0, montoUsd * tipoCambio - pago.monto);
+      }
     }
   }
+
+  const tarjetaPorTerminal = [...porTerminal.values()]
+    .map((t) => ({ ...t, monto: redondear(t.monto) }))
+    .sort((a, b) => b.monto - a.monto);
 
   // Los abonos de clientes sí son cobranza del turno: el efectivo entra al cajón.
   const abonos = await AbonoCliente.find({ cajaSesionId }).select("monto metodoPago").lean();
@@ -56,6 +93,10 @@ export async function calcularResumenSesion(cajaSesionId: string) {
     totalVentasTransferencia,
     totalVentasVales,
     totalVentasCredito,
+    totalVentasDolaresUsd: redondear(totalVentasDolaresUsd),
+    totalVentasDolaresMxn: redondear(totalVentasDolaresMxn),
+    totalCambioDolaresMxn: redondear(totalCambioDolaresMxn),
+    tarjetaPorTerminal,
     totalAbonosEfectivo,
     totalAbonosOtros,
     totalDevoluciones,
@@ -66,26 +107,34 @@ export async function calcularResumenSesion(cajaSesionId: string) {
 
 export type ResumenSesion = Awaited<ReturnType<typeof calcularResumenSesion>>;
 
-/** Efectivo en pesos que debe haber al cerrar: fondo + ventas + cobranza − devoluciones − retiros. */
+/**
+ * Efectivo en pesos que debe haber al cerrar: fondo + ventas + cobranza
+ * − devoluciones − retiros − el cambio que se dio por los pagos en dólares.
+ *
+ * El cambio de un pago en dólares sale del cajón de pesos aunque la venta se
+ * haya cobrado en billete verde; si no se resta, el corte marca un faltante.
+ */
 export function calcularEfectivoEsperado(
   efectivoInicial: number,
-  resumen: Pick<ResumenSesion, "totalVentasEfectivo" | "totalAbonosEfectivo" | "totalDevoluciones" | "totalRetiros">
+  resumen: Pick<
+    ResumenSesion,
+    "totalVentasEfectivo" | "totalAbonosEfectivo" | "totalDevoluciones" | "totalRetiros" | "totalCambioDolaresMxn"
+  >
 ) {
-  return Number(
-    (
-      efectivoInicial +
+  return redondear(
+    efectivoInicial +
       resumen.totalVentasEfectivo +
       resumen.totalAbonosEfectivo -
       resumen.totalDevoluciones -
-      resumen.totalRetiros
-    ).toFixed(2)
+      resumen.totalRetiros -
+      (resumen.totalCambioDolaresMxn ?? 0)
   );
 }
 
-/** Dólares que deben quedar: el cajón de USD solo se mueve por retiros. */
+/** Dólares que deben quedar: fondo + billetes recibidos en ventas − retiros en USD. */
 export function calcularEfectivoEsperadoUsd(
   efectivoInicialUsd: number,
-  resumen: Pick<ResumenSesion, "totalRetirosUsd">
+  resumen: Pick<ResumenSesion, "totalRetirosUsd" | "totalVentasDolaresUsd">
 ) {
-  return Number((efectivoInicialUsd - resumen.totalRetirosUsd).toFixed(2));
+  return redondear(efectivoInicialUsd + (resumen.totalVentasDolaresUsd ?? 0) - resumen.totalRetirosUsd);
 }

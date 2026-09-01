@@ -34,6 +34,9 @@ export const CLAVE_UNIDAD: Record<string, string> = { pieza: "H87", kg: "KGM" };
 
 const FORMA_PAGO_POR_METODO: Record<string, string> = {
   efectivo: "01",
+  // Los dólares en billete también son efectivo para el SAT; el CFDI se timbra
+  // en pesos con el importe ya convertido.
+  efectivo_usd: "01",
   transferencia: "03",
   tarjeta: "04",
   vales: "08",

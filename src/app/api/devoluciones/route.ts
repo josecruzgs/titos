@@ -4,6 +4,7 @@ import Devolucion from "@/models/Devolucion";
 import Venta from "@/models/Venta";
 import CajaSesion from "@/models/CajaSesion";
 import MovimientoInventario from "@/models/MovimientoInventario";
+import "@/models/User"; // necesario para que populate("usuarioId"/"pagadaPorId") funcione
 import CuentaPorCobrar from "@/models/CuentaPorCobrar";
 import { requireSession, unauthorized, forbidden, badRequest, conflict, generateFolio, todayCorte } from "@/lib/apiAuth";
 import { zonaHorariaDeSucursal } from "@/lib/credito";
@@ -31,7 +32,12 @@ export async function GET(req: NextRequest) {
   const estado = url.searchParams.get("estado");
   if (estado) filtro.estado = estado;
 
-  const devoluciones = await Devolucion.find(filtro).sort({ fecha: -1 }).limit(200).lean();
+  const devoluciones = await Devolucion.find(filtro)
+    .sort({ fecha: -1 })
+    .limit(200)
+    .populate("usuarioId", "nombre")
+    .populate("pagadaPorId", "nombre")
+    .lean();
   return NextResponse.json(devoluciones);
 }
 

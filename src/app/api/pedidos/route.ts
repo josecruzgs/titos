@@ -5,6 +5,7 @@ import Producto from "@/models/Producto";
 import SolicitudProductoNuevo from "@/models/SolicitudProductoNuevo";
 import "@/models/Sucursal"; // necesario para que populate("sucursalId") funcione
 import "@/models/Empleado"; // necesario para que populate("repartidorId") funcione
+import "@/models/User"; // necesario para que populate("surtidoPorId"/"recibidoPorId") funcione
 import { requireSession, unauthorized, forbidden, badRequest, generateFolio, todayCorte } from "@/lib/apiAuth";
 import { zonaHorariaDeSucursal } from "@/lib/credito";
 
@@ -29,6 +30,8 @@ export async function GET(req: NextRequest) {
     .sort({ createdAt: -1 })
     .populate("sucursalId", "nombre whatsapp")
     .populate("repartidorId", "nombre whatsapp puesto")
+    .populate("surtidoPorId", "nombre")
+    .populate("recibidoPorId", "nombre")
     .lean();
   return NextResponse.json(pedidos);
 }

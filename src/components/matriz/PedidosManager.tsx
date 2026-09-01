@@ -6,7 +6,8 @@ import { Check } from "lucide-react";
 import { Button, Card, EstadoBadge, EmptyState, Input, Select, Modal, formatMoney } from "@/components/ui";
 import { EnviarWhatsAppControl } from "@/components/EnviarWhatsAppControl";
 import { imprimirHTML } from "@/lib/print";
-import { fechaEnZona, sumarDias, ZONA_HORARIA_DEFAULT } from "@/lib/zonasHorarias";
+import { fechaEnZona, formatFechaHora, sumarDias, ZONA_HORARIA_DEFAULT } from "@/lib/zonasHorarias";
+import { useZonaHoraria } from "@/components/ZonaHorariaProvider";
 import { categoriaLabel } from "@/lib/categorias";
 import { montoLineaPedido } from "@/lib/montoPedido";
 
@@ -43,10 +44,19 @@ type Pedido = {
   repartidorId: { _id: string; nombre: string; whatsapp?: string } | string | null;
   items: Item[];
   cajas: Caja[];
+  surtidoEn?: string | null;
+  surtidoPorId?: { _id: string; nombre: string } | string | null;
+  recibidoEn?: string | null;
+  recibidoPorId?: { _id: string; nombre: string } | string | null;
 };
 
 function repartidorDe(pedido: Pedido) {
   return pedido.repartidorId && typeof pedido.repartidorId !== "string" ? pedido.repartidorId : null;
+}
+
+/** Viene poblado con el nombre; si quedó como string, el usuario ya no existe. */
+function nombreUsuario(valor: Pedido["surtidoPorId"]) {
+  return valor && typeof valor !== "string" ? valor.nombre : null;
 }
 
 const TABS = [
@@ -298,6 +308,7 @@ function PedidoModal({
   onClose: () => void;
   onRefrescar: () => void;
 }) {
+  const zonaHoraria = useZonaHoraria();
   const [pedido, setPedido] = useState(pedidoInicial);
   const editable = pedido.estado === "nivelado";
 
@@ -406,6 +417,25 @@ function PedidoModal({
           </span>
         ) : null}
       </div>
+
+      {/* Trazabilidad del pedido: quién lo surtió y quién confirmó que llegó.
+          Es lo mismo que reporta la bitácora, a la mano de quien abre el pedido. */}
+      {pedido.surtidoEn || pedido.recibidoEn ? (
+        <div className="mb-3 space-y-0.5 rounded-lg bg-black/3 px-3 py-2 text-xs text-black/60">
+          {pedido.surtidoEn ? (
+            <p>
+              Surtió <strong>{nombreUsuario(pedido.surtidoPorId) ?? "—"}</strong> el{" "}
+              {formatFechaHora(pedido.surtidoEn, zonaHoraria)}
+            </p>
+          ) : null}
+          {pedido.recibidoEn ? (
+            <p>
+              Recibió <strong>{nombreUsuario(pedido.recibidoPorId) ?? "—"}</strong> el{" "}
+              {formatFechaHora(pedido.recibidoEn, zonaHoraria)}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       {pedido.estado !== "pendiente" ? (
         <div className="mb-3 flex flex-wrap items-center gap-2">

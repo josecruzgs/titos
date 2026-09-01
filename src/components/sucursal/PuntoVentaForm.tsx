@@ -19,12 +19,15 @@ import {
   TriangleAlert,
   Clock,
   ShieldAlert,
+  Printer,
+  Coins,
 } from "lucide-react";
 import { Button, Card, Input, Select, Modal, FormField, formatMoney } from "@/components/ui";
 import { ProductoCombobox } from "@/components/ProductoCombobox";
 import { MotivoPosSelector } from "@/components/MotivoPosSelector";
 import { estadoCredito, formatFecha, type ClienteConCredito } from "@/lib/creditoCliente";
 import { imprimirHTML } from "@/lib/print";
+import { imprimirTicketVenta } from "@/lib/ticketVenta";
 import { useZonaHoraria } from "@/components/ZonaHorariaProvider";
 import { RelojZona } from "@/components/RelojZona";
 import { formatFechaHora, formatHora, formatFechaLarga } from "@/lib/zonasHorarias";
@@ -41,6 +44,7 @@ import {
   generarIdLocal,
   generarFolioLocal,
   type VentaPayload,
+  type PagoPayload,
 } from "@/lib/offlinePos";
 
 type Producto = {
@@ -62,22 +66,65 @@ type LineaVenta = {
   cantidad: string;
 };
 
-type MetodoPago = "efectivo" | "tarjeta" | "transferencia" | "vales" | "credito";
+type MetodoPago = "efectivo" | "efectivo_usd" | "tarjeta" | "transferencia" | "vales" | "credito";
 
 const ETIQUETAS_METODO: Record<MetodoPago, string> = {
   efectivo: "Efectivo",
+  efectivo_usd: "Efectivo en dólares",
   tarjeta: "Tarjeta",
   transferencia: "Transferencia",
   vales: "Vales de despensa",
   credito: "Crédito del cliente",
 };
 
+/** Botones de cobro de un solo toque, en el orden en que se usan en el mostrador. */
+const METODOS_RAPIDOS: { metodo: MetodoPago; etiqueta: string }[] = [
+  { metodo: "efectivo", etiqueta: "Efectivo" },
+  { metodo: "tarjeta", etiqueta: "Tarjeta" },
+  { metodo: "efectivo_usd", etiqueta: "Dólares" },
+  { metodo: "transferencia", etiqueta: "Transferencia" },
+  { metodo: "vales", etiqueta: "Vales" },
+  { metodo: "credito", etiqueta: "Crédito" },
+];
+
+type TerminalPos = { _id: string; alias: string; banco?: string; marca?: string };
+
+type ReglasDolares = { aceptaPagos: boolean; denominacionMaxima: number };
+
 const TIPO_CAMBIO_CACHE_KEY = "titos-pos-tipo-cambio";
+const TERMINALES_CACHE_KEY = "titos-pos-terminales";
+const REGLAS_DOLARES_CACHE_KEY = "titos-pos-reglas-dolares";
+
+/** Lee un valor cacheado del punto de venta; sirve para arrancar sin conexión. */
+function leerCacheJson<T>(clave: string, fallback: T): T {
+  try {
+    const crudo = localStorage.getItem(clave);
+    return crudo ? (JSON.parse(crudo) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function guardarCacheJson(clave: string, valor: unknown) {
+  try {
+    localStorage.setItem(clave, JSON.stringify(valor));
+  } catch {
+    // almacenamiento lleno o bloqueado: el punto de venta sigue funcionando
+  }
+}
 
 type VentaItemResp = { nombreProducto: string; cantidad: number; unidad: string; precioUnitario: number; subtotal: number };
-type PagoResp = { metodoPago: MetodoPago; monto: number };
+type PagoResp = {
+  metodoPago: MetodoPago;
+  monto: number;
+  montoUsd?: number | null;
+  tipoCambio?: number | null;
+  terminalId?: string | null;
+  terminalAlias?: string;
+};
 type VentaResp = {
   folio: string;
+  fecha?: string;
   items: VentaItemResp[];
   total: number;
   pagos: PagoResp[];
@@ -136,6 +183,10 @@ type ResumenCaja = {
   totalVentasTransferencia: number;
   totalVentasVales: number;
   totalVentasCredito: number;
+  totalVentasDolaresUsd: number;
+  totalVentasDolaresMxn: number;
+  totalCambioDolaresMxn: number;
+  tarjetaPorTerminal: { terminalId: string | null; alias: string; monto: number }[];
   totalAbonosEfectivo: number;
   totalDevoluciones: number;
   totalRetiros: number;
@@ -168,6 +219,17 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
   const [montoVales, setMontoVales] = useState("");
   const [montoCredito, setMontoCredito] = useState("");
   const [efectivoRecibido, setEfectivoRecibido] = useState("");
+  // Dólares en billete que entrega el cliente. Se capturan igual en el cobro
+  // rápido y en el mixto: lo que cambia es cuánto del total alcanzan a cubrir.
+  const [dolaresRecibidos, setDolaresRecibidos] = useState("");
+  // Cobro rápido (un solo método cubre el total) vs. pago mixto (se reparte a
+  // mano entre varias formas). El mixto es la excepción, así que no es el modo
+  // por omisión: antes obligaba a teclear el monto aunque solo hubiera uno.
+  const [modoMixto, setModoMixto] = useState(false);
+  const [metodoRapido, setMetodoRapido] = useState<MetodoPago>("efectivo");
+  const [terminales, setTerminales] = useState<TerminalPos[]>([]);
+  const [terminalId, setTerminalId] = useState("");
+  const [reglasDolares, setReglasDolares] = useState<ReglasDolares>({ aceptaPagos: true, denominacionMaxima: 0 });
   const [clientes, setClientes] = useState<ClienteConCredito[]>([]);
   const [clienteId, setClienteId] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -340,19 +402,38 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
 
     fetch("/api/configuracion")
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("http-error"))))
-      .then((data: { tipoCambio?: number; nipSupervisorConfigurado?: boolean }) => {
+      .then((data: { tipoCambio?: number; dolares?: ReglasDolares; nipSupervisorConfigurado?: boolean }) => {
         const valor = Number(data.tipoCambio) || 0;
+        const reglas: ReglasDolares = {
+          aceptaPagos: data.dolares?.aceptaPagos !== false,
+          denominacionMaxima: Number(data.dolares?.denominacionMaxima) || 0,
+        };
         setTipoCambio(valor);
+        setReglasDolares(reglas);
         setNipConfigurado(!!data.nipSupervisorConfigurado);
         try {
           localStorage.setItem(TIPO_CAMBIO_CACHE_KEY, String(valor));
         } catch {}
+        guardarCacheJson(REGLAS_DOLARES_CACHE_KEY, reglas);
       })
       .catch(() => {
         try {
           setTipoCambio(Number(localStorage.getItem(TIPO_CAMBIO_CACHE_KEY)) || 0);
         } catch {}
+        setReglasDolares(
+          leerCacheJson<ReglasDolares>(REGLAS_DOLARES_CACHE_KEY, { aceptaPagos: true, denominacionMaxima: 0 })
+        );
       });
+
+    // Terminales de la tienda: se cachean para que un cobro con tarjeta también
+    // se pueda capturar sin conexión y sincronizarse después.
+    fetch("/api/terminales?puntoVenta=1")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("http-error"))))
+      .then((data: TerminalPos[]) => {
+        setTerminales(data);
+        guardarCacheJson(TERMINALES_CACHE_KEY, data);
+      })
+      .catch(() => setTerminales(leerCacheJson<TerminalPos[]>(TERMINALES_CACHE_KEY, [])));
 
     fetch("/api/caja/actual")
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("http-error"))))
@@ -426,15 +507,92 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
 
   const totalDolares = tipoCambio > 0 ? total / tipoCambio : null;
 
-  const nEfectivo = Number(montoEfectivo) || 0;
-  const nTarjeta = Number(montoTarjeta) || 0;
-  const nTransferencia = Number(montoTransferencia) || 0;
-  const nVales = Number(montoVales) || 0;
-  const nCredito = Number(montoCredito) || 0;
-  const sumaPagos = nEfectivo + nTarjeta + nTransferencia + nVales + nCredito;
+  // Montos tecleados en el panel de pago mixto (solo se usan en ese modo).
+  const mEfectivo = Number(montoEfectivo) || 0;
+  const mTarjeta = Number(montoTarjeta) || 0;
+  const mTransferencia = Number(montoTransferencia) || 0;
+  const mVales = Number(montoVales) || 0;
+  const mCredito = Number(montoCredito) || 0;
+
+  const nDolaresUsd = Number(dolaresRecibidos) || 0;
+  const valorDolaresMxn = Number((nDolaresUsd * tipoCambio).toFixed(2));
+
+  /**
+   * Formas de pago con las que se va a registrar la venta.
+   *
+   * En el cobro rápido un solo método cubre el total y no hay nada que teclear;
+   * en el mixto se arma con lo capturado en cada renglón. Se calcula, no se
+   * guarda en estado: así el monto nunca se queda desfasado del carrito.
+   */
+  const pagosVenta = useMemo<PagoResp[]>(() => {
+    if (total <= 0) return [];
+
+    if (!modoMixto) {
+      if (metodoRapido === "efectivo_usd") {
+        return nDolaresUsd > 0 ? [{ metodoPago: "efectivo_usd", monto: total, montoUsd: nDolaresUsd }] : [];
+      }
+      if (metodoRapido === "tarjeta") {
+        return [{ metodoPago: "tarjeta", monto: total, terminalId: terminalId || null }];
+      }
+      return [{ metodoPago: metodoRapido, monto: total }];
+    }
+
+    const enPesos = mEfectivo + mTarjeta + mTransferencia + mVales + mCredito;
+    // Los dólares cubren lo que quede después de lo tecleado; si alcanzan para
+    // más, el sobrante se devuelve en pesos como con cualquier billete grande.
+    const aplicadoUsd = Math.min(valorDolaresMxn, Math.max(0, Number((total - enPesos).toFixed(2))));
+
+    return [
+      ...(mEfectivo > 0 ? [{ metodoPago: "efectivo" as const, monto: mEfectivo }] : []),
+      ...(aplicadoUsd > 0
+        ? [{ metodoPago: "efectivo_usd" as const, monto: aplicadoUsd, montoUsd: nDolaresUsd }]
+        : []),
+      ...(mTarjeta > 0
+        ? [{ metodoPago: "tarjeta" as const, monto: mTarjeta, terminalId: terminalId || null }]
+        : []),
+      ...(mTransferencia > 0 ? [{ metodoPago: "transferencia" as const, monto: mTransferencia }] : []),
+      ...(mVales > 0 ? [{ metodoPago: "vales" as const, monto: mVales }] : []),
+      ...(mCredito > 0 ? [{ metodoPago: "credito" as const, monto: mCredito }] : []),
+    ];
+  }, [
+    total,
+    modoMixto,
+    metodoRapido,
+    terminalId,
+    nDolaresUsd,
+    valorDolaresMxn,
+    mEfectivo,
+    mTarjeta,
+    mTransferencia,
+    mVales,
+    mCredito,
+  ]);
+
+  const montoDe = (metodo: MetodoPago) => pagosVenta.find((p) => p.metodoPago === metodo)?.monto ?? 0;
+
+  const nEfectivo = montoDe("efectivo");
+  const nTarjeta = montoDe("tarjeta");
+  const nDolaresMxn = montoDe("efectivo_usd");
+  const nCredito = montoDe("credito");
+
+  const sumaPagos = Number(pagosVenta.reduce((sum, p) => sum + p.monto, 0).toFixed(2));
   const restante = Number((total - sumaPagos).toFixed(2));
 
-  const cambio = nEfectivo > 0 ? (Number(efectivoRecibido) || 0) - nEfectivo : null;
+  // En el cobro rápido en efectivo, dejar el campo vacío significa "pagó justo":
+  // es el caso más común del mostrador y antes obligaba a teclear el total dos
+  // veces (una en la forma de pago y otra en el efectivo recibido).
+  const cobroRapidoEfectivo = !modoMixto && metodoRapido === "efectivo";
+  const efectivoRecibidoNum =
+    cobroRapidoEfectivo && efectivoRecibido === "" ? nEfectivo : Number(efectivoRecibido) || 0;
+
+  // El cambio de un pago en dólares se devuelve en pesos, así que se suma al del
+  // efectivo para que el cajero vea un solo número.
+  const cambioEfectivo = nEfectivo > 0 ? Number((efectivoRecibidoNum - nEfectivo).toFixed(2)) : null;
+  const cambioDolares = nDolaresMxn > 0 ? Number((valorDolaresMxn - nDolaresMxn).toFixed(2)) : 0;
+  const cambio =
+    cambioEfectivo != null || cambioDolares > 0
+      ? Number(((cambioEfectivo ?? 0) + cambioDolares).toFixed(2))
+      : null;
 
   const carritoValido = carrito.length > 0 && carrito.every((l) => Number(l.cantidad) > 0);
 
@@ -458,28 +616,68 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
     return null;
   }, [nCredito, cliente, isOnline]);
 
-  const puedeCobrar =
-    carritoValido &&
-    Math.abs(restante) < 0.01 &&
-    sumaPagos > 0 &&
-    !errorCredito &&
-    (nEfectivo <= 0 || (Number(efectivoRecibido) || 0) >= nEfectivo);
+  // La terminal solo se exige cuando la tienda ya dio de alta las suyas; el
+  // servidor aplica la misma regla.
+  const faltaTerminal = nTarjeta > 0 && terminales.length > 0 && !terminalId;
+  // Los dólares entregados tienen que alcanzar para la parte que se les asignó.
+  const dolaresInsuficientes = nDolaresMxn > 0 && valorDolaresMxn - nDolaresMxn < -0.01;
 
+  const errorPago = useMemo(() => {
+    if (nDolaresMxn > 0 && !reglasDolares.aceptaPagos) return "Por ahora no se están recibiendo pagos en dólares.";
+    if (nDolaresMxn > 0 && tipoCambio <= 0) {
+      return "Matriz todavía no configura el tipo de cambio; no se puede cobrar en dólares.";
+    }
+    if (dolaresInsuficientes) {
+      return `Los ${nDolaresUsd.toFixed(2)} USD equivalen a ${formatMoney(valorDolaresMxn)} y falta cubrir ${formatMoney(nDolaresMxn)}.`;
+    }
+    if (faltaTerminal) return "Indica con cuál terminal se cobró.";
+    if (nEfectivo > 0 && efectivoRecibidoNum < nEfectivo - 0.001) {
+      return `El efectivo recibido no alcanza: faltan ${formatMoney(nEfectivo - efectivoRecibidoNum)}.`;
+    }
+    return null;
+  }, [
+    nDolaresMxn,
+    nDolaresUsd,
+    valorDolaresMxn,
+    dolaresInsuficientes,
+    faltaTerminal,
+    nEfectivo,
+    efectivoRecibidoNum,
+    reglasDolares.aceptaPagos,
+    tipoCambio,
+  ]);
+
+  const puedeCobrar =
+    carritoValido && Math.abs(restante) < 0.01 && sumaPagos > 0 && !errorCredito && !errorPago;
+
+  /** Rellena un renglón del pago mixto con lo que falte por asignar. */
   function completarCon(metodo: MetodoPago) {
     const otros =
       total -
-      (metodo === "efectivo" ? 0 : nEfectivo) -
-      (metodo === "tarjeta" ? 0 : nTarjeta) -
-      (metodo === "transferencia" ? 0 : nTransferencia) -
-      (metodo === "vales" ? 0 : nVales) -
-      (metodo === "credito" ? 0 : nCredito);
+      (metodo === "efectivo" ? 0 : mEfectivo) -
+      (metodo === "tarjeta" ? 0 : mTarjeta) -
+      (metodo === "transferencia" ? 0 : mTransferencia) -
+      (metodo === "vales" ? 0 : mVales) -
+      (metodo === "credito" ? 0 : mCredito) -
+      (metodo === "efectivo_usd" ? 0 : Math.min(valorDolaresMxn, Math.max(0, total)));
     const valor = Math.max(0, Number(otros.toFixed(2)));
     const texto = valor ? String(valor) : "";
     if (metodo === "efectivo") setMontoEfectivo(texto);
     else if (metodo === "tarjeta") setMontoTarjeta(texto);
     else if (metodo === "transferencia") setMontoTransferencia(texto);
     else if (metodo === "vales") setMontoVales(texto);
-    else setMontoCredito(texto);
+    else if (metodo === "credito") setMontoCredito(texto);
+  }
+
+  /** Cambia de método en el cobro rápido, limpiando lo que ya no aplica. */
+  function elegirMetodoRapido(metodo: MetodoPago) {
+    setMetodoRapido(metodo);
+    setError(null);
+    if (metodo !== "efectivo") setEfectivoRecibido("");
+    if (metodo !== "efectivo_usd") setDolaresRecibidos("");
+    if (metodo !== "tarjeta") setTerminalId("");
+    // El cliente elegido se conserva aunque se salga de crédito: sirve para el
+    // ticket y para facturar después.
   }
 
   function agregarAlCarrito(producto: Producto, cantidad: number) {
@@ -668,6 +866,10 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
     setMontoVales("");
     setMontoCredito("");
     setEfectivoRecibido("");
+    setDolaresRecibidos("");
+    setTerminalId("");
+    setModoMixto(false);
+    setMetodoRapido("efectivo");
     setClienteId("");
   }
 
@@ -700,6 +902,12 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
   function abrirCobro() {
     if (!carritoValido) return;
     setError(null);
+    // Siempre se abre en cobro rápido en efectivo: es la venta de todos los días.
+    setModoMixto(false);
+    setMetodoRapido("efectivo");
+    setEfectivoRecibido("");
+    setDolaresRecibidos("");
+    setTerminalId(terminales.length === 1 ? terminales[0]._id : "");
     setModalCobro(true);
   }
 
@@ -707,9 +915,9 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
     agregarACola({ id: generarIdLocal(), tipo: "venta", creadaEn: new Date().toISOString(), payload });
     setPendientes(leerCola().length);
 
-    const pagoEfectivo = payload.pagos.find((p) => p.metodoPago === "efectivo");
     const ventaLocal: VentaResp = {
       folio: generarFolioLocal(),
+      fecha: new Date().toISOString(),
       items: carrito.map((l) => ({
         nombreProducto: l.nombre,
         cantidad: Number(l.cantidad) || 0,
@@ -718,13 +926,20 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
         subtotal: (Number(l.cantidad) || 0) * l.precioUnitario,
       })),
       total,
-      pagos: payload.pagos,
+      pagos: payload.pagos.map((p) => ({
+        ...p,
+        // El tipo de cambio se sella con el que el punto de venta tenía en
+        // pantalla; al sincronizar manda el suyo el servidor.
+        tipoCambio: p.metodoPago === "efectivo_usd" ? tipoCambio : null,
+        terminalAlias: terminales.find((t) => t._id === p.terminalId)?.alias,
+      })),
       montoRecibido: payload.montoRecibido ?? null,
-      cambio:
-        pagoEfectivo && payload.montoRecibido != null
-          ? Number((payload.montoRecibido - pagoEfectivo.monto).toFixed(2))
-          : null,
+      cambio,
+      // La regla de Notas de venta ("1 de cada N") solo la puede evaluar el
+      // servidor, así que una venta sin conexión nunca se marca aquí: el
+      // asterisco del ticket aparece al reimprimirlo ya sincronizada.
       esVentas2: false,
+      clienteNombre: cliente?.nombre,
       offline: true,
     };
 
@@ -734,21 +949,48 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
     limpiarCarritoYPago();
   }
 
+  /**
+   * Manda la venta reintentando los cortes de red. Es seguro reintentar porque
+   * el payload lleva `clienteOperacionId`: si el servidor ya la había guardado,
+   * la segunda petición devuelve esa misma venta en lugar de cobrar de nuevo.
+   */
+  async function enviarVenta(payload: VentaPayload) {
+    const esperas = [400, 1200];
+    for (let intento = 0; ; intento++) {
+      try {
+        return await fetch("/api/ventas", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } catch (err) {
+        // Que el servidor conteste un error no es motivo de reintento: solo se
+        // reintenta cuando la petición ni siquiera llegó.
+        if (intento >= esperas.length) throw err;
+        await new Promise((resolve) => setTimeout(resolve, esperas[intento]));
+      }
+    }
+  }
+
   async function cobrar() {
     if (!puedeCobrar) return;
     setError(null);
 
-    const pagos: PagoResp[] = [
-      ...(nEfectivo > 0 ? [{ metodoPago: "efectivo" as const, monto: nEfectivo }] : []),
-      ...(nTarjeta > 0 ? [{ metodoPago: "tarjeta" as const, monto: nTarjeta }] : []),
-      ...(nTransferencia > 0 ? [{ metodoPago: "transferencia" as const, monto: nTransferencia }] : []),
-      ...(nVales > 0 ? [{ metodoPago: "vales" as const, monto: nVales }] : []),
-      ...(nCredito > 0 ? [{ metodoPago: "credito" as const, monto: nCredito }] : []),
-    ];
+    const pagos: PagoPayload[] = pagosVenta.map((p) => ({
+      metodoPago: p.metodoPago,
+      monto: p.monto,
+      ...(p.montoUsd ? { montoUsd: p.montoUsd } : {}),
+      ...(p.terminalId ? { terminalId: p.terminalId } : {}),
+    }));
+
     const payload: VentaPayload = {
+      // Se genera una sola vez por intento de cobro y viaja igual en el
+      // reintento y en la cola sin conexión: es lo que impide el cobro doble
+      // cuando la red se corta después de que el servidor ya guardó la venta.
+      clienteOperacionId: generarIdLocal(),
       items: carrito.map((l) => ({ productoId: l.productoId, cantidad: Number(l.cantidad) })),
       pagos,
-      montoRecibido: nEfectivo > 0 ? Number(efectivoRecibido) : undefined,
+      montoRecibido: nEfectivo > 0 ? efectivoRecibidoNum : undefined,
       clienteId: clienteId || undefined,
     };
 
@@ -765,11 +1007,7 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
 
     setProcesando(true);
     try {
-      const res = await fetch("/api/ventas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const res = await enviarVenta(payload);
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -785,8 +1023,9 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
       limpiarCarritoYPago();
       if (eraCredito) recargarClientes();
     } catch {
-      // se perdió la conexión justo al cobrar: no se pierde la venta, se guarda
-      // para sincronizar después. El crédito se descarta por la misma razón.
+      // Se perdió la conexión y los reintentos tampoco pasaron: la venta no se
+      // pierde, se encola. Si resultó que el servidor sí la había guardado, al
+      // sincronizar el `clienteOperacionId` evita que se duplique.
       if (nCredito > 0) {
         setError("Se perdió la conexión y la venta es a crédito. Vuelve a intentarla cuando regrese el servicio.");
         return;
@@ -797,16 +1036,24 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
     }
   }
 
+  function imprimirTicket(venta: VentaResp) {
+    imprimirTicketVenta(venta, {
+      sucursalNombre,
+      zonaHoraria,
+      cajero: nombreCajero(sesion ?? null) ?? "",
+    });
+  }
+
   function nuevaVenta() {
     setVentaCompletada(null);
   }
 
-  function abrirCajaOffline(efectivoInicial: number, efectivoInicialUsd: number) {
+  function abrirCajaOffline(clienteOperacionId: string, efectivoInicial: number, efectivoInicialUsd: number) {
     agregarACola({
       id: generarIdLocal(),
       tipo: "abrir_caja",
       creadaEn: new Date().toISOString(),
-      payload: { efectivoInicial, efectivoInicialUsd },
+      payload: { clienteOperacionId, efectivoInicial, efectivoInicialUsd },
     });
     setPendientes(leerCola().length);
     const sesionLocal: SesionCaja = {
@@ -835,8 +1082,12 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
       return;
     }
 
+    // El mismo id viaja al servidor y a la cola: si la respuesta se pierde, el
+    // reintento devuelve la sesión que ya se abrió en vez de abrir otra.
+    const clienteOperacionId = generarIdLocal();
+
     if (!isOnline) {
-      abrirCajaOffline(efectivoInicial, efectivoInicialUsd);
+      abrirCajaOffline(clienteOperacionId, efectivoInicial, efectivoInicialUsd);
       return;
     }
 
@@ -845,7 +1096,7 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
       const res = await fetch("/api/caja/abrir", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ efectivoInicial, efectivoInicialUsd }),
+        body: JSON.stringify({ clienteOperacionId, efectivoInicial, efectivoInicialUsd }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -858,7 +1109,7 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
       setEfectivoInicialInput("");
       setEfectivoInicialUsdInput("");
     } catch {
-      abrirCajaOffline(efectivoInicial, efectivoInicialUsd);
+      abrirCajaOffline(clienteOperacionId, efectivoInicial, efectivoInicialUsd);
     } finally {
       setAbriendoCaja(false);
     }
@@ -901,7 +1152,13 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
       const res = await fetch("/api/caja/retiros", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ monto, motivo, moneda: retiroMoneda, password: retiroClave }),
+        body: JSON.stringify({
+          clienteOperacionId: generarIdLocal(),
+          monto,
+          motivo,
+          moneda: retiroMoneda,
+          password: retiroClave,
+        }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -1410,106 +1667,231 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
             </div>
           ) : null}
 
-          <p className="mb-2 text-xs font-medium text-black/40">
-            Puedes dividir el pago entre varias formas (ej. una parte en efectivo y otra con tarjeta).
-          </p>
-
-          <div className="mb-2 space-y-2">
-            <div className="flex items-center gap-1.5">
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                autoFocus
-                value={montoEfectivo}
-                onChange={(e) => setMontoEfectivo(e.target.value)}
-                placeholder="Efectivo"
-              />
-              <button
-                type="button"
-                onClick={() => completarCon("efectivo")}
-                className="whitespace-nowrap text-xs font-medium text-titos-green-700 hover:underline"
-              >
-                Completar
-              </button>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                value={montoTarjeta}
-                onChange={(e) => setMontoTarjeta(e.target.value)}
-                placeholder="Tarjeta"
-              />
-              <button
-                type="button"
-                onClick={() => completarCon("tarjeta")}
-                className="whitespace-nowrap text-xs font-medium text-titos-green-700 hover:underline"
-              >
-                Completar
-              </button>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                value={montoTransferencia}
-                onChange={(e) => setMontoTransferencia(e.target.value)}
-                placeholder="Transferencia"
-              />
-              <button
-                type="button"
-                onClick={() => completarCon("transferencia")}
-                className="whitespace-nowrap text-xs font-medium text-titos-green-700 hover:underline"
-              >
-                Completar
-              </button>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Input
-                icon={Ticket}
-                type="number"
-                min="0"
-                step="0.01"
-                value={montoVales}
-                onChange={(e) => setMontoVales(e.target.value)}
-                placeholder="Vales de despensa"
-              />
-              <button
-                type="button"
-                onClick={() => completarCon("vales")}
-                className="whitespace-nowrap text-xs font-medium text-titos-green-700 hover:underline"
-              >
-                Completar
-              </button>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Input
-                icon={CreditCard}
-                type="number"
-                min="0"
-                step="0.01"
-                disabled={!creditoDisponibleParaCobro}
-                value={montoCredito}
-                onChange={(e) => setMontoCredito(e.target.value)}
-                placeholder={
-                  creditoDisponibleParaCobro
-                    ? `Crédito (hasta ${formatMoney(cliente!.resumen.disponible)})`
-                    : "Crédito — elige un cliente con crédito vigente"
-                }
-              />
-              <button
-                type="button"
-                onClick={() => completarCon("credito")}
-                disabled={!creditoDisponibleParaCobro}
-                className="whitespace-nowrap text-xs font-medium text-titos-green-700 hover:underline disabled:cursor-not-allowed disabled:text-black/25 disabled:no-underline"
-              >
-                Completar
-              </button>
-            </div>
+          {/* Cobro rápido: un solo método cubre el total y no hay nada que teclear.
+              El pago mixto queda detrás de un botón porque es la excepción. */}
+          <div className="mb-3 flex flex-wrap gap-1.5">
+            {METODOS_RAPIDOS.map(({ metodo, etiqueta }) => {
+              const bloqueado =
+                (metodo === "credito" && !creditoDisponibleParaCobro) ||
+                (metodo === "efectivo_usd" && (!reglasDolares.aceptaPagos || tipoCambio <= 0));
+              const activo = !modoMixto && metodoRapido === metodo;
+              return (
+                <button
+                  key={metodo}
+                  type="button"
+                  disabled={modoMixto || bloqueado}
+                  onClick={() => elegirMetodoRapido(metodo)}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                    activo ? "bg-titos-green-600 text-white" : "bg-black/5 text-black/60 hover:bg-black/10"
+                  }`}
+                >
+                  {etiqueta}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => setModoMixto((v) => !v)}
+              className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${
+                modoMixto ? "bg-sky-600 text-white" : "bg-black/5 text-black/60 hover:bg-black/10"
+              }`}
+            >
+              {modoMixto ? "Volver a cobro rápido" : "Pago mixto"}
+            </button>
           </div>
+
+          {!modoMixto ? (
+            <div className="mb-3 space-y-2">
+              {metodoRapido === "efectivo" ? (
+                <FormField label="Recibido del cliente (déjalo vacío si pagó justo)">
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    autoFocus
+                    value={efectivoRecibido}
+                    onChange={(e) => setEfectivoRecibido(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && puedeCobrar && !procesando) cobrar();
+                    }}
+                    placeholder={formatMoney(total)}
+                  />
+                </FormField>
+              ) : null}
+
+              {metodoRapido === "efectivo_usd" ? (
+                <FormField label="Dólares recibidos del cliente">
+                  <Input
+                    icon={Coins}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    autoFocus
+                    value={dolaresRecibidos}
+                    onChange={(e) => setDolaresRecibidos(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && puedeCobrar && !procesando) cobrar();
+                    }}
+                    placeholder={totalDolares != null ? totalDolares.toFixed(2) : "0.00"}
+                  />
+                </FormField>
+              ) : null}
+
+              {metodoRapido === "tarjeta" && terminales.length > 0 ? (
+                <FormField label="Terminal con la que se cobró">
+                  <Select icon={CreditCard} value={terminalId} onChange={(e) => setTerminalId(e.target.value)}>
+                    <option value="">Elige la terminal</option>
+                    {terminales.map((t) => (
+                      <option key={t._id} value={t._id}>
+                        {t.alias}
+                        {t.banco ? ` — ${t.banco}` : ""}
+                      </option>
+                    ))}
+                  </Select>
+                </FormField>
+              ) : null}
+
+              {metodoRapido !== "efectivo" && metodoRapido !== "efectivo_usd" ? (
+                <p className="rounded-lg bg-black/3 px-3 py-2 text-sm text-black/60">
+                  Se cobrarán <strong>{formatMoney(total)}</strong> con {ETIQUETAS_METODO[metodoRapido].toLowerCase()}.
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <>
+              <p className="mb-2 text-xs font-medium text-black/40">
+                Reparte el total entre las formas de pago. &quot;Completar&quot; pone lo que falte.
+              </p>
+
+              <div className="mb-2 space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    autoFocus
+                    value={montoEfectivo}
+                    onChange={(e) => setMontoEfectivo(e.target.value)}
+                    placeholder="Efectivo"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => completarCon("efectivo")}
+                    className="whitespace-nowrap text-xs font-medium text-titos-green-700 hover:underline"
+                  >
+                    Completar
+                  </button>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={montoTarjeta}
+                    onChange={(e) => setMontoTarjeta(e.target.value)}
+                    placeholder="Tarjeta"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => completarCon("tarjeta")}
+                    className="whitespace-nowrap text-xs font-medium text-titos-green-700 hover:underline"
+                  >
+                    Completar
+                  </button>
+                </div>
+                {nTarjeta > 0 && terminales.length > 0 ? (
+                  <Select icon={CreditCard} value={terminalId} onChange={(e) => setTerminalId(e.target.value)}>
+                    <option value="">Elige la terminal con la que se cobró</option>
+                    {terminales.map((t) => (
+                      <option key={t._id} value={t._id}>
+                        {t.alias}
+                        {t.banco ? ` — ${t.banco}` : ""}
+                      </option>
+                    ))}
+                  </Select>
+                ) : null}
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={montoTransferencia}
+                    onChange={(e) => setMontoTransferencia(e.target.value)}
+                    placeholder="Transferencia"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => completarCon("transferencia")}
+                    className="whitespace-nowrap text-xs font-medium text-titos-green-700 hover:underline"
+                  >
+                    Completar
+                  </button>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    icon={Ticket}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={montoVales}
+                    onChange={(e) => setMontoVales(e.target.value)}
+                    placeholder="Vales de despensa"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => completarCon("vales")}
+                    className="whitespace-nowrap text-xs font-medium text-titos-green-700 hover:underline"
+                  >
+                    Completar
+                  </button>
+                </div>
+                {reglasDolares.aceptaPagos && tipoCambio > 0 ? (
+                  <Input
+                    icon={Coins}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={dolaresRecibidos}
+                    onChange={(e) => setDolaresRecibidos(e.target.value)}
+                    placeholder="Dólares recibidos (billete)"
+                  />
+                ) : null}
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    icon={CreditCard}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    disabled={!creditoDisponibleParaCobro}
+                    value={montoCredito}
+                    onChange={(e) => setMontoCredito(e.target.value)}
+                    placeholder={
+                      creditoDisponibleParaCobro
+                        ? `Crédito (hasta ${formatMoney(cliente!.resumen.disponible)})`
+                        : "Crédito — elige un cliente con crédito vigente"
+                    }
+                  />
+                  <button
+                    type="button"
+                    onClick={() => completarCon("credito")}
+                    disabled={!creditoDisponibleParaCobro}
+                    className="whitespace-nowrap text-xs font-medium text-titos-green-700 hover:underline disabled:cursor-not-allowed disabled:text-black/25 disabled:no-underline"
+                  >
+                    Completar
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {nDolaresUsd > 0 ? (
+            <p className="mb-2 rounded-lg bg-sky-50 px-3 py-2 text-xs font-medium text-sky-800">
+              {nDolaresUsd.toFixed(2)} USD × {formatMoney(tipoCambio)} = {formatMoney(valorDolaresMxn)}
+              {reglasDolares.denominacionMaxima > 0
+                ? ` · No se reciben billetes mayores a ${reglasDolares.denominacionMaxima} USD`
+                : ""}
+            </p>
+          ) : null}
 
           {errorCredito ? (
             <p className="mb-2 flex items-start gap-1.5 rounded-lg bg-red-50 p-2.5 text-xs font-semibold text-red-700">
@@ -1518,33 +1900,27 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
             </p>
           ) : null}
 
-          <p className={`mb-3 text-sm font-semibold ${restante > 0 ? "text-red-600" : "text-black/40"}`}>
-            {restante > 0
-              ? `Restante por asignar: ${formatMoney(restante)}`
-              : restante < 0
-                ? `Te pasaste por ${formatMoney(Math.abs(restante))}`
-                : "Pago completo"}
-          </p>
-
-          {nEfectivo > 0 ? (
-            <FormField label="Efectivo recibido del cliente" className="mb-3">
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                value={efectivoRecibido}
-                onChange={(e) => setEfectivoRecibido(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && puedeCobrar && !procesando) cobrar();
-                }}
-                placeholder="0.00"
-              />
-            </FormField>
+          {errorPago && !errorCredito ? (
+            <p className="mb-2 flex items-start gap-1.5 rounded-lg bg-amber-50 p-2.5 text-xs font-semibold text-amber-800">
+              <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              {errorPago}
+            </p>
           ) : null}
 
-          {nEfectivo > 0 && efectivoRecibido ? (
-            <p className={`mb-3 text-sm font-semibold ${(cambio ?? 0) < 0 ? "text-red-600" : "text-titos-green-700"}`}>
-              {(cambio ?? 0) < 0 ? "Falta" : "Cambio"}: {formatMoney(Math.abs(cambio ?? 0))}
+          {modoMixto ? (
+            <p className={`mb-3 text-sm font-semibold ${restante > 0 ? "text-red-600" : "text-black/40"}`}>
+              {restante > 0
+                ? `Restante por asignar: ${formatMoney(restante)}`
+                : restante < 0
+                  ? `Te pasaste por ${formatMoney(Math.abs(restante))}`
+                  : "Pago completo"}
+            </p>
+          ) : null}
+
+          {cambio != null && cambio > 0 ? (
+            <p className="mb-3 text-sm font-semibold text-titos-green-700">
+              Cambio: {formatMoney(cambio)}
+              {cambioDolares > 0 ? <span className="font-normal text-black/40"> (en pesos)</span> : null}
             </p>
           ) : null}
 
@@ -1594,11 +1970,27 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
           onClose={nuevaVenta}
           title={`Venta ${ventaCompletada.folio}`}
           icon={Receipt}
-          footer={<Button onClick={nuevaVenta}>Nueva venta</Button>}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => imprimirTicket(ventaCompletada)}>
+                <span className="inline-flex items-center gap-1.5">
+                  <Printer className="h-4 w-4" /> Imprimir ticket
+                </span>
+              </Button>
+              <Button onClick={nuevaVenta}>Nueva venta</Button>
+            </>
+          }
         >
           {ventaCompletada.offline ? (
             <p className="mb-3 rounded-lg bg-amber-100 px-3 py-2 text-xs font-medium text-amber-800">
-              Guardada localmente — se sincronizará cuando vuelva la conexión.
+              Guardada localmente — se sincronizará cuando vuelva la conexión. El ticket sale sin el asterisco de
+              Notas de venta: esa regla la resuelve el servidor al sincronizar.
+            </p>
+          ) : null}
+
+          {ventaCompletada.esVentas2 ? (
+            <p className="mb-3 rounded-lg bg-sky-50 px-3 py-2 text-xs font-medium text-sky-800">
+              Entró al protocolo de Notas de venta. El ticket lleva un asterisco (*) junto al nombre de la sucursal.
             </p>
           ) : null}
           <ul className="mb-3 divide-y divide-black/5 text-sm">
@@ -1618,7 +2010,11 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
             </div>
             {ventaCompletada.pagos.map((p, idx) => (
               <div key={idx} className="flex justify-between text-black/50">
-                <span>{ETIQUETAS_METODO[p.metodoPago]}</span>
+                <span>
+                  {ETIQUETAS_METODO[p.metodoPago]}
+                  {p.montoUsd ? ` — ${p.montoUsd.toFixed(2)} USD` : ""}
+                  {p.terminalAlias ? ` — ${p.terminalAlias}` : ""}
+                </span>
                 <span>{formatMoney(p.monto)}</span>
               </div>
             ))}
@@ -1913,6 +2309,13 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
                   <span className="text-black/50">Ventas con tarjeta</span>
                   <span className="font-medium">{formatMoney(resumenCorte.totalVentasTarjeta)}</span>
                 </div>
+                {/* Desglose por terminal: es con lo que se cuadra cada depósito del banco. */}
+                {(resumenCorte.tarjetaPorTerminal ?? []).map((t) => (
+                  <div key={t.terminalId ?? t.alias} className="flex justify-between pl-4 text-xs">
+                    <span className="text-black/40">· {t.alias}</span>
+                    <span className="text-black/60">{formatMoney(t.monto)}</span>
+                  </div>
+                ))}
                 <div className="flex justify-between">
                   <span className="text-black/50">Ventas por transferencia</span>
                   <span className="font-medium">{formatMoney(resumenCorte.totalVentasTransferencia)}</span>
@@ -1941,6 +2344,12 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
                     <span className="font-medium">{formatMoney(resumenCorte.totalDevoluciones)}</span>
                   </div>
                 ) : null}
+                {resumenCorte.totalCambioDolaresMxn > 0 ? (
+                  <div className="flex justify-between">
+                    <span className="text-black/50">− Cambio entregado por pagos en dólares</span>
+                    <span className="font-medium">{formatMoney(resumenCorte.totalCambioDolaresMxn)}</span>
+                  </div>
+                ) : null}
                 <div className="flex justify-between">
                   <span className="text-black/50">− Retiros de efectivo ({resumenCorte.cantidadRetiros})</span>
                   <span className="font-medium">{formatMoney(resumenCorte.totalRetiros)}</span>
@@ -1957,6 +2366,17 @@ export function PuntoVentaForm({ sucursalNombre = "" }: { sucursalNombre?: strin
                   <span className="text-black/50">Fondo inicial en dólares</span>
                   <span className="font-medium">{formatDolares(resumenCorte.sesion.efectivoInicialUsd ?? 0)}</span>
                 </div>
+                {resumenCorte.totalVentasDolaresUsd > 0 ? (
+                  <div className="flex justify-between">
+                    <span className="text-black/50">
+                      + Dólares recibidos en ventas
+                      <span className="block text-xs text-black/35">
+                        Valen {formatMoney(resumenCorte.totalVentasDolaresMxn)} de la venta
+                      </span>
+                    </span>
+                    <span className="font-medium">{formatDolares(resumenCorte.totalVentasDolaresUsd)}</span>
+                  </div>
+                ) : null}
                 <div className="flex justify-between">
                   <span className="text-black/50">− Retiros en dólares</span>
                   <span className="font-medium">{formatDolares(resumenCorte.totalRetirosUsd)}</span>

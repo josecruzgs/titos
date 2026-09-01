@@ -97,8 +97,10 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  const niveladoEn = new Date();
   for (const pedido of pedidos) {
     pedido.estado = "nivelado";
+    pedido.niveladoEn = niveladoEn;
     await pedido.save();
   }
 

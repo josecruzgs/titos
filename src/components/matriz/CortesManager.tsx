@@ -29,6 +29,10 @@ type Corte = {
   totalVentasTransferencia: number;
   totalVentasVales?: number;
   totalVentasCredito?: number;
+  totalVentasDolaresUsd?: number;
+  totalVentasDolaresMxn?: number;
+  totalCambioDolaresMxn?: number;
+  tarjetaPorTerminal?: { terminalId: string | null; alias: string; monto: number }[];
   totalAbonosEfectivo?: number;
   totalDevoluciones?: number;
   totalRetiros: number;
@@ -111,6 +115,8 @@ export function CortesManager() {
           devoluciones: acc.devoluciones + (c.totalDevoluciones ?? 0),
           retiros: acc.retiros + c.totalRetiros,
           retirosUsd: acc.retirosUsd + (c.totalRetirosUsd ?? 0),
+          dolaresUsd: acc.dolaresUsd + (c.totalVentasDolaresUsd ?? 0),
+          dolaresMxn: acc.dolaresMxn + (c.totalVentasDolaresMxn ?? 0),
           diferencia: acc.diferencia + c.diferencia,
         }),
         {
@@ -122,6 +128,8 @@ export function CortesManager() {
           devoluciones: 0,
           retiros: 0,
           retirosUsd: 0,
+          dolaresUsd: 0,
+          dolaresMxn: 0,
           diferencia: 0,
         }
       ),
@@ -160,6 +168,11 @@ export function CortesManager() {
         <Card>
           <p className="text-xs font-semibold uppercase tracking-wide text-black/40">Ventas en efectivo</p>
           <p className="text-2xl font-bold text-titos-green-900">{formatMoney(totales.efectivo)}</p>
+          {totales.dolaresUsd > 0 ? (
+            <p className="text-sm font-semibold text-sky-700">
+              + {formatDolares(totales.dolaresUsd)} USD cobrados ({formatMoney(totales.dolaresMxn)})
+            </p>
+          ) : null}
         </Card>
         <Card>
           <p className="text-xs font-semibold uppercase tracking-wide text-black/40">Tarjeta + transferencia</p>
@@ -260,6 +273,12 @@ export function CortesManager() {
                             <span className="font-medium">{formatMoney(corte.totalDevoluciones)}</span>
                           </div>
                         ) : null}
+                        {corte.totalCambioDolaresMxn ? (
+                          <div className="flex justify-between">
+                            <span className="text-black/50">− Cambio por pagos en dólares</span>
+                            <span className="font-medium">{formatMoney(corte.totalCambioDolaresMxn)}</span>
+                          </div>
+                        ) : null}
                         <div className="flex justify-between">
                           <span className="text-black/50">− Retiros</span>
                           <span className="font-medium">{formatMoney(corte.totalRetiros)}</span>
@@ -274,6 +293,30 @@ export function CortesManager() {
                           <div className="flex justify-between pt-1.5 text-black/50">
                             <span>Ventas a crédito (cartera)</span>
                             <span>{formatMoney(corte.totalVentasCredito)}</span>
+                          </div>
+                        ) : null}
+                        {/* Cada renglón corresponde al depósito de una terminal:
+                            es lo que se compara contra el estado de cuenta del banco. */}
+                        {(corte.tarjetaPorTerminal ?? []).length > 0 ? (
+                          <div className="mt-2 border-t border-black/10 pt-2">
+                            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-black/40">
+                              Tarjeta por terminal
+                            </p>
+                            {(corte.tarjetaPorTerminal ?? []).map((t) => (
+                              <div key={t.terminalId ?? t.alias} className="flex justify-between text-black/60">
+                                <span>{t.alias}</span>
+                                <span className="font-medium">{formatMoney(t.monto)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                        {corte.totalVentasDolaresUsd ? (
+                          <div className="mt-2 flex justify-between border-t border-black/10 pt-2 text-sky-800">
+                            <span>Dólares recibidos en ventas</span>
+                            <span className="font-medium">
+                              {formatDolares(corte.totalVentasDolaresUsd)} (
+                              {formatMoney(corte.totalVentasDolaresMxn ?? 0)})
+                            </span>
                           </div>
                         ) : null}
                         <div className="mt-2 flex justify-between border-t border-black/10 pt-2 text-sky-800">

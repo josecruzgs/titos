@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { EstadoBadge, Button, FormField, Input, Modal, formatMoney } from "@/components/ui";
-import { ChevronDown, ChevronRight, ShieldAlert } from "lucide-react";
+import { ChevronDown, ChevronRight, ShieldAlert, Printer } from "lucide-react";
+import { imprimirTicketVenta } from "@/lib/ticketVenta";
 import { MotivoPosSelector } from "@/components/MotivoPosSelector";
 import { formatFecha } from "@/lib/creditoCliente";
 import { useZonaHoraria } from "@/components/ZonaHorariaProvider";
@@ -11,6 +12,7 @@ import { formatFechaHora } from "@/lib/zonasHorarias";
 
 const ETIQUETAS_METODO: Record<string, string> = {
   efectivo: "Efectivo",
+  efectivo_usd: "Efectivo (dólares)",
   tarjeta: "Tarjeta",
   transferencia: "Transferencia",
   vales: "Vales de despensa",
@@ -18,11 +20,19 @@ const ETIQUETAS_METODO: Record<string, string> = {
 };
 
 type VentaItem = { nombreProducto: string; cantidad: number; unidad: string; precioUnitario: number; subtotal: number };
-type PagoVenta = { metodoPago: string; monto: number };
+type PagoVenta = {
+  metodoPago: string;
+  monto: number;
+  montoUsd?: number | null;
+  tipoCambio?: number | null;
+  terminalAlias?: string;
+};
 type Venta = {
   _id: string;
   folio: string;
   createdAt: string;
+  fecha?: string;
+  esVentas2?: boolean;
   items: VentaItem[];
   total: number;
   pagos: PagoVenta[];
@@ -38,7 +48,13 @@ function resumenPagos(pagos: PagoVenta[] | null | undefined) {
   return (pagos ?? []).map((p) => ETIQUETAS_METODO[p.metodoPago] ?? p.metodoPago).join(" + ");
 }
 
-export function VentasHistorial({ ventas }: { ventas: Venta[] }) {
+export function VentasHistorial({
+  ventas,
+  sucursalNombre = "",
+}: {
+  ventas: Venta[];
+  sucursalNombre?: string;
+}) {
   const zonaHoraria = useZonaHoraria();
   const router = useRouter();
   const [expandido, setExpandido] = useState<string | null>(null);
@@ -134,7 +150,11 @@ export function VentasHistorial({ ventas }: { ventas: Venta[] }) {
                   <ul className="mb-3 space-y-1 text-sm text-black/60">
                     {(v.pagos ?? []).map((p, idx) => (
                       <li key={idx} className="flex items-center justify-between">
-                        <span>{ETIQUETAS_METODO[p.metodoPago] ?? p.metodoPago}</span>
+                        <span>
+                          {ETIQUETAS_METODO[p.metodoPago] ?? p.metodoPago}
+                          {p.montoUsd ? ` — ${p.montoUsd.toFixed(2)} USD` : ""}
+                          {p.terminalAlias ? ` — ${p.terminalAlias}` : ""}
+                        </span>
                         <span className="font-medium">{formatMoney(p.monto)}</span>
                       </li>
                     ))}
@@ -158,11 +178,26 @@ export function VentasHistorial({ ventas }: { ventas: Venta[] }) {
                       <strong>{formatFecha(v.creditoFechaVencimiento, zonaHoraria)}</strong>
                     </p>
                   ) : null}
-                  {v.estado === "completada" ? (
-                    <Button variant="danger" onClick={() => abrirCancelacion(v)}>
-                      Cancelar venta
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="ghost"
+                      onClick={() =>
+                        imprimirTicketVenta(
+                          { ...v, fecha: v.fecha ?? v.createdAt },
+                          { sucursalNombre, zonaHoraria }
+                        )
+                      }
+                    >
+                      <span className="inline-flex items-center gap-1.5">
+                        <Printer className="h-4 w-4" /> Reimprimir ticket
+                      </span>
                     </Button>
-                  ) : null}
+                    {v.estado === "completada" ? (
+                      <Button variant="danger" onClick={() => abrirCancelacion(v)}>
+                        Cancelar venta
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
               ) : null}
             </li>

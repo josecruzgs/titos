@@ -15,6 +15,7 @@ import {
   Percent,
   KeyRound,
   ShieldCheck,
+  BellRing,
 } from "lucide-react";
 import { DIAS_SEMANA, DIA_LABEL } from "@/lib/dias";
 import { MotivosPosManager } from "@/components/matriz/MotivosPosManager";
@@ -121,6 +122,18 @@ export function ConfiguracionManager() {
   const [horaCorte, setHoraCorte] = useState("16:00");
   const [tipoCambio, setTipoCambio] = useState("17");
   const [tasaIvaFactura, setTasaIvaFactura] = useState("0");
+  const [alertasActivas, setAlertasActivas] = useState(true);
+  const [horasLimiteSurtido, setHorasLimiteSurtido] = useState("24");
+  const [horasLimiteRecepcion, setHorasLimiteRecepcion] = useState("24");
+  /** Se captura como texto separado por comas; se manda como arreglo. */
+  const [destinatariosAlertas, setDestinatariosAlertas] = useState("");
+  const [guardandoAlertas, setGuardandoAlertas] = useState(false);
+  const [revisando, setRevisando] = useState(false);
+  const [mensajeAlertas, setMensajeAlertas] = useState<string | null>(null);
+
+  const [aceptaDolares, setAceptaDolares] = useState(true);
+  // 0 = se aceptan todas las denominaciones (la política de hoy).
+  const [denominacionMaximaUsd, setDenominacionMaximaUsd] = useState("0");
   const [cargandoConfig, setCargandoConfig] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
@@ -156,6 +169,12 @@ export function ConfiguracionManager() {
     setHoraCorte(data.horaCorte ?? "16:00");
     setTipoCambio(String(data.tipoCambio ?? 17));
     setTasaIvaFactura(String(data.tasaIvaFactura ?? 0));
+    setAlertasActivas(data.alertas?.activas !== false);
+    setHorasLimiteSurtido(String(data.alertas?.horasLimiteSurtido ?? 24));
+    setHorasLimiteRecepcion(String(data.alertas?.horasLimiteRecepcion ?? 24));
+    setDestinatariosAlertas((data.alertas?.destinatarios ?? []).join(", "));
+    setAceptaDolares(data.dolares?.aceptaPagos !== false);
+    setDenominacionMaximaUsd(String(data.dolares?.denominacionMaxima ?? 0));
     setNipConfigurado(!!data.nipSupervisorConfigurado);
   }, []);
 
@@ -181,6 +200,10 @@ export function ConfiguracionManager() {
         horaCorte,
         tipoCambio: Number(tipoCambio),
         tasaIvaFactura: Number(tasaIvaFactura),
+        dolares: {
+          aceptaPagos: aceptaDolares,
+          denominacionMaxima: Number(denominacionMaximaUsd) || 0,
+        },
       }),
     });
     setGuardando(false);
@@ -192,6 +215,58 @@ export function ConfiguracionManager() {
     }
 
     setMensaje("Ajustes guardados.");
+  }
+
+  async function guardarAlertas() {
+    setGuardandoAlertas(true);
+    setMensajeAlertas(null);
+    const res = await fetch("/api/configuracion", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        alertas: {
+          activas: alertasActivas,
+          horasLimiteSurtido: Number(horasLimiteSurtido),
+          horasLimiteRecepcion: Number(horasLimiteRecepcion),
+          destinatarios: destinatariosAlertas
+            .split(",")
+            .map((d) => d.trim())
+            .filter(Boolean),
+        },
+      }),
+    });
+    setGuardandoAlertas(false);
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setMensajeAlertas(data.error || "No se pudieron guardar las alertas");
+      return;
+    }
+    setMensajeAlertas("Alertas guardadas.");
+  }
+
+  /** Dispara el mismo barrido que corre cada hora, para poder probarlo. */
+  async function revisarAhora() {
+    setRevisando(true);
+    setMensajeAlertas(null);
+    const res = await fetch("/api/cron/alertas");
+    setRevisando(false);
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setMensajeAlertas(data.error || "No se pudo ejecutar la revisión");
+      return;
+    }
+
+    const r = await res.json();
+    if (!r.ejecutado) {
+      setMensajeAlertas(r.motivo ?? "La revisión no se ejecutó");
+      return;
+    }
+    setMensajeAlertas(
+      `Revisión lista: ${r.surtidoAtrasado} pedido(s) sin surtir y ${r.recepcionAtrasada} sin confirmar recepción. ` +
+        `${r.mensajesEnviados} mensaje(s) enviados, ${r.mensajesFallidos} fallidos.`
+    );
   }
 
   async function guardarNip() {
@@ -339,6 +414,37 @@ export function ConfiguracionManager() {
                 placeholder="17.00"
               />
             </FormField>
+            <FormField label="Pagos en dólares">
+              <div className="space-y-2 rounded-lg border border-black/10 p-3">
+                <label className="flex items-center gap-2 text-sm text-black/70">
+                  <input
+                    type="checkbox"
+                    checked={aceptaDolares}
+                    onChange={(e) => setAceptaDolares(e.target.checked)}
+                  />
+                  Recibir dólares en billete en el punto de venta
+                </label>
+                <div>
+                  <label className="mb-1 block text-xs text-black/50">
+                    Denominación máxima aceptada (0 = se aceptan todos los billetes)
+                  </label>
+                  <Input
+                    icon={DollarSign}
+                    type="number"
+                    min="0"
+                    step="1"
+                    disabled={!aceptaDolares}
+                    value={denominacionMaximaUsd}
+                    onChange={(e) => setDenominacionMaximaUsd(e.target.value)}
+                    placeholder="0"
+                  />
+                  <p className="mt-1 text-xs text-black/40">
+                    Hoy se aceptan todos. Si más adelante se decide no recibir billetes de cierta denominación, se
+                    pone el tope aquí y el punto de venta se lo avisa al cajero. El cambio siempre se entrega en pesos.
+                  </p>
+                </div>
+              </div>
+            </FormField>
             <FormField label="Tasa de IVA para facturas (%)">
               <Input
                 icon={Percent}
@@ -361,6 +467,77 @@ export function ConfiguracionManager() {
             <span className="flex items-center gap-1.5">
               <CalendarCheck className="h-4 w-4" /> {guardando ? "Guardando..." : "Guardar ajustes"}
             </span>
+          </Button>
+        </div>
+      </Card>
+
+      <Card>
+        <h2 className="mb-1 flex items-center gap-2 font-semibold text-titos-green-900">
+          <BellRing className="h-4.5 w-4.5 text-titos-green-700" />
+          Alertas de pedidos atrasados
+        </h2>
+        <p className="mb-4 text-sm text-black/50">
+          Cada hora el sistema revisa los pedidos que se quedaron atorados y manda un WhatsApp. Los de{" "}
+          <strong>surtido atrasado</strong> van a los números de aquí abajo; los de <strong>recepción atrasada</strong>{" "}
+          van al WhatsApp de la sucursal que no ha confirmado su mercancía. De cada pedido se avisa una sola vez, para
+          no repetir el mismo mensaje cada hora.
+        </p>
+
+        <label className="mb-3 flex items-center gap-2 text-sm text-black/70">
+          <input
+            type="checkbox"
+            checked={alertasActivas}
+            onChange={(e) => setAlertasActivas(e.target.checked)}
+          />
+          Mandar alertas automáticas
+        </label>
+
+        <FormGrid className="mb-3">
+          <FormField label="Horas para que matriz surta un pedido">
+            <Input
+              icon={Clock}
+              type="number"
+              min="1"
+              step="1"
+              disabled={!alertasActivas}
+              value={horasLimiteSurtido}
+              onChange={(e) => setHorasLimiteSurtido(e.target.value)}
+            />
+          </FormField>
+          <FormField label="Horas para que la sucursal confirme la recepción">
+            <Input
+              icon={Clock}
+              type="number"
+              min="1"
+              step="1"
+              disabled={!alertasActivas}
+              value={horasLimiteRecepcion}
+              onChange={(e) => setHorasLimiteRecepcion(e.target.value)}
+            />
+          </FormField>
+        </FormGrid>
+
+        <FormField label="WhatsApp que reciben los avisos de surtido atrasado" className="mb-3">
+          <Input
+            icon={BellRing}
+            disabled={!alertasActivas}
+            value={destinatariosAlertas}
+            onChange={(e) => setDestinatariosAlertas(e.target.value)}
+            placeholder="6641234567, 6647654321"
+          />
+          <p className="mt-1 text-xs text-black/40">
+            Separados por coma. Si se deja vacío, el aviso de surtido no se manda a nadie.
+          </p>
+        </FormField>
+
+        {mensajeAlertas ? <p className="mb-3 text-sm text-titos-green-700">{mensajeAlertas}</p> : null}
+
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={guardarAlertas} disabled={guardandoAlertas || cargandoConfig}>
+            {guardandoAlertas ? "Guardando..." : "Guardar alertas"}
+          </Button>
+          <Button variant="ghost" onClick={revisarAhora} disabled={revisando}>
+            {revisando ? "Revisando..." : "Revisar pedidos atrasados ahora"}
           </Button>
         </div>
       </Card>

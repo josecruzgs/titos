@@ -9,6 +9,8 @@ import {
   Package,
   Warehouse,
   Store,
+  CreditCard,
+  ScrollText,
   ClipboardList,
   ShoppingCart,
   Truck,
@@ -90,6 +92,7 @@ const MATRIZ_NAV: NavCategory[] = [
       { href: "/matriz/sucursales", label: "Sucursales", icon: Store },
       { href: "/matriz/proveedores", label: "Proveedores", icon: Truck },
       { href: "/matriz/personal", label: "Personal", icon: Users },
+      { href: "/matriz/terminales", label: "Terminales de pago", icon: CreditCard },
       { href: "/matriz/lineas", label: "Líneas", icon: Tags },
       { href: "/matriz/categorias", label: "Categorías", icon: Tag },
     ],
@@ -102,7 +105,10 @@ const MATRIZ_NAV: NavCategory[] = [
   {
     label: "Configuraciones",
     icon: Settings,
-    items: [{ href: "/matriz/configuracion", label: "Configuración", icon: Settings }],
+    items: [
+      { href: "/matriz/configuracion", label: "Configuración", icon: Settings },
+      { href: "/matriz/bitacora", label: "Bitácora", icon: ScrollText },
+    ],
   },
   {
     label: "Inventario",

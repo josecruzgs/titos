@@ -34,6 +34,7 @@ type Resumen = {
 
 const ETIQUETA_METODO: Record<string, string> = {
   efectivo: "Efectivo",
+  efectivo_usd: "Efectivo (dólares)",
   tarjeta: "Tarjeta",
   transferencia: "Transferencia",
   vales: "Vales de despensa",

@@ -6,6 +6,9 @@ export const MONEDAS_CAJA = ["MXN", "USD"] as const;
 const MovimientoCajaSchema = new Schema(
   {
     folio: { type: String, required: true, unique: true },
+    // Ver `clienteOperacionId` en Venta: evita que un reintento tras una caída
+    // de red registre el mismo retiro dos veces.
+    clienteOperacionId: { type: String },
     cajaSesionId: { type: Schema.Types.ObjectId, ref: "CajaSesion", required: true },
     sucursalId: { type: Schema.Types.ObjectId, ref: "Sucursal", required: true },
     tipo: { type: String, enum: ["retiro"], default: "retiro" },
@@ -21,6 +24,10 @@ const MovimientoCajaSchema = new Schema(
   { timestamps: true }
 );
 
+MovimientoCajaSchema.index(
+  { clienteOperacionId: 1 },
+  { unique: true, partialFilterExpression: { clienteOperacionId: { $type: "string" } } }
+);
 MovimientoCajaSchema.index({ sucursalId: 1, fecha: -1 });
 MovimientoCajaSchema.index({ cajaSesionId: 1 });
 

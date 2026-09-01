@@ -7,6 +7,7 @@ import { formatFechaHora, ZONA_HORARIA_DEFAULT } from "@/lib/zonasHorarias";
 
 const ETIQUETA_METODO: Record<string, string> = {
   efectivo: "Efectivo",
+  efectivo_usd: "Efvo. USD",
   tarjeta: "Tarjeta",
   transferencia: "Transf.",
   vales: "Vales",

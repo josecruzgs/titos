@@ -39,7 +39,14 @@ type Devolucion = {
   clienteNombre: string;
   motivo: string;
   items: { nombreProducto: string; cantidad: number; unidad: string; subtotal: number }[];
+  usuarioId?: { _id: string; nombre: string } | string | null;
+  pagadaPorId?: { _id: string; nombre: string } | string | null;
 };
+
+/** El id llega poblado con el nombre; si es string, el usuario ya no existe. */
+function nombreUsuario(valor: Devolucion["usuarioId"]) {
+  return valor && typeof valor !== "string" ? valor.nombre : null;
+}
 
 export function DevolucionesManager() {
   const zonaHoraria = useZonaHoraria();
@@ -353,7 +360,15 @@ export function DevolucionesManager() {
                   <tr key={d._id} className="border-b border-black/5">
                     <td className="py-2 pr-2 font-mono text-xs">{d.folio}</td>
                     <td className="py-2 pr-2 font-mono text-xs text-black/50">{d.ventaFolio}</td>
-                    <td className="py-2 pr-2 text-black/60">{formatFechaHora(d.fecha, zonaHoraria)}</td>
+                    <td className="py-2 pr-2 text-black/60">
+                      {formatFechaHora(d.fecha, zonaHoraria)}
+                      {/* Quién la capturó y quién sacó el efectivo: son dos personas
+                          distintas cuando el reembolso se paga en otro turno. */}
+                      <span className="block text-xs text-black/40">
+                        Registró: {nombreUsuario(d.usuarioId) ?? "—"}
+                        {d.estado === "pagada" ? ` · Pagó: ${nombreUsuario(d.pagadaPorId) ?? "—"}` : ""}
+                      </span>
+                    </td>
                     <td className="py-2 pr-2 text-black/60">
                       {d.items.map((i) => `${i.nombreProducto} ×${i.cantidad}`).join(", ")}
                     </td>

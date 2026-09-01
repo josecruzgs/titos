@@ -6,9 +6,11 @@ import MovimientoInventario from "@/models/MovimientoInventario";
 import CajaSesion from "@/models/CajaSesion";
 import Cliente from "@/models/Cliente";
 import CuentaPorCobrar from "@/models/CuentaPorCobrar";
+import TerminalPago from "@/models/TerminalPago";
 import "@/models/Sucursal"; // necesario para que populate("sucursalId") funcione
 import { requireSession, unauthorized, forbidden, badRequest, conflict, todayCorte } from "@/lib/apiAuth";
 import { siguienteFolio } from "@/lib/folios";
+import { obtenerConfiguracion } from "@/lib/configuracion";
 import { resolverVentas2ParaVenta } from "@/lib/ventas2";
 import {
   ajustarStockPuntoVenta,
@@ -50,7 +52,14 @@ export async function GET(req: NextRequest) {
 }
 
 type ItemVenta = { productoId: string; cantidad: number };
-type PagoVenta = { metodoPago: string; monto: number };
+type PagoVenta = {
+  metodoPago: string;
+  monto: number;
+  montoUsd?: number | null;
+  tipoCambio?: number | null;
+  terminalId?: string | null;
+  terminalAlias?: string;
+};
 
 export async function POST(req: NextRequest) {
   const session = await requireSession(req);
@@ -60,6 +69,8 @@ export async function POST(req: NextRequest) {
   const items: ItemVenta[] = body?.items ?? [];
   const pagosBody: PagoVenta[] = body?.pagos ?? [];
   const montoRecibido = body?.montoRecibido != null ? Number(body.montoRecibido) : null;
+  // Lo genera el punto de venta antes de mandar y no cambia entre reintentos.
+  const clienteOperacionId = body?.clienteOperacionId ? String(body.clienteOperacionId) : null;
 
   if (items.length === 0) return badRequest("La venta debe incluir al menos un producto");
   if (pagosBody.length === 0) return badRequest("Debes capturar al menos una forma de pago");
@@ -76,7 +87,19 @@ export async function POST(req: NextRequest) {
     const monto = Number(p.monto);
     if (!monto || monto <= 0) return badRequest("Cada forma de pago debe tener un monto mayor a cero");
     metodosUsados.add(p.metodoPago);
-    pagos.push({ metodoPago: p.metodoPago, monto });
+
+    const pago: PagoVenta = { metodoPago: p.metodoPago, monto };
+    if (p.metodoPago === "efectivo_usd") {
+      const montoUsd = Number(p.montoUsd);
+      if (!Number.isFinite(montoUsd) || montoUsd <= 0) {
+        return badRequest("Captura los dólares que entregó el cliente");
+      }
+      pago.montoUsd = montoUsd;
+    }
+    if (p.metodoPago === "tarjeta" && p.terminalId) {
+      pago.terminalId = String(p.terminalId);
+    }
+    pagos.push(pago);
   }
 
   const pagoEfectivo = pagos.find((p) => p.metodoPago === "efectivo");
@@ -96,6 +119,14 @@ export async function POST(req: NextRequest) {
 
   await connectDB();
 
+  // Idempotencia: si esta misma operación ya se registró (la red se cortó
+  // después de que el servidor la guardó, y el punto de venta la reintentó),
+  // se devuelve la venta que ya existe en lugar de cobrarle dos veces al cliente.
+  if (clienteOperacionId) {
+    const yaRegistrada = await Venta.findOne({ clienteOperacionId });
+    if (yaRegistrada) return NextResponse.json(yaRegistrada);
+  }
+
   // La matriz vende de mostrador con su propia caja y descontando la existencia
   // del CEDIS; una sucursal descuenta su inventario.
   const ctx = await contextoPuntoVenta(session);
@@ -103,6 +134,48 @@ export async function POST(req: NextRequest) {
 
   const sesionCaja = await CajaSesion.findOne({ sucursalId: ctx.sucursalId, estado: "abierta" });
   if (!sesionCaja) return badRequest("Debes abrir la caja antes de registrar ventas");
+
+  // --- Pagos en dólares ---
+  // El tipo de cambio lo pone el servidor, nunca el navegador: si no, bastaría
+  // con manipular la petición para llevarse la despensa con cinco dólares.
+  const pagoDolares = pagos.find((p) => p.metodoPago === "efectivo_usd");
+  if (pagoDolares) {
+    const config = await obtenerConfiguracion();
+    if (config.dolares?.aceptaPagos === false) {
+      return badRequest("Esta tienda no está recibiendo pagos en dólares");
+    }
+    const tipoCambio = Number(config.tipoCambio);
+    if (!Number.isFinite(tipoCambio) || tipoCambio <= 0) {
+      return badRequest("Matriz todavía no configura el tipo de cambio; no se puede cobrar en dólares");
+    }
+    const montoUsd = pagoDolares.montoUsd ?? 0;
+    const valorEnPesos = montoUsd * tipoCambio;
+    if (valorEnPesos - pagoDolares.monto < -0.01) {
+      return badRequest(
+        `Los ${montoUsd.toFixed(2)} USD equivalen a ${valorEnPesos.toFixed(2)} pesos, menos de los ` +
+          `${pagoDolares.monto.toFixed(2)} que se le están aplicando a la venta`
+      );
+    }
+    pagoDolares.tipoCambio = tipoCambio;
+  }
+
+  // --- Terminal con la que se cobró la tarjeta ---
+  const pagoTarjeta = pagos.find((p) => p.metodoPago === "tarjeta");
+  if (pagoTarjeta) {
+    const terminalesActivas = await TerminalPago.find({ sucursalId: ctx.sucursalId, activo: true })
+      .select("alias")
+      .lean();
+
+    if (pagoTarjeta.terminalId) {
+      const elegida = terminalesActivas.find((t) => String(t._id) === pagoTarjeta.terminalId);
+      if (!elegida) return badRequest("La terminal seleccionada no existe o ya no está activa en esta tienda");
+      pagoTarjeta.terminalAlias = elegida.alias;
+    } else if (terminalesActivas.length > 0) {
+      // Solo se exige cuando la tienda ya dio de alta sus terminales: las que
+      // todavía no lo hacen siguen pudiendo cobrar con tarjeta sin trabarse.
+      return badRequest("Indica con cuál terminal se cobró");
+    }
+  }
 
   // El cliente es opcional en una venta de contado, pero obligatorio (y validado
   // contra su límite y sus vencidos) cuando parte del pago va a crédito.
@@ -179,26 +252,41 @@ export async function POST(req: NextRequest) {
     fecha: fechaVenta,
   });
 
-  const venta = await Venta.create({
-    folio: await siguienteFolio(ventas2.esVentas2 ? "V2" : "VTA"),
-    sucursalId: ctx.sucursalId,
-    cajaSesionId: sesionCaja._id,
-    usuarioId: session.userId,
-    fecha: fechaVenta,
-    corte: todayCorte(zonaHoraria),
-    items: ventaItems,
-    total,
-    pagos,
-    montoRecibido: pagoEfectivo ? montoRecibido : null,
-    cambio: pagoEfectivo && montoRecibido != null ? Number((montoRecibido - pagoEfectivo.monto).toFixed(2)) : null,
-    esVentas2: ventas2.esVentas2,
-    ventas2ActivacionId: ventas2.activacionId,
-    ventas2SecuenciaEfectivo: ventas2.secuenciaEfectivo,
-    clienteId: cliente?._id ?? null,
-    clienteNombre: cliente?.nombre ?? "",
-    creditoMonto: pagoCredito?.monto ?? null,
-    creditoFechaVencimiento: vencimientoCredito,
-  });
+  let venta;
+  try {
+    venta = await Venta.create({
+      folio: await siguienteFolio(ventas2.esVentas2 ? "V2" : "VTA"),
+      // Se omite si no viene: el índice único es parcial y no debe guardar null.
+      ...(clienteOperacionId ? { clienteOperacionId } : {}),
+      sucursalId: ctx.sucursalId,
+      cajaSesionId: sesionCaja._id,
+      usuarioId: session.userId,
+      fecha: fechaVenta,
+      corte: todayCorte(zonaHoraria),
+      items: ventaItems,
+      total,
+      pagos,
+      montoRecibido: pagoEfectivo ? montoRecibido : null,
+      cambio: pagoEfectivo && montoRecibido != null ? Number((montoRecibido - pagoEfectivo.monto).toFixed(2)) : null,
+      esVentas2: ventas2.esVentas2,
+      ventas2ActivacionId: ventas2.activacionId,
+      ventas2SecuenciaEfectivo: ventas2.secuenciaEfectivo,
+      clienteId: cliente?._id ?? null,
+      clienteNombre: cliente?.nombre ?? "",
+      creditoMonto: pagoCredito?.monto ?? null,
+      creditoFechaVencimiento: vencimientoCredito,
+    });
+  } catch (err) {
+    // Dos reintentos de la misma venta que llegaron al mismo tiempo: el índice
+    // único de `clienteOperacionId` deja pasar solo a uno. El otro devuelve esa
+    // venta en lugar de un error, que para el cajero es lo mismo que ganar.
+    const codigo = (err as { code?: number }).code;
+    if (codigo === 11000 && clienteOperacionId) {
+      const ganadora = await Venta.findOne({ clienteOperacionId });
+      if (ganadora) return NextResponse.json(ganadora);
+    }
+    throw err;
+  }
 
   if (pagoCredito && cliente && vencimientoCredito) {
     await CuentaPorCobrar.create({

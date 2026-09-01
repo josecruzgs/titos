@@ -3,8 +3,10 @@ import { Schema, model, models, type InferSchemaType } from "mongoose";
 // "credito" no entra dinero a la caja: genera una cuenta por cobrar del cliente.
 // "vales" son vales de despensa: valen como pago de contado, pero no son
 // efectivo del cajón (se cobran después al emisor del vale).
-export const METODOS_PAGO = ["efectivo", "tarjeta", "transferencia", "vales", "credito"] as const;
-export const METODOS_PAGO_CONTADO = ["efectivo", "tarjeta", "transferencia", "vales"] as const;
+// "efectivo_usd" son dólares en billete: entran al cajón de dólares, y el cambio
+// se devuelve en pesos (sale del cajón de pesos).
+export const METODOS_PAGO = ["efectivo", "efectivo_usd", "tarjeta", "transferencia", "vales", "credito"] as const;
+export const METODOS_PAGO_CONTADO = ["efectivo", "efectivo_usd", "tarjeta", "transferencia", "vales"] as const;
 export const ESTADOS_VENTA = ["completada", "cancelada"] as const;
 
 const VentaItemSchema = new Schema(
@@ -23,7 +25,23 @@ const VentaItemSchema = new Schema(
 const PagoVentaSchema = new Schema(
   {
     metodoPago: { type: String, enum: METODOS_PAGO, required: true },
+    // Siempre en pesos: es la parte del total que cubre este pago. La suma de
+    // todos los `monto` es igual al total de la venta, sin importar la moneda en
+    // que se haya recibido físicamente el dinero.
     monto: { type: Number, required: true },
+
+    // --- Solo para "efectivo_usd" ---
+    // Dólares que el cliente entregó en billete (lo que realmente entra al
+    // cajón de dólares). `montoUsd * tipoCambio - monto` es el cambio en pesos.
+    montoUsd: { type: Number, default: null },
+    // Tipo de cambio congelado al momento del cobro: el de configuración puede
+    // cambiar mañana y el corte de hoy tiene que seguir cuadrando.
+    tipoCambio: { type: Number, default: null },
+
+    // --- Solo para "tarjeta" ---
+    // Con qué terminal física se cobró, para cuadrar contra el banco.
+    terminalId: { type: Schema.Types.ObjectId, ref: "TerminalPago", default: null },
+    terminalAlias: { type: String, default: "" },
   },
   { _id: false }
 );
@@ -31,6 +49,16 @@ const PagoVentaSchema = new Schema(
 const VentaSchema = new Schema(
   {
     folio: { type: String, required: true, unique: true },
+    // Identificador que genera el punto de venta ANTES de mandar la venta, y que
+    // no cambia entre reintentos. Es lo que evita el cobro doble cuando la red
+    // se corta después de que el servidor ya registró la venta pero antes de que
+    // la respuesta llegue al navegador: al reintentar, el servidor reconoce la
+    // operación y devuelve la venta que ya existe en vez de crear otra.
+    // Sin `default`: el campo simplemente no existe cuando no viene, y el índice
+    // único de abajo es parcial. Un `default: null` con índice `sparse` NO
+    // serviría: Mongo sí indexa los null explícitos, así que la segunda venta
+    // sin este dato chocaría por clave duplicada.
+    clienteOperacionId: { type: String },
     sucursalId: { type: Schema.Types.ObjectId, ref: "Sucursal", required: true },
     cajaSesionId: { type: Schema.Types.ObjectId, ref: "CajaSesion", required: true },
     usuarioId: { type: Schema.Types.ObjectId, ref: "User", required: true },
@@ -57,6 +85,12 @@ const VentaSchema = new Schema(
   { timestamps: true }
 );
 
+// Único solo entre las ventas que traen el dato: las anteriores a esta versión
+// no lo tienen y quedan fuera del índice.
+VentaSchema.index(
+  { clienteOperacionId: 1 },
+  { unique: true, partialFilterExpression: { clienteOperacionId: { $type: "string" } } }
+);
 VentaSchema.index({ sucursalId: 1, createdAt: -1 });
 VentaSchema.index({ sucursalId: 1, esVentas2: 1, corte: 1 });
 VentaSchema.index({ ventas2ActivacionId: 1, estado: 1 });

@@ -62,7 +62,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const todosRecibidos = pedido.items.every(
     (i: PedidoItemDoc) => i.cantidadRecibida !== null && i.cantidadRecibida !== undefined
   );
-  if (todosRecibidos) pedido.estado = "recibido";
+  if (todosRecibidos) {
+    pedido.estado = "recibido";
+    pedido.recibidoEn = new Date();
+    pedido.recibidoPorId = session.userId;
+  }
 
   await pedido.save();
 

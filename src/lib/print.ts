@@ -89,3 +89,64 @@ export function imprimirHTML(titulo: string, contenidoHTML: string, zona: string
   ventana.focus();
   ventana.print();
 }
+
+/** Escapa texto que viene de la base (nombres de producto, cajero, sucursal). */
+export function escaparHTML(texto: string) {
+  return String(texto)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+/**
+ * Imprime un ticket en rollo de 80 mm (la impresora térmica del mostrador).
+ *
+ * A diferencia de `imprimirHTML`, que arma un documento tamaño carta con el
+ * encabezado verde de la marca, aquí todo va a una sola columna angosta, en
+ * monoespaciada y sin fondos de color: la térmica no imprime color y cualquier
+ * margen de más recorta el renglón.
+ */
+export function imprimirTicket(titulo: string, contenidoHTML: string) {
+  const ventana = window.open("", "_blank", "width=380,height=700");
+  if (!ventana) return;
+
+  ventana.document.write(`
+    <!doctype html>
+    <html lang="es">
+      <head>
+        <meta charset="utf-8" />
+        <title>${escaparHTML(titulo)}</title>
+        <style>
+          @page { size: 80mm auto; margin: 0; }
+          * { box-sizing: border-box; }
+          body {
+            width: 80mm;
+            margin: 0;
+            padding: 4mm 3mm;
+            font-family: "Courier New", Courier, monospace;
+            font-size: 11px;
+            line-height: 1.35;
+            color: #000;
+            background: #fff;
+          }
+          .centro { text-align: center; }
+          .titulo { font-size: 14px; font-weight: bold; letter-spacing: 0.04em; }
+          .sucursal { font-size: 12px; font-weight: bold; }
+          .sep { border-top: 1px dashed #000; margin: 5px 0; }
+          .fila { display: flex; justify-content: space-between; gap: 6px; }
+          .fila span:last-child { white-space: nowrap; }
+          .concepto { flex: 1; word-break: break-word; }
+          .fuerte { font-weight: bold; font-size: 13px; }
+          .tenue { font-size: 10px; }
+          .pie { margin-top: 8px; font-size: 10px; }
+        </style>
+      </head>
+      <body>${contenidoHTML}</body>
+    </html>
+  `);
+
+  ventana.document.close();
+  ventana.focus();
+  ventana.print();
+}

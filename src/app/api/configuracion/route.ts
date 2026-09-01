@@ -13,10 +13,18 @@ export async function GET(req: NextRequest) {
   const config = await obtenerConfiguracion();
   const nipSupervisorConfigurado = !!config.nipSupervisorHash;
 
-  // Las sucursales solo necesitan el tipo de cambio (lo usa el punto de venta) y
-  // saber si ya hay un NIP de supervisor con el que autorizar cancelaciones.
+  // Las sucursales solo necesitan el tipo de cambio y las reglas de dólares (las
+  // usa el punto de venta), y saber si ya hay un NIP de supervisor con el que
+  // autorizar cancelaciones.
   if (session.role !== "matriz") {
-    return NextResponse.json({ tipoCambio: config.tipoCambio ?? 17, nipSupervisorConfigurado });
+    return NextResponse.json({
+      tipoCambio: config.tipoCambio ?? 17,
+      dolares: {
+        aceptaPagos: config.dolares?.aceptaPagos ?? true,
+        denominacionMaxima: config.dolares?.denominacionMaxima ?? 0,
+      },
+      nipSupervisorConfigurado,
+    });
   }
 
   // El hash del NIP nunca sale de la API.
@@ -48,6 +56,37 @@ export async function PATCH(req: NextRequest) {
     const tipoCambio = Number(body.tipoCambio);
     if (!Number.isFinite(tipoCambio) || tipoCambio <= 0) return badRequest("Tipo de cambio inválido");
     update.tipoCambio = tipoCambio;
+  }
+  if ("dolares" in body) {
+    const dolares = body.dolares ?? {};
+    const denominacionMaxima = Number(dolares.denominacionMaxima ?? 0);
+    if (!Number.isFinite(denominacionMaxima) || denominacionMaxima < 0) {
+      return badRequest("La denominación máxima de dólares debe ser un número mayor o igual a cero");
+    }
+    update.dolares = {
+      aceptaPagos: dolares.aceptaPagos !== false,
+      denominacionMaxima,
+    };
+  }
+  if ("alertas" in body) {
+    const alertas = body.alertas ?? {};
+    const horasLimiteSurtido = Number(alertas.horasLimiteSurtido ?? 24);
+    const horasLimiteRecepcion = Number(alertas.horasLimiteRecepcion ?? 24);
+    if (!Number.isFinite(horasLimiteSurtido) || horasLimiteSurtido < 1) {
+      return badRequest("El plazo de surtido debe ser de al menos 1 hora");
+    }
+    if (!Number.isFinite(horasLimiteRecepcion) || horasLimiteRecepcion < 1) {
+      return badRequest("El plazo de recepción debe ser de al menos 1 hora");
+    }
+    const destinatarios = Array.isArray(alertas.destinatarios)
+      ? alertas.destinatarios.map((d: unknown) => String(d).trim()).filter(Boolean)
+      : [];
+    update.alertas = {
+      activas: alertas.activas !== false,
+      horasLimiteSurtido,
+      horasLimiteRecepcion,
+      destinatarios,
+    };
   }
   if ("tasaIvaFactura" in body) {
     const tasa = Number(body.tasaIvaFactura);

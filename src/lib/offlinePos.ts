@@ -53,18 +53,44 @@ export function guardarSesionCache<T>(value: T | null) {
 // "credito" existe en el tipo porque el mismo payload se manda al servidor,
 // pero una venta a crédito nunca se encola: sin conexión no se puede validar el
 // límite ni los vencidos del cliente.
-export type MetodoPagoOffline = "efectivo" | "tarjeta" | "transferencia" | "vales" | "credito";
+export type MetodoPagoOffline =
+  | "efectivo"
+  | "efectivo_usd"
+  | "tarjeta"
+  | "transferencia"
+  | "vales"
+  | "credito";
+
+export type PagoPayload = {
+  metodoPago: MetodoPagoOffline;
+  monto: number;
+  /** Dólares recibidos en billete; solo para "efectivo_usd". */
+  montoUsd?: number;
+  /** Terminal con la que se cobró; solo para "tarjeta". */
+  terminalId?: string;
+};
 
 export type VentaPayload = {
+  /**
+   * Identificador de la operación, generado antes del primer envío y estable
+   * entre reintentos: es lo que le permite al servidor reconocer una venta que
+   * ya registró y no cobrarla dos veces.
+   */
+  clienteOperacionId: string;
   items: { productoId: string; cantidad: number }[];
-  pagos: { metodoPago: MetodoPagoOffline; monto: number }[];
+  pagos: PagoPayload[];
   montoRecibido?: number;
   clienteId?: string;
 };
 
 export type AccionPendiente =
   | { id: string; tipo: "venta"; creadaEn: string; payload: VentaPayload }
-  | { id: string; tipo: "abrir_caja"; creadaEn: string; payload: { efectivoInicial: number; efectivoInicialUsd: number } }
+  | {
+      id: string;
+      tipo: "abrir_caja";
+      creadaEn: string;
+      payload: { clienteOperacionId: string; efectivoInicial: number; efectivoInicialUsd: number };
+    }
   // Los retiros ya no se encolan (la clave se valida en el servidor); el tipo se
   // conserva para poder sincronizar los que hayan quedado en cola.
   | { id: string; tipo: "retiro"; creadaEn: string; payload: { monto: number; motivo: string } };
